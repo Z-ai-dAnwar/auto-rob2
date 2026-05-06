@@ -52,6 +52,12 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Generated RoB 2 assessment outputs
+outputs/
+
+# Local input PDFs for assessment runs
+inputs/*.pdf
+
 # Translations
 *.mo
 *.pot
