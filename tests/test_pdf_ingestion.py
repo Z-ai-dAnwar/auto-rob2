@@ -1,9 +1,10 @@
 import fitz
 
+import rob2_pipeline.pdf_ingestion as pdf_ingestion
 from rob2_pipeline.pdf_ingestion import cap_section, extract_full_text, parse_sections
 
 
-def test_extract_full_text_from_synthetic_pdf(tmp_path):
+def test_extract_full_text_from_synthetic_pdf_via_fallback(tmp_path, monkeypatch):
     pdf_path = tmp_path / "synthetic_trial.pdf"
     doc = fitz.open()
     page = doc.new_page()
@@ -11,10 +12,55 @@ def test_extract_full_text_from_synthetic_pdf(tmp_path):
     doc.save(pdf_path)
     doc.close()
 
+    monkeypatch.setattr(
+        pdf_ingestion,
+        "_extract_with_docling",
+        lambda pdf_path: (_ for _ in ()).throw(RuntimeError("docling unavailable")),
+    )
+
     text = extract_full_text(str(pdf_path))
 
     assert "Abstract" in text
     assert "randomized trial" in text
+
+
+def test_extract_full_text_uses_docling_before_fallback(monkeypatch):
+    calls = []
+
+    def fake_docling(pdf_path):
+        calls.append(("docling", pdf_path))
+        return "Docling text\xa0with hyphen-\nbreaks"
+
+    def fake_fallback(pdf_path):
+        raise AssertionError("fallback should not be called")
+
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_fallback)
+
+    text = extract_full_text("trial.pdf")
+
+    assert calls == [("docling", "trial.pdf")]
+    assert text == "Docling text with hyphenbreaks"
+
+
+def test_extract_full_text_falls_back_to_pymupdf4llm(monkeypatch):
+    calls = []
+
+    def fake_docling(pdf_path):
+        calls.append(("docling", pdf_path))
+        raise RuntimeError("docling failed")
+
+    def fake_fallback(pdf_path):
+        calls.append(("fallback", pdf_path))
+        return "Fallback extracted randomized trial text."
+
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_fallback)
+
+    text = extract_full_text("trial.pdf")
+
+    assert calls == [("docling", "trial.pdf"), ("fallback", "trial.pdf")]
+    assert text == "Fallback extracted randomized trial text."
 
 
 def test_parse_sections_detects_expected_sections():
@@ -41,6 +87,34 @@ def test_parse_sections_detects_expected_sections():
     assert "double-blind" in sections["blinding"]
     assert "primary outcome" in sections["results"]
     assert "ClinicalTrials.gov" in sections["registration"]
+
+
+def test_parse_sections_detects_markdown_headings():
+    text = """
+    ## Methods
+    Participants were randomly assigned.
+    **Outcomes**
+    Overall survival was the primary endpoint.
+    """
+
+    sections = parse_sections(text)
+
+    assert "randomly assigned" in sections["methods"]
+    assert "Overall survival" in sections["outcomes"]
+
+
+def test_parse_sections_recovers_keyword_context_without_headings():
+    text = """
+    The paper describes a phase 3 trial.
+    Patients were assigned to treatment groups centrally.
+    Overall survival was the primary endpoint and progression-free survival was secondary.
+    Analyses used the intention-to-treat population.
+    """
+
+    sections = parse_sections(text)
+
+    assert "primary endpoint" in sections["outcomes"]
+    assert "intention-to-treat" in sections["analysis"]
 
 
 def test_parse_sections_falls_back_to_methods_for_randomization_and_blinding():

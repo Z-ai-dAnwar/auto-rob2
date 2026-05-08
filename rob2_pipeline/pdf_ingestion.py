@@ -1,3 +1,5 @@
+import logging
+import os
 import re
 
 import pymupdf4llm
@@ -54,10 +56,91 @@ SECTION_PATTERNS = {
 
 SECTION_ORDER = list(SECTION_PATTERNS)
 MAX_SECTION_CHARS = 10000
+MIN_EXTRACTED_CHARS = 20
+_DOCLING_CONVERTERS: dict[bool, object] = {}
 
 
 def extract_full_text(pdf_path: str) -> str:
-    return pymupdf4llm.to_markdown(pdf_path)
+    try:
+        return _normalize_extracted_text(_extract_with_docling(pdf_path))
+    except Exception as docling_error:
+        try:
+            return _normalize_extracted_text(_extract_with_pymupdf4llm(pdf_path))
+        except Exception as fallback_error:
+            raise RuntimeError(
+                f"PDF text extraction failed with Docling and PyMuPDF4LLM for {pdf_path!r}. "
+                f"Docling error: {docling_error}. PyMuPDF4LLM error: {fallback_error}."
+            ) from fallback_error
+
+
+def _extract_with_docling(pdf_path: str) -> str:
+    errors = []
+    for use_ocr in (False, True):
+        try:
+            return _extract_with_docling_loader(pdf_path, use_ocr=use_ocr)
+        except Exception as error:
+            errors.append(f"OCR={use_ocr}: {error}")
+    raise RuntimeError("; ".join(errors))
+
+
+def _extract_with_docling_loader(pdf_path: str, use_ocr: bool) -> str:
+    _configure_docling_runtime()
+
+    from langchain_docling import DoclingLoader
+    from langchain_docling.loader import ExportType
+
+    loader = DoclingLoader(
+        file_path=pdf_path,
+        converter=_get_docling_converter(use_ocr=use_ocr),
+        export_type=ExportType.MARKDOWN,
+    )
+    docs = list(loader.lazy_load())
+    markdown = "\n\n".join(doc.page_content for doc in docs if doc.page_content)
+    if len(markdown.strip()) < MIN_EXTRACTED_CHARS:
+        raise RuntimeError(f"langchain-docling returned too little text to use with OCR={use_ocr}")
+    return markdown
+
+
+def _get_docling_converter(use_ocr: bool):
+    converter = _DOCLING_CONVERTERS.get(use_ocr)
+    if converter is not None:
+        return converter
+
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+
+    pipeline_options = PdfPipelineOptions()
+    pipeline_options.allow_external_plugins = True
+    pipeline_options.do_ocr = use_ocr
+    converter = DocumentConverter(
+        allowed_formats=[InputFormat.PDF],
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)},
+    )
+    _DOCLING_CONVERTERS[use_ocr] = converter
+    return converter
+
+
+def _configure_docling_runtime() -> None:
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("TQDM_DISABLE", "1")
+    logging.getLogger("RapidOCR").setLevel(logging.WARNING)
+    logging.getLogger("rapidocr").setLevel(logging.WARNING)
+
+
+def _extract_with_pymupdf4llm(pdf_path: str) -> str:
+    markdown = pymupdf4llm.to_markdown(pdf_path)
+    if len(markdown.strip()) < MIN_EXTRACTED_CHARS:
+        raise RuntimeError("PyMuPDF4LLM returned too little text to use")
+    return markdown
+
+
+def _normalize_extracted_text(text: str) -> str:
+    text = text.replace("\x00", "").replace("\xa0", " ")
+    text = re.sub(r"(?<=\w)-\n(?=\w)", "", text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{4,}", "\n\n\n", text)
+    return text.strip()
 
 
 def cap_section(
@@ -108,6 +191,8 @@ def cap_section(
 
 def _normalize_heading(line: str) -> str:
     line = line.strip().lower()
+    line = re.sub(r"^#{1,6}\s*", "", line)
+    line = line.strip("*_` ")
     line = re.sub(r"^\d+(?:\.\d+)*\s*", "", line)
     line = re.sub(r"[:.\s]+$", "", line)
     return line
@@ -115,6 +200,8 @@ def _normalize_heading(line: str) -> str:
 
 def _detect_heading(line: str) -> str | None:
     stripped = line.strip()
+    if stripped.startswith("|"):
+        return None
     normalized = _normalize_heading(line)
     if not normalized or len(normalized) > 120:
         return None
@@ -128,6 +215,31 @@ def _detect_heading(line: str) -> str | None:
             if pattern in normalized or compact_pattern in compact_normalized:
                 return section
     return None
+
+
+def _extract_keyword_context(full_text: str, section_name: str) -> str:
+    keywords = SECTION_PATTERNS[section_name]
+    lines = full_text.splitlines()
+    windows = []
+    seen_ranges = set()
+
+    for index, line in enumerate(lines):
+        lowered = line.lower()
+        if not any(keyword in lowered for keyword in keywords):
+            continue
+        start = max(0, index - 3)
+        end = min(len(lines), index + 8)
+        window_key = (start, end)
+        if window_key in seen_ranges:
+            continue
+        seen_ranges.add(window_key)
+        window = "\n".join(lines[start:end]).strip()
+        if window:
+            windows.append(window)
+        if len(windows) >= 8:
+            break
+
+    return cap_section("\n\n[... nearby text ...]\n\n".join(windows), keywords=keywords) if windows else ""
 
 
 def _augment_consort_from_results(sections: dict) -> dict:
@@ -185,6 +297,20 @@ def parse_sections(full_text: str) -> dict[str, str]:
             sections["randomization"] = sections["methods"]
         if not sections["blinding"]:
             sections["blinding"] = sections["methods"]
+
+    for name in (
+        "randomization",
+        "blinding",
+        "outcomes",
+        "analysis",
+        "missing_data",
+        "registration",
+        "baseline",
+        "consort",
+        "supplementary",
+    ):
+        if not sections[name]:
+            sections[name] = _extract_keyword_context(full_text, name)
 
     sections = _augment_consort_from_results(sections)
 
