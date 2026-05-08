@@ -16,7 +16,6 @@ def overall_judge_node(state: RoB2State) -> RoB2State:
     else:
         priority = "LOW"
     return {
-        **state,
         "overall_judgment": judgment,
         "overall_rationale": rationale,
         "ni_count": ni_count,

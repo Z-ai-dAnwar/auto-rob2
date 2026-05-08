@@ -7,21 +7,33 @@ from rob2_pipeline.xml_parser import parse_sq_response
 
 def domain5_sq_node(state: RoB2State) -> RoB2State:
     sections = state["sections"]
+    errors = list(state.get("errors", []))
+    human_review_priority = state.get("human_review_priority", "HIGH")
+    if state.get("intervention") == "Not reported":
+        errors.append("Intervention not reported; manual review required for Domain 5 assessment.")
+        human_review_priority = "HIGH"
     prompt = PROMPT_DOMAIN5.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
         numerical_result=state.get("numerical_result", "Not reported"),
         registration_number=state.get("registration_number", "Not reported"),
-        registered_endpoint="Not reported",
+        registered_endpoint=state.get("registered_endpoint", "Not reported"),
         reported_endpoint=state.get("outcome", "Not reported"),
         registration_text=sections.get("registration", ""),
         sap_text=sections.get("analysis", ""),
         results_text=sections.get("results", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain5_sq")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["5.1", "5.2", "5.3"]))
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain5_sq", parse_sq_response, ["5.1", "5.2", "5.3"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
+    return {
+        "sq_answers": sq_answers,
+        "llm_call_log": log,
+        "errors": errors,
+        "human_review_priority": human_review_priority,
+    }
 
 
 def domain5_judge_node(state: RoB2State) -> RoB2State:

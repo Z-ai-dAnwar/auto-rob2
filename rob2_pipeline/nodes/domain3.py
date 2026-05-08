@@ -16,8 +16,10 @@ def domain3_sq_node(state: RoB2State) -> RoB2State:
         missing_data_text=sections.get("missing_data", "") or sections.get("results", ""),
         sensitivity_text=sections.get("analysis", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain3_sq")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["3.1", "3.2", "3.3", "3.4"]))
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain3_sq", parse_sq_response, ["3.1", "3.2", "3.3", "3.4"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
     s31 = sq_answers.get("3.1", {}).get("answer", "NI")
     s32 = sq_answers.get("3.2", {}).get("answer", "NA")
     s33 = sq_answers.get("3.3", {}).get("answer", "NA")
@@ -27,7 +29,7 @@ def domain3_sq_node(state: RoB2State) -> RoB2State:
         sq_answers = set_na(sq_answers, "3.3", "3.4")
     elif s33 in ("N", "PN"):
         sq_answers = set_na(sq_answers, "3.4")
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain3_judge_node(state: RoB2State) -> RoB2State:

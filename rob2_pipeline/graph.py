@@ -18,7 +18,11 @@ from rob2_pipeline.nodes.reporter import report_formatter_node
 from rob2_pipeline.state import RoB2State
 
 
+DOMAIN_START_NODES = ["domain1_sq", "domain2_sq12", "domain3_sq", "domain4_sq", "domain5_sq"]
+
+
 def build_rob2_graph():
+    """Build and compile the LangGraph for RoB 2 assessment."""
     g = StateGraph(RoB2State)
 
     g.add_node("pdf_ingest", pdf_ingest_node)
@@ -55,15 +59,11 @@ def build_rob2_graph():
     )
     g.add_edge("preliminary_info", "section_parser")
 
-    # Fan-out shape for future re-enable once rate-limit-safe parallelism is added:
-    # for domain_start in ["domain1_sq", "domain2_sq12", "domain3_sq", "domain4_sq", "domain5_sq"]:
-    #     g.add_edge("section_parser", domain_start)
-    # for judge in ["domain1_judge", "domain2_judge", "domain3_judge", "domain4_judge", "domain5_judge"]:
-    #     g.add_edge(judge, "overall_judge")
+    for domain_start in DOMAIN_START_NODES:
+        g.add_edge("section_parser", domain_start)
 
-    g.add_edge("section_parser", "domain1_sq")
     g.add_edge("domain1_sq", "domain1_judge")
-    g.add_edge("domain1_judge", "domain2_sq12")
+    g.add_edge("domain1_judge", "overall_judge")
 
     g.add_conditional_edges(
         "domain2_sq12",
@@ -72,12 +72,14 @@ def build_rob2_graph():
     )
     g.add_edge("domain2_conditional", "domain2_analysis")
     g.add_edge("domain2_analysis", "domain2_judge")
-    g.add_edge("domain2_judge", "domain3_sq")
+    g.add_edge("domain2_judge", "overall_judge")
 
     g.add_edge("domain3_sq", "domain3_judge")
-    g.add_edge("domain3_judge", "domain4_sq")
+    g.add_edge("domain3_judge", "overall_judge")
+
     g.add_edge("domain4_sq", "domain4_judge")
-    g.add_edge("domain4_judge", "domain5_sq")
+    g.add_edge("domain4_judge", "overall_judge")
+
     g.add_edge("domain5_sq", "domain5_judge")
     g.add_edge("domain5_judge", "overall_judge")
     g.add_edge("overall_judge", "report_formatter")

@@ -21,12 +21,13 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         abstract_text=sections.get("abstract", ""),
         methods_text=sections.get("methods", ""),
         results_text=sections.get("results", ""),
+        registration_text=sections.get("registration", ""),
+        consort_text=sections.get("consort", ""),
     )
-    response, log = call_node_llm(state, prompt, "preliminary_info")
+    response, log, _ = call_node_llm(state, prompt, "preliminary_info")
     requested_outcome = state.get("outcome", "")
     extracted_outcome = _nested_text(response, "outcome_assessed", "value")
     return {
-        **state,
         "intervention": _nested_text(response, "experimental_intervention", "value"),
         "comparator": _nested_text(response, "comparator_intervention", "value"),
         "outcome": requested_outcome or extracted_outcome,
@@ -35,6 +36,8 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         "effect_of_interest": state.get("effect_of_interest", "ITT"),
         "registration_number": _nested_text(response, "trial_registration", "number"),
         "n_randomized": _nested_text(response, "n_randomized", "value"),
+        "registered_endpoint": _nested_text(response, "registered_primary_endpoint", "value"),
+        "registered_analysis": _nested_text(response, "registered_analysis", "value"),
         "sources_consulted": [name for name, text in sections.items() if text],
         "llm_call_log": log,
     }

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from rob2_pipeline.constants import DEFAULT_OUTPUT_DIR
+
 
 def discover_pdf_inputs(input_path: str) -> list[Path]:
     """Return PDF files from a single PDF path or a directory, sorted for stable batch runs."""
@@ -17,4 +19,4 @@ def discover_pdf_inputs(input_path: str) -> list[Path]:
 
 
 def default_output_dir() -> str:
-    return "outputs"
+    return DEFAULT_OUTPUT_DIR

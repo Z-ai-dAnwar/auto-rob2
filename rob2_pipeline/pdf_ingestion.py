@@ -1,6 +1,10 @@
 import re
 
-import fitz
+import pymupdf4llm
+from langchain_core.messages import HumanMessage
+from lxml import etree
+
+from rob2_pipeline import llm_client
 
 
 SECTION_PATTERNS = {
@@ -57,25 +61,108 @@ MAX_SECTION_CHARS = 6000
 
 
 def extract_full_text(pdf_path: str) -> str:
-    doc = fitz.open(pdf_path)
-    pages = []
-    try:
-        for page in doc:
-            blocks = page.get_text("blocks", sort=True)
-            page_text = "\n".join(b[4] for b in blocks if len(b) > 6 and b[6] == 0)
-            pages.append(page_text)
-    finally:
-        doc.close()
-    return "\n\n".join(pages)
+    return pymupdf4llm.to_markdown(pdf_path)
 
 
-def cap_section(text: str, max_chars: int = MAX_SECTION_CHARS) -> str:
-    if len(text) <= max_chars:
+def cap_section(
+    text: str,
+    max_chars: int = MAX_SECTION_CHARS,
+    keywords: list[str] | None = None,
+) -> str:
+    if len(text) <= 8000:
         return text
+    if keywords is None:
+        keywords = [
+            "random",
+            "allocation",
+            "conceal",
+            "blind",
+            "mask",
+            "itt",
+            "per-protocol",
+            "missing",
+            "imputation",
+            "outcome",
+            "endpoint",
+            "register",
+        ]
+    chunk_size = 2000
+    step = 1000
+    chunks = []
+    for start in range(0, len(text), step):
+        chunk = text[start : start + chunk_size]
+        if not chunk:
+            break
+        score = sum(chunk.lower().count(keyword) for keyword in keywords)
+        chunks.append((score, start, chunk))
+        if start + chunk_size >= len(text):
+            break
+    chunks.sort(key=lambda item: (item[0], -item[1]), reverse=True)
+    top_chunks = [chunk for score, _, chunk in chunks if chunk and score > 0][:3]
+    if not top_chunks:
+        top_chunks = [chunk for _, _, chunk in chunks[:3] if chunk]
     marker = "\n[... truncated ...]\n"
-    head_len = 3000
-    tail_len = max_chars - head_len - len(marker)
-    return f"{text[:head_len]}{marker}{text[-tail_len:]}"
+    combined = marker.join(top_chunks)
+    return combined[:max_chars]
+
+
+def _clean_markdown(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def llm_section_parser(full_text: str, llm) -> dict[str, str]:
+    cleaned_full = _clean_markdown(full_text)
+    preview = cleaned_full[:20000]
+    prompt = f"""You are a text-structure extraction system.
+
+Given the Markdown below, identify the character-offset spans for the canonical sections:
+abstract, methods, randomization, blinding, outcomes, analysis, results, missing_data, registration, baseline, consort, supplementary.
+
+Return XML only in this format:
+<sections>
+  <section name=\"methods\"><start>1204</start><end>3887</end></section>
+  ...
+</sections>
+
+Rules:
+- Spans refer to offsets in the provided Markdown string.
+- Use 0-based character offsets.
+- Provide only sections you can confidently locate.
+
+Markdown (first 20,000 chars):
+"""
+    message = HumanMessage(content=prompt + preview)
+    try:
+        response = llm_client.call_llm(llm, [message], node_name="section_parser")
+    except Exception:
+        return parse_sections(full_text)
+
+    spans = {}
+    try:
+        root = etree.fromstring(f"<root>{response}</root>".encode())
+        for section in root.findall(".//section"):
+            name = section.get("name") or ""
+            start = section.findtext("start")
+            end = section.findtext("end")
+            if name in SECTION_ORDER and start and end:
+                spans[name] = (int(start), int(end))
+    except Exception:
+        return parse_sections(full_text)
+
+    sections = {name: "" for name in SECTION_ORDER}
+    for name, (start, end) in spans.items():
+        if 0 <= start < end <= len(cleaned_full):
+            sections[name] = cap_section(cleaned_full[start:end].strip())
+
+    if not spans:
+        return parse_sections(full_text)
+
+    if sections["methods"]:
+        if not sections["randomization"]:
+            sections["randomization"] = sections["methods"]
+        if not sections["blinding"]:
+            sections["blinding"] = sections["methods"]
+    return sections
 
 
 def _normalize_heading(line: str) -> str:

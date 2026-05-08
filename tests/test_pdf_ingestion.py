@@ -78,15 +78,26 @@ def test_parse_sections_returns_empty_strings_for_missing_sections():
     assert sections["methods"] == ""
 
 
-def test_cap_section_keeps_first_and_last_segments():
-    text = "A" * 3500 + "MIDDLE" + "B" * 3500
+def test_cap_section_returns_unchanged_when_under_limit():
+    text = "A" * 7999
     capped = cap_section(text)
 
-    assert len(capped) == 6000
+    assert capped == text
+
+
+def test_cap_section_prefers_keyword_dense_chunks():
+    text = (
+        "A" * 3000
+        + " random allocation conceal blind " * 40
+        + "B" * 3000
+        + " outcome endpoint register " * 40
+        + "C" * 3000
+    )
+    capped = cap_section(text)
+
     assert "[... truncated ...]" in capped
-    assert capped.startswith("A" * 100)
-    assert capped.endswith("B" * 100)
-    assert "MIDDLE" not in capped
+    assert "allocation" in capped.lower()
+    assert len(capped) <= 6000
 
 
 def test_section_debug_summary_reports_counts():

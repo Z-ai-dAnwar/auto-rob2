@@ -35,6 +35,14 @@ Read these sections of the trial report:
 {results_text}
 </results>
 
+<registration>
+{registration_text}
+</registration>
+
+<consort_flow>
+{consort_text}
+</consort_flow>
+
 For each item below, provide: (1) the extracted value, and (2) the EXACT quoted text from the paper in quotation marks with a section reference. Do not paraphrase quotes.
 
 <preliminary_info>
@@ -71,6 +79,16 @@ For each item below, provide: (1) the extracted value, and (2) the EXACT quoted 
     <registry>[ClinicalTrials.gov or ISRCTN or "Not reported"]</registry>
     <quote>"[exact text]" or "Not reported"</quote>
   </trial_registration>
+
+  <registered_primary_endpoint>
+    <value>[primary endpoint listed in trial registry or protocol]</value>
+    <quote>"[exact text]" ([Section])</quote>
+  </registered_primary_endpoint>
+
+  <registered_analysis>
+    <value>[pre-specified analysis approach from registry/protocol, e.g., ITT or per-protocol]</value>
+    <quote>"[exact text]" ([Section])</quote>
+  </registered_analysis>
 </preliminary_info>
 
 RULES:
@@ -349,7 +367,7 @@ Answer NI if: no information about outcome completeness.
 IF 3.1 = Y/PY: set 3.2, 3.3, 3.4 to NA.
 IF 3.1 = N/PN/NI: answer Q3.2.
 
-QUESTION 3.2 [if 3.1 = N/PN/NI]: Is there EVIDENCE that the result was NOT biased by missing outcome data?
+QUESTION 3.2 [answer ONLY if 3.1 = N/PN/NI; otherwise answer NA]: Is there EVIDENCE that the result was NOT biased by missing outcome data?
 
 ADEQUATE evidence: pre-specified sensitivity analyses (tipping-point, best/worst-case imputation), multiple imputation with appropriate assumptions, pattern-mixture models.
 INADEQUATE alone: LOCF (last-observation-carried-forward), complete-case analysis without sensitivity analyses.
@@ -357,14 +375,14 @@ INADEQUATE alone: LOCF (last-observation-carried-forward), complete-case analysi
 IF 3.2 = Y/PY: set 3.3 and 3.4 to NA.
 IF 3.2 = N/PN: answer Q3.3.
 
-QUESTION 3.3 [if 3.2 = N/PN]: Could missingness in the outcome DEPEND ON ITS TRUE VALUE?
+QUESTION 3.3 [answer ONLY if 3.2 = N/PN; otherwise answer NA]: Could missingness in the outcome DEPEND ON ITS TRUE VALUE?
 
 This asks whether the reason someone is missing could be related to their actual outcome value. Common examples: participants who worsened may have dropped out; participants who died can no longer contribute. If most withdrawals have documented reasons clearly unrelated to outcome (relocation, administrative reasons), answer N/PN.
 
 IF 3.3 = N/PN: set 3.4 to NA.
 IF 3.3 = Y/PY/NI: answer Q3.4.
 
-QUESTION 3.4 [if 3.3 = Y/PY/NI]: Is it LIKELY that missingness depended on its true value?
+QUESTION 3.4 [answer ONLY if 3.3 = Y/PY/NI; otherwise answer NA]: Is it LIKELY that missingness depended on its true value?
 
 Note: This requires inference about unobserved mechanisms and is inherently uncertain. Set uncertainty_flag=HIGH unless you have clear direct evidence.
 
@@ -433,7 +451,7 @@ Answer N/PN if: identical measurement procedures in both arms.
 IF 4.1 OR 4.2 = Y/PY: set 4.3, 4.4, 4.5 to NA (domain is already High risk).
 IF BOTH 4.1 AND 4.2 = N/PN/NI: answer Q4.3.
 
-QUESTION 4.3 [if both 4.1 and 4.2 = N/PN/NI]: Were OUTCOME ASSESSORS aware of the intervention received?
+QUESTION 4.3 [answer ONLY if both 4.1 and 4.2 = N/PN/NI; otherwise answer NA]: Were OUTCOME ASSESSORS aware of the intervention received?
 
 (For patient-reported outcomes: see special rule above.)
 Answer Y/PY if: assessors explicitly knew assignments, or blinding was not attempted.
@@ -442,7 +460,7 @@ Answer N/PN if: assessors were blinded and blinding was maintained.
 IF 4.3 = N/PN: set 4.4 and 4.5 to NA.
 IF 4.3 = Y/PY/NI: answer Q4.4.
 
-QUESTION 4.4 [if 4.3 = Y/PY/NI]: Could knowledge of intervention have INFLUENCED THE ASSESSMENT?
+QUESTION 4.4 [answer ONLY if 4.3 = Y/PY/NI; otherwise answer NA]: Could knowledge of intervention have INFLUENCED THE ASSESSMENT?
 
 For OBJECTIVE outcomes (all-cause mortality, centrally adjudicated imaging, lab values): answer N — knowledge cannot influence an objective fact.
 For PATIENT-REPORTED outcomes (pain, nausea, QoL, fatigue): answer Y/PY — subjective self-report is directly shaped by expectation.
@@ -451,7 +469,7 @@ For CLINICIAN-ASSESSED outcomes (CTCAE grading, clinical response): answer Y/PY 
 IF 4.4 = N/PN: set 4.5 to NA.
 IF 4.4 = Y/PY/NI: answer Q4.5.
 
-QUESTION 4.5 [if 4.4 = Y/PY/NI]: Was assessment LIKELY influenced by knowledge of intervention?
+QUESTION 4.5 [answer ONLY if 4.4 = Y/PY/NI; otherwise answer NA]: Was assessment LIKELY influenced by knowledge of intervention?
 
 Consider: strongly held beliefs about intervention superiority; whether assessors were also delivering the intervention.
 

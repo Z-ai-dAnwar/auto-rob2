@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Optional
 
@@ -59,9 +60,10 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
                       "uncertainty_flag": "NORMAL"}, ...}
     """
     result = {}
+    cleaned_xml = re.sub(r"```xml\s*|\s*```", "", xml_string).strip()
     root = None
     try:
-        root = etree.fromstring(f"<root>{xml_string}</root>".encode())
+        root = etree.fromstring(f"<root>{cleaned_xml}</root>".encode())
     except Exception:
         root = None
 
@@ -80,7 +82,8 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
                 }
 
         if parsed is None:
-            parsed = _regex_extract_sq(xml_string, tag_name)
+            logging.warning("[xml_parser] Malformed XML for %s, using regex fallback", sq_id)
+            parsed = _regex_extract_sq(cleaned_xml, tag_name)
 
         answer = _normalize_answer(parsed.get("answer", "NI")) if parsed else "NI"
         quote_default = "Not applicable" if answer == "NA" else "No relevant text found"
@@ -102,3 +105,14 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
         }
 
     return result
+
+
+def validate_sq_answers(parsed: dict[str, dict], expected_ids: list[str]) -> list[str]:
+    suspected = []
+    for sq_id in expected_ids:
+        answer = parsed.get(sq_id, {})
+        if answer.get("answer") == "NI" and answer.get("justification") == "No relevant text found":
+            suspected.append(sq_id)
+    if suspected:
+        logging.warning("[xml_parser] Suspected parse failures for %s", ", ".join(suspected))
+    return suspected

@@ -15,9 +15,11 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         baseline_text=sections.get("baseline", ""),
         consort_text=sections.get("consort", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain1_sq")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["1.1", "1.2", "1.3"]))
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain1_sq", parse_sq_response, ["1.1", "1.2", "1.3"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain1_judge_node(state: RoB2State) -> RoB2State:

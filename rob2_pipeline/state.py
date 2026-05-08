@@ -1,49 +1,64 @@
-from typing import NotRequired, TypedDict
+import operator
+from typing import Annotated, NotRequired, TypedDict
+
+from rob2_pipeline.types import LLMCallLogEntry
+
+
+def merge_dicts(left: dict, right: dict) -> dict:
+    merged = dict(left or {})
+    merged.update(right or {})
+    return merged
+
+
+def take_latest(_left, right):
+    return right
 
 
 class RoB2State(TypedDict):
     # === INPUT ===
-    pdf_path: str
-    full_text: str
-    sections: dict[str, str]
+    pdf_path: Annotated[str, take_latest]
+    full_text: Annotated[str, take_latest]
+    sections: Annotated[dict[str, str], take_latest]
 
     # === PRELIMINARY INFO ===
-    is_rct: bool
-    rct_screen_evidence: str
-    intervention: str
-    comparator: str
-    outcome: str
-    outcome_type: str
-    numerical_result: str
-    effect_of_interest: str
-    registration_number: str
-    n_randomized: str
-    sources_consulted: list[str]
+    is_rct: Annotated[bool, take_latest]
+    rct_screen_evidence: Annotated[str, take_latest]
+    intervention: Annotated[str, take_latest]
+    comparator: Annotated[str, take_latest]
+    outcome: Annotated[str, take_latest]
+    outcome_type: Annotated[str, take_latest]
+    numerical_result: Annotated[str, take_latest]
+    effect_of_interest: Annotated[str, take_latest]
+    registration_number: Annotated[str, take_latest]
+    registered_endpoint: Annotated[str, take_latest]
+    registered_analysis: Annotated[str, take_latest]
+    n_randomized: Annotated[str, take_latest]
+    sources_consulted: Annotated[list[str], take_latest]
 
     # === SIGNALING QUESTION ANSWERS ===
-    sq_answers: dict[str, dict]
+    sq_answers: Annotated[dict[str, dict], merge_dicts]
 
     # === DOMAIN JUDGMENTS (set by deterministic nodes) ===
-    domain_judgments: dict[str, str]
-    domain_rationales: dict[str, str]
+    domain_judgments: Annotated[dict[str, str], merge_dicts]
+    domain_rationales: Annotated[dict[str, str], merge_dicts]
 
     # === OVERALL ===
-    overall_judgment: str
-    overall_rationale: str
+    overall_judgment: Annotated[str, take_latest]
+    overall_rationale: Annotated[str, take_latest]
 
     # === QUALITY FLAGS ===
-    ni_count: int
-    high_uncertainty_sqs: list[str]
-    human_review_priority: str
+    ni_count: Annotated[int, take_latest]
+    high_uncertainty_sqs: Annotated[list[str], take_latest]
+    human_review_priority: Annotated[str, take_latest]
 
     # === OUTPUT ===
-    markdown_report: str
-    json_output: dict
+    markdown_report: Annotated[str, take_latest]
+    json_output: Annotated[dict, take_latest]
 
     # === METADATA ===
-    errors: list[str]
-    llm_call_log: list[dict]
+    errors: Annotated[list[str], take_latest]
+    llm_call_log: Annotated[list[LLMCallLogEntry], operator.add]
 
 
 RoB2State.__annotations__.pop("_RoB2State__debug_sections", None)
-RoB2State.__annotations__["__debug_sections"] = NotRequired[dict]
+RoB2State.__annotations__["__debug_sections"] = NotRequired[Annotated[dict, take_latest]]

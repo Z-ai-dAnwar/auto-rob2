@@ -1,4 +1,4 @@
-from rob2_pipeline.xml_parser import extract_tag, parse_sq_response
+from rob2_pipeline.xml_parser import extract_tag, parse_sq_response, validate_sq_answers
 
 
 def test_extract_tag_well_formed_fragment():
@@ -87,3 +87,28 @@ def test_parse_sq_response_unexpected_answer_values():
     assert parsed["5.1"]["quote"] == "No relevant text found"
     assert parsed["5.2"]["answer"] == "NA"
     assert parsed["5.2"]["quote"] == "Not applicable"
+
+
+def test_parse_sq_response_strips_xml_code_fences():
+    xml = """
+    ```xml
+    <domain1>
+      <sq_1_1>
+        <answer>Y</answer>
+        <quote>\"Randomized\" (Methods)</quote>
+        <justification>Directly reported.</justification>
+      </sq_1_1>
+    </domain1>
+    ```
+    """
+    parsed = parse_sq_response(xml, ["1.1"])
+    assert parsed["1.1"]["answer"] == "Y"
+
+
+def test_validate_sq_answers_flags_suspected_parse_failures():
+    parsed = {
+        "1.1": {"answer": "NI", "justification": "No relevant text found"},
+        "1.2": {"answer": "Y", "justification": "Found explicit method"},
+    }
+    suspected = validate_sq_answers(parsed, ["1.1", "1.2"])
+    assert suspected == ["1.1"]

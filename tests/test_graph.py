@@ -48,6 +48,8 @@ def _initial_state(pdf_path: str) -> dict:
         "numerical_result": "Not reported",
         "effect_of_interest": "ITT",
         "registration_number": "Not reported",
+        "registered_endpoint": "Not reported",
+        "registered_analysis": "Not reported",
         "n_randomized": "Not reported",
         "sources_consulted": [],
         "sq_answers": {},
@@ -65,8 +67,21 @@ def _initial_state(pdf_path: str) -> dict:
     }
 
 
-def _llm_response(*_args, node_name: str = ""):
+def _llm_response(*_args, node_name: str = "", **_kwargs):
     responses = {
+        "section_parser": """
+        <sections>
+          <section name="abstract"><start>0</start><end>60</end></section>
+          <section name="methods"><start>61</start><end>180</end></section>
+          <section name="randomization"><start>100</start><end>160</end></section>
+          <section name="blinding"><start>120</start><end>175</end></section>
+          <section name="outcomes"><start>181</start><end>240</end></section>
+          <section name="analysis"><start>120</start><end>220</end></section>
+          <section name="results"><start>241</start><end>320</end></section>
+          <section name="missing_data"><start>241</start><end>320</end></section>
+          <section name="registration"><start>321</start><end>420</end></section>
+        </sections>
+        """,
         "rct_screener": """
         <screening><is_rct>YES</is_rct><evidence>"randomly assigned"</evidence><study_design>RCT</study_design><note></note></screening>
         """,
@@ -79,6 +94,8 @@ def _llm_response(*_args, node_name: str = ""):
           <numerical_result><value>RR 0.90 (95% CI 0.70-1.10)</value><quote>"RR 0.90" (Results)</quote></numerical_result>
           <n_randomized><value>100</value><quote>"100 participants" (Results)</quote></n_randomized>
           <trial_registration><number>NCT00000000</number><registry>ClinicalTrials.gov</registry><quote>"NCT00000000" (Registration)</quote></trial_registration>
+          <registered_primary_endpoint><value>mortality</value><quote>"mortality" (Registration)</quote></registered_primary_endpoint>
+          <registered_analysis><value>ITT</value><quote>"intention-to-treat" (Methods)</quote></registered_analysis>
         </preliminary_info>
         """,
         "domain1_sq": """
@@ -150,7 +167,7 @@ def test_graph_stops_for_non_rct(tmp_path):
     pdf_path = tmp_path / "cohort.pdf"
     _make_pdf(pdf_path)
 
-    def non_rct_response(*_args, node_name: str = ""):
+    def non_rct_response(*_args, node_name: str = "", **_kwargs):
         assert node_name == "rct_screener"
         return "<screening><is_rct>NO</is_rct><evidence>cohort</evidence><study_design>Cohort</study_design><note>Use ROBINS-I</note></screening>"
 
@@ -170,7 +187,7 @@ def test_rct_screener_prompt_includes_randomization_context(tmp_path):
     _make_pdf(pdf_path)
     captured = {}
 
-    def capture_prompt(_llm, messages, node_name: str = ""):
+    def capture_prompt(_llm, messages, node_name: str = "", **_kwargs):
         captured[node_name] = messages[0].content
         return _llm_response(_llm, messages, node_name=node_name)
 

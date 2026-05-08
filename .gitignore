@@ -55,6 +55,9 @@ cover/
 # Generated RoB 2 assessment outputs
 outputs/
 
+# Prompt cache
+.rob2_cache/
+
 # Local input PDFs for assessment runs
 inputs/*.pdf
 

@@ -14,13 +14,15 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
         blinding_text=sections.get("blinding", ""),
         methods_text=sections.get("methods", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain2_sq12")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["2.1", "2.2"]))
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain2_sq12", parse_sq_response, ["2.1", "2.2"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
     s21 = sq_answers.get("2.1", {}).get("answer", "NI")
     s22 = sq_answers.get("2.2", {}).get("answer", "NI")
     if s21 in ("N", "PN") and s22 in ("N", "PN"):
         sq_answers = set_na(sq_answers, "2.3", "2.4", "2.5")
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def d2_needs_conditional(state: RoB2State) -> str:
@@ -43,15 +45,17 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
         deviations_text=sections.get("methods", "") + "\n" + sections.get("results", ""),
         concomitant_text=sections.get("methods", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain2_conditional")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["2.3", "2.4", "2.5"]))
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain2_conditional", parse_sq_response, ["2.3", "2.4", "2.5"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
     s23 = sq_answers.get("2.3", {}).get("answer", "NI")
     s24 = sq_answers.get("2.4", {}).get("answer", "NI")
     if s23 in ("N", "PN", "NI"):
         sq_answers = set_na(sq_answers, "2.4", "2.5")
     elif s24 in ("N", "PN", "NA"):
         sq_answers = set_na(sq_answers, "2.5")
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain2_analysis_node(state: RoB2State) -> RoB2State:
@@ -63,11 +67,13 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         analysis_text=sections.get("analysis", ""),
         results_text=sections.get("results", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain2_analysis")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["2.6", "2.7"]))
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain2_analysis", parse_sq_response, ["2.6", "2.7"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
     if sq_answers.get("2.6", {}).get("answer", "NI") in ("Y", "PY"):
         sq_answers = set_na(sq_answers, "2.7")
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain2_judge_node(state: RoB2State) -> RoB2State:

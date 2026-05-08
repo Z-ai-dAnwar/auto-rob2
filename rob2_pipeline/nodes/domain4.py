@@ -17,8 +17,10 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
         outcome_measurement_text=sections.get("outcomes", "") or sections.get("methods", ""),
         blinding_text=sections.get("blinding", ""),
     )
-    response, log = call_node_llm(state, prompt, "domain4_sq")
-    sq_answers = merge_sq_answers(state, parse_sq_response(response, ["4.1", "4.2", "4.3", "4.4", "4.5"]))
+    response, log, parsed = call_node_llm(
+        state, prompt, "domain4_sq", parse_sq_response, ["4.1", "4.2", "4.3", "4.4", "4.5"]
+    )
+    sq_answers = merge_sq_answers(state, parsed or {})
     s41 = sq_answers.get("4.1", {}).get("answer", "NI")
     s42 = sq_answers.get("4.2", {}).get("answer", "NI")
     s43 = sq_answers.get("4.3", {}).get("answer", "NA")
@@ -36,7 +38,7 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
         sq_answers = set_na(sq_answers, "4.4", "4.5")
     elif s44 in ("N", "PN"):
         sq_answers = set_na(sq_answers, "4.5")
-    return {**state, "sq_answers": sq_answers, "llm_call_log": log}
+    return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain4_judge_node(state: RoB2State) -> RoB2State:
