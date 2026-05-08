@@ -1,10 +1,6 @@
 import re
 
 import pymupdf4llm
-from langchain_core.messages import HumanMessage
-from lxml import etree
-
-from rob2_pipeline import llm_client
 
 
 SECTION_PATTERNS = {
@@ -106,65 +102,6 @@ def cap_section(
     return combined[:max_chars]
 
 
-def _clean_markdown(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
-
-
-def llm_section_parser(full_text: str, llm) -> dict[str, str]:
-    cleaned_full = _clean_markdown(full_text)
-    preview = cleaned_full[:20000]
-    prompt = f"""You are a text-structure extraction system.
-
-Given the Markdown below, identify the character-offset spans for the canonical sections:
-abstract, methods, randomization, blinding, outcomes, analysis, results, missing_data, registration, baseline, consort, supplementary.
-
-Return XML only in this format:
-<sections>
-  <section name=\"methods\"><start>1204</start><end>3887</end></section>
-  ...
-</sections>
-
-Rules:
-- Spans refer to offsets in the provided Markdown string.
-- Use 0-based character offsets.
-- Provide only sections you can confidently locate.
-
-Markdown (first 20,000 chars):
-"""
-    message = HumanMessage(content=prompt + preview)
-    try:
-        response = llm_client.call_llm(llm, [message], node_name="section_parser")
-    except Exception:
-        return parse_sections(full_text)
-
-    spans = {}
-    try:
-        root = etree.fromstring(f"<root>{response}</root>".encode())
-        for section in root.findall(".//section"):
-            name = section.get("name") or ""
-            start = section.findtext("start")
-            end = section.findtext("end")
-            if name in SECTION_ORDER and start and end:
-                spans[name] = (int(start), int(end))
-    except Exception:
-        return parse_sections(full_text)
-
-    sections = {name: "" for name in SECTION_ORDER}
-    for name, (start, end) in spans.items():
-        if 0 <= start < end <= len(cleaned_full):
-            sections[name] = cap_section(cleaned_full[start:end].strip())
-
-    if not spans:
-        return parse_sections(full_text)
-
-    if sections["methods"]:
-        if not sections["randomization"]:
-            sections["randomization"] = sections["methods"]
-        if not sections["blinding"]:
-            sections["blinding"] = sections["methods"]
-    return sections
-
-
 def _normalize_heading(line: str) -> str:
     line = line.strip().lower()
     line = re.sub(r"^\d+(?:\.\d+)*\s*", "", line)
@@ -220,10 +157,3 @@ def parse_sections(full_text: str) -> dict[str, str]:
             sections["blinding"] = sections["methods"]
 
     return sections
-
-
-def section_debug_summary(sections: dict[str, str]) -> dict[str, dict[str, int | bool]]:
-    return {
-        name: {"detected": bool(text), "chars": len(text)}
-        for name, text in sections.items()
-    }

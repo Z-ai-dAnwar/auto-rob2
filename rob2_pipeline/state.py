@@ -1,5 +1,5 @@
 import operator
-from typing import Annotated, NotRequired, TypedDict
+from typing import Annotated, TypedDict
 
 from rob2_pipeline.types import LLMCallLogEntry
 
@@ -53,12 +53,7 @@ class RoB2State(TypedDict):
 
     # === OUTPUT ===
     markdown_report: Annotated[str, take_latest]
-    json_output: Annotated[dict, take_latest]
 
     # === METADATA ===
     errors: Annotated[list[str], take_latest]
     llm_call_log: Annotated[list[LLMCallLogEntry], operator.add]
-
-
-RoB2State.__annotations__.pop("_RoB2State__debug_sections", None)
-RoB2State.__annotations__["__debug_sections"] = NotRequired[Annotated[dict, take_latest]]

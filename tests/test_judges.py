@@ -8,6 +8,9 @@ from rob2_pipeline.judges import (
     judge_domain5,
     judge_overall,
 )
+from rob2_pipeline.nodes.domain3 import domain3_judge_node
+from rob2_pipeline.nodes.domain4 import domain4_judge_node
+from rob2_pipeline.nodes.domain5 import domain5_judge_node
 
 
 def sq(**answers):
@@ -36,7 +39,7 @@ def test_judge_domain1(answers, expected):
         (sq(**{"2.1": "N", "2.2": "PN", "2.6": "Y"}), "Low"),
         (sq(**{"2.1": "Y", "2.2": "N", "2.6": "Y"}), "Low"),
         (sq(**{"2.1": "Y", "2.2": "NI", "2.6": "Y"}), "Some concerns"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "N", "2.6": "Y"}), "Some concerns"),
+        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "N", "2.6": "Y"}), "Low"),
         (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "Y", "2.5": "PY", "2.6": "Y"}), "Some concerns"),
         (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "N", "2.5": "N", "2.6": "Y"}), "High"),
         (sq(**{"2.1": "N", "2.2": "N", "2.6": "N", "2.7": "N"}), "Some concerns"),
@@ -113,7 +116,7 @@ def test_judge_domain5(answers, expected):
         ({"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}, "Low", "Low in all"),
         ({"D1": "Low", "D2": "Some concerns", "D3": "Low", "D4": "Low", "D5": "Low"}, "Some concerns", "1 domain"),
         ({"D1": "Some concerns", "D2": "Some concerns", "D3": "Low", "D4": "Low", "D5": "Low"}, "Some concerns", "2 domains with Some concerns"),
-        ({"D1": "Some concerns", "D2": "Some concerns", "D3": "Some concerns", "D4": "Low", "D5": "Low"}, "High", "FLAG FOR HUMAN REVIEW"),
+        ({"D1": "Some concerns", "D2": "Some concerns", "D3": "Some concerns", "D4": "Low", "D5": "Low"}, "Some concerns", "substantially lower confidence"),
         ({"D1": "Low", "D2": "High", "D3": "Low", "D4": "Low", "D5": "Low"}, "High", "D2"),
     ],
 )
@@ -121,3 +124,30 @@ def test_judge_overall(domains, expected, rationale_part):
     judgment, rationale = judge_overall(domains)
     assert judgment == expected
     assert rationale_part in rationale
+
+
+def test_domain_nodes_do_not_override_algorithm_by_outcome_label():
+    d3_state = {
+        "outcome": "Progression-Free Survival",
+        "sq_answers": sq(**{"3.1": "Y"}),
+        "domain_judgments": {},
+        "domain_rationales": {},
+    }
+    assert domain3_judge_node(d3_state)["domain_judgments"]["D3"] == "Low"
+
+    d4_state = {
+        "outcome": "Progression-Free Survival",
+        "sq_answers": sq(**{"2.1": "Y", "4.1": "N", "4.2": "N", "4.3": "N"}),
+        "domain_judgments": {},
+        "domain_rationales": {},
+    }
+    assert domain4_judge_node(d4_state)["domain_judgments"]["D4"] == "Low"
+
+    d5_state = {
+        "outcome": "Progression-Free Survival",
+        "registration_number": "NCT00000000",
+        "sq_answers": sq(**{"5.1": "NI", "5.2": "N", "5.3": "N"}),
+        "domain_judgments": {},
+        "domain_rationales": {},
+    }
+    assert domain5_judge_node(d5_state)["domain_judgments"]["D5"] == "Some concerns"

@@ -31,4 +31,4 @@ def judge_domain4(sq: dict) -> tuple[str, str]:
         if s43 in ("Y", "PY", "NI") and s44 in ("Y", "PY", "NI") and s45 in ("Y", "PY", "NI"):
             return "High", "4.2=NI and 4.5=Y/PY/NI -> High"
 
-    return "Some concerns", f"Fallback: 4.1={s41} 4.2={s42} 4.3={s43} 4.4={s44} 4.5={s45}"
+    return "Some concerns", f"Unresolved D4 answers: 4.1={s41} 4.2={s42} 4.3={s43} 4.4={s44} 4.5={s45}"

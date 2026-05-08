@@ -33,7 +33,6 @@ def create_initial_state(
         "high_uncertainty_sqs": [],
         "human_review_priority": "HIGH",
         "markdown_report": "",
-        "json_output": {},
         "errors": [],
         "llm_call_log": [],
     }

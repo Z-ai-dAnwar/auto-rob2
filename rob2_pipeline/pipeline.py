@@ -7,6 +7,37 @@ from rob2_pipeline.state import RoB2State
 from rob2_pipeline.state_factory import create_initial_state
 
 
+JSON_OUTPUT_KEYS = (
+    "pdf_path",
+    "is_rct",
+    "rct_screen_evidence",
+    "intervention",
+    "comparator",
+    "outcome",
+    "outcome_type",
+    "numerical_result",
+    "effect_of_interest",
+    "registration_number",
+    "registered_endpoint",
+    "registered_analysis",
+    "n_randomized",
+    "sources_consulted",
+    "sq_answers",
+    "domain_judgments",
+    "domain_rationales",
+    "overall_judgment",
+    "overall_rationale",
+    "ni_count",
+    "high_uncertainty_sqs",
+    "human_review_priority",
+    "errors",
+)
+
+
+def _assessment_json(state: RoB2State) -> dict:
+    return {key: state.get(key) for key in JSON_OUTPUT_KEYS}
+
+
 def run_assessment(
     pdf_path: str,
     outcome: str | None = None,
@@ -27,7 +58,7 @@ def run_assessment(
 
     if state.get("markdown_report"):
         (output_path / f"{base}_rob2_report.md").write_text(state["markdown_report"], encoding="utf-8")
-    json_data = state.get("json_output") or dict(state)
+    json_data = _assessment_json(state)
     (output_path / f"{base}_rob2_data.json").write_text(
         json.dumps(json_data, indent=2, ensure_ascii=False),
         encoding="utf-8",

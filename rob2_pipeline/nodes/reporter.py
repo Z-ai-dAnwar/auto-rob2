@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from rob2_pipeline.state import RoB2State
 
 
@@ -121,6 +119,4 @@ def report_formatter_node(state: RoB2State) -> RoB2State:
         ]
     )
     markdown_report = "\n".join(parts)
-    json_output = deepcopy(dict(state))
-    json_output.pop("markdown_report", None)
-    return {"markdown_report": markdown_report, "json_output": json_output}
+    return {"markdown_report": markdown_report}

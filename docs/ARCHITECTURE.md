@@ -17,21 +17,19 @@ nodes. The graph processes one PDF at a time and produces:
 - `rob2_pipeline/nodes/*`: node implementations
 - `rob2_pipeline/judges/*`: deterministic decision logic
 - `rob2_pipeline/prompts.py`: prompt templates (API-compatible)
-- `rob2_pipeline/prompt_registry.py`: central prompt index
 - `rob2_pipeline/llm_client.py`: LLM singleton, retry, and rate limiting
 - `rob2_pipeline/cache.py`: optional disk prompt cache
-- `rob2_pipeline/xml_parser.py`: robust XML extraction/parsing
+- `rob2_pipeline/xml_parser.py`: strict XML extraction/parsing
 
 ## Execution Flow
 
-1. `pdf_ingest`: markdown extraction + regex section bootstrap
+1. `pdf_ingest`: markdown extraction + deterministic section parsing
 2. `rct_screener`: stop early for non-RCT studies
 3. `preliminary_info`: trial metadata extraction
-4. `section_parser`: LLM section spans with regex fallback
-5. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
-6. Domain judge nodes produce deterministic domain judgments
-7. `overall_judge`: overall risk + review priority
-8. `report_formatter`: markdown + JSON output payload
+4. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
+5. Domain judge nodes produce deterministic domain judgments
+6. `overall_judge`: overall risk + review priority
+7. `report_formatter`: markdown report payload
 
 ## Concurrency Model
 
@@ -62,11 +60,10 @@ uv run python -m pytest -q
 ### Typical failure triage
 
 1. XML parse failures
-   - Inspect `state["llm_call_log"]` for `suspected_parse_failures`
+   - `call_node_llm` retries once with a repair prompt, then raises if output is still invalid
    - Check model output for malformed tags/code fences
 2. Missing sections
-   - Compare `sections` and `__debug_sections`
-   - Check `section_parser` output and regex fallback behavior
+   - Check deterministic section headings and patterns in `rob2_pipeline/pdf_ingestion.py`
 3. Domain logic disagreements
    - Inspect `sq_answers` and judge modules under `rob2_pipeline/judges/`
 

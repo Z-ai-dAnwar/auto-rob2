@@ -61,7 +61,6 @@ def _initial_state(pdf_path: str) -> dict:
         "high_uncertainty_sqs": [],
         "human_review_priority": "HIGH",
         "markdown_report": "",
-        "json_output": {},
         "errors": [],
         "llm_call_log": [],
     }
@@ -156,8 +155,6 @@ def test_graph_happy_path_with_mocked_llm(tmp_path):
 
     assert state["overall_judgment"] == "Low"
     assert state["domain_judgments"] == {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}
-    assert "__debug_sections" in state
-    assert state["__debug_sections"]["methods"]["detected"] is True
     assert "# RoB 2 Assessment" in state["markdown_report"]
     assert len(state["llm_call_log"]) == 8
     assert "domain2_conditional" not in [kwargs.get("node_name") for _, kwargs in call_mock.call_args_list]

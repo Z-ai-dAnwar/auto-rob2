@@ -1,3 +1,5 @@
+import pytest
+
 from rob2_pipeline.xml_parser import extract_tag, parse_sq_response, validate_sq_answers
 
 
@@ -30,7 +32,7 @@ def test_parse_sq_response_valid_xml():
     assert parsed["1.2"]["uncertainty_flag"] == "NORMAL"
 
 
-def test_parse_sq_response_malformed_xml():
+def test_parse_sq_response_malformed_xml_raises():
     xml = """
     <domain1>
       <sq_1_1>
@@ -39,13 +41,11 @@ def test_parse_sq_response_malformed_xml():
         <justification>Supports a probably yes answer.</justification>
     """
 
-    parsed = parse_sq_response(xml, ["1.1"])
-
-    assert parsed["1.1"]["answer"] == "PY"
-    assert parsed["1.1"]["quote"] == '"Randomized centrally" (Methods)'
+    with pytest.raises(Exception):
+        parse_sq_response(xml, ["1.1"])
 
 
-def test_parse_sq_response_mixed_valid_invalid_sqs():
+def test_parse_sq_response_missing_sq_raises():
     xml = """
     <domain1>
       <sq_1_1>
@@ -56,18 +56,11 @@ def test_parse_sq_response_mixed_valid_invalid_sqs():
     </domain1>
     """
 
-    parsed = parse_sq_response(xml, ["1.1", "1.2"])
-
-    assert parsed["1.1"]["answer"] == "Y"
-    assert parsed["1.2"] == {
-        "answer": "NI",
-        "quote": "No relevant text found",
-        "justification": "No relevant text found",
-        "uncertainty_flag": "NORMAL",
-    }
+    with pytest.raises(ValueError, match="Missing signaling question"):
+        parse_sq_response(xml, ["1.1", "1.2"])
 
 
-def test_parse_sq_response_unexpected_answer_values():
+def test_parse_sq_response_unexpected_answer_values_raise():
     xml = """
     <domain5>
       <sq_5_1>
@@ -81,12 +74,8 @@ def test_parse_sq_response_unexpected_answer_values():
     </domain5>
     """
 
-    parsed = parse_sq_response(xml, ["5.1", "5.2"])
-
-    assert parsed["5.1"]["answer"] == "NI"
-    assert parsed["5.1"]["quote"] == "No relevant text found"
-    assert parsed["5.2"]["answer"] == "NA"
-    assert parsed["5.2"]["quote"] == "Not applicable"
+    with pytest.raises(ValueError, match="Invalid signaling-question answer"):
+        parse_sq_response(xml, ["5.1", "5.2"])
 
 
 def test_parse_sq_response_strips_xml_code_fences():

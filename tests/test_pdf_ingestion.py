@@ -1,6 +1,6 @@
 import fitz
 
-from rob2_pipeline.pdf_ingestion import cap_section, extract_full_text, parse_sections, section_debug_summary
+from rob2_pipeline.pdf_ingestion import cap_section, extract_full_text, parse_sections
 
 
 def test_extract_full_text_from_synthetic_pdf(tmp_path):
@@ -98,12 +98,3 @@ def test_cap_section_prefers_keyword_dense_chunks():
     assert "[... truncated ...]" in capped
     assert "allocation" in capped.lower()
     assert len(capped) <= 6000
-
-
-def test_section_debug_summary_reports_counts():
-    sections = parse_sections("Abstract\nHello\nMethods\nWorld")
-    debug = section_debug_summary(sections)
-
-    assert debug["abstract"]["detected"] is True
-    assert debug["abstract"]["chars"] == len(sections["abstract"])
-    assert debug["results"]["detected"] is False

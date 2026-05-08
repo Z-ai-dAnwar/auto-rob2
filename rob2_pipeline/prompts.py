@@ -546,6 +546,7 @@ QUESTION 5.2: Is the result likely to have been SELECTED FROM MULTIPLE ELIGIBLE 
 Answer N/PN if: only one valid measurement approach was used, or all pre-specified measurements are reported.
 Answer Y/PY if: multiple time points or scales were available but only the most favorable is selectively reported.
 Answer NI if: it is unclear whether multiple measurement options existed.
+Do NOT answer Y/PY merely because the assessed outcome is secondary or differs from the registered primary endpoint; that is not selective measurement unless there is evidence that eligible measurements of this same outcome were selectively chosen or omitted.
 
 QUESTION 5.3: Is the result likely to have been SELECTED FROM MULTIPLE ELIGIBLE ANALYSES?
 

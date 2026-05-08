@@ -36,9 +36,7 @@ def call_node_llm(
         if not (parse_fn and parse_sq_ids):
             return None
         parsed_local = parse_fn(raw, parse_sq_ids)
-        suspected = validate_sq_answers(parsed_local, parse_sq_ids)
-        if suspected:
-            log_entry["suspected_parse_failures"] = suspected
+        validate_sq_answers(parsed_local, parse_sq_ids)
         return parsed_local
 
     cached = read_cache(node_name, prompt)
@@ -61,6 +59,26 @@ def call_node_llm(
     response = llm_client.call_llm(
         llm, [HumanMessage(content=prompt)], node_name=node_name, system_message=SYSTEM_MESSAGE
     )
+    parsed = None
+    parse_error = None
+    if parse_fn and parse_sq_ids:
+        try:
+            parsed = _parse_and_validate(response)
+        except Exception as exc:  # noqa: BLE001
+            parse_error = exc
+            repair_prompt = (
+                f"Your previous response for {node_name} was invalid: {exc}. "
+                "Return only well-formed XML in exactly the requested schema.\n\n"
+                f"Original prompt:\n{prompt}"
+            )
+            response = llm_client.call_llm(
+                llm,
+                [HumanMessage(content=repair_prompt)],
+                node_name=node_name,
+                system_message=SYSTEM_MESSAGE,
+            )
+            parsed = _parse_and_validate(response)
+            parse_error = None
     latency_ms = int((time.perf_counter() - start) * 1000)
     write_cache(node_name, prompt, response)
     log_entry = {
@@ -70,7 +88,8 @@ def call_node_llm(
         "latency_ms": latency_ms,
         "cache_hit": False,
     }
-    parsed = _parse_and_validate(response)
+    if parse_error is not None:
+        log_entry["parse_error"] = str(parse_error)
     log.append(log_entry)
     return response, log, parsed
 

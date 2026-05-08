@@ -25,8 +25,9 @@ OPENROUTER_API_KEY=your_key_here
 Use this layout for local assessment runs:
 
 ```text
-inputs/     # local PDFs to assess; PDFs are ignored by git
-outputs/    # generated reports and JSON data; ignored by git
+data/references/  # benchmark ground-truth CSVs
+inputs/           # local PDFs to assess; PDFs are ignored by git
+outputs/          # generated reports and JSON data; ignored by git
 ```
 
 The included local test article is organized as:
@@ -60,6 +61,29 @@ Generated files:
 - `outputs/<pdf_basename>_rob2_report.md`
 - `outputs/<pdf_basename>_rob2_data.json`
 
+## Benchmark
+
+Run benchmark comparisons against reference RoB 2 judgments:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE
+```
+
+Default reference CSV locations:
+
+- `data/references/overall_survival.csv`
+- `data/references/progression_free_survival.csv`
+- `data/references/adverse_events.csv`
+
+Validate configuration without running LLM calls:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE \
+  --dry-run
+```
+
 ## Architecture
 
 - `rob2_pipeline/pdf_ingestion.py`: PyMuPDF text extraction and section parsing.
@@ -74,7 +98,5 @@ Generated files:
 ## Important Notes
 
 LLMs answer only signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
-
-`__debug_sections` is included in the state during development to show detected sections and character counts. Remove it before final publication runs if needed.
 
 The generated report is a draft assessment for human verification, not a substitute for independent systematic-review judgment.

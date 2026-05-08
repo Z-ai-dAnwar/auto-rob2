@@ -1,6 +1,5 @@
-from rob2_pipeline import llm_client
 from rob2_pipeline.nodes.common import call_node_llm
-from rob2_pipeline.pdf_ingestion import extract_full_text, llm_section_parser, parse_sections, section_debug_summary
+from rob2_pipeline.pdf_ingestion import extract_full_text, parse_sections
 from rob2_pipeline.prompts import PROMPT_RCT_SCREEN
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import extract_tag
@@ -32,9 +31,3 @@ def rct_screener_node(state: RoB2State) -> RoB2State:
     if not is_rct:
         errors.append("Study screened as non-RCT; RoB 2 assessment stopped.")
     return {"is_rct": is_rct, "rct_screen_evidence": evidence, "errors": errors, "llm_call_log": log}
-
-
-def section_parser_node(state: RoB2State) -> RoB2State:
-    full_text = state.get("full_text", "")
-    sections = llm_section_parser(full_text, llm_client.get_llm())
-    return {"sections": sections, "__debug_sections": section_debug_summary(sections)}
