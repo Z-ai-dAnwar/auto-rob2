@@ -229,4 +229,6 @@ __marimo__/
 .streamlit/secrets.toml
 
 # CC
+.claude
 CLAUDE.md
+SKILL.md

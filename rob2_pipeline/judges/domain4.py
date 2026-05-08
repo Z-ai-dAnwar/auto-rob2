@@ -10,25 +10,10 @@ def judge_domain4(sq: dict) -> tuple[str, str]:
         return "High", "4.1=Y/PY (inappropriate measurement method) -> High"
     if s42 in ("Y", "PY"):
         return "High", "4.2=Y/PY (differential measurement between groups) -> High"
+    if s45 in ("Y", "PY"):
+        return "High", "4.5=Y/PY (assessment likely influenced by intervention knowledge) -> High"
 
-    if s42 in ("N", "PN"):
-        if s43 in ("N", "PN"):
-            return "Low", "4.2=N/PN, 4.3=N/PN -> Low"
-        if s43 in ("Y", "PY", "NI") and s44 in ("N", "PN"):
-            return "Low", "4.3=Y/PY/NI but 4.4=N/PN -> Low"
-        if s43 in ("Y", "PY", "NI") and s44 in ("Y", "PY", "NI") and s45 in ("N", "PN"):
-            return "Some concerns", "4.4=Y/PY/NI but 4.5=N/PN -> Some concerns"
-        if s43 in ("Y", "PY", "NI") and s44 in ("Y", "PY", "NI") and s45 in ("Y", "PY", "NI"):
-            return "High", "4.5=Y/PY/NI -> High"
-
-    if s42 == "NI":
-        if s43 in ("N", "PN"):
-            return "Some concerns", "4.2=NI, 4.3=N/PN -> Some concerns"
-        if s43 in ("Y", "PY", "NI") and s44 in ("N", "PN"):
-            return "Some concerns", "4.2=NI, 4.4=N/PN -> Some concerns"
-        if s43 in ("Y", "PY", "NI") and s44 in ("Y", "PY", "NI") and s45 in ("N", "PN"):
-            return "Some concerns", "4.2=NI, 4.5=N/PN -> Some concerns"
-        if s43 in ("Y", "PY", "NI") and s44 in ("Y", "PY", "NI") and s45 in ("Y", "PY", "NI"):
-            return "High", "4.2=NI and 4.5=Y/PY/NI -> High"
+    if s41 in ("N", "PN") and s42 in ("N", "PN") and (s43 in ("N", "PN") or s44 in ("N", "PN")):
+        return "Low", "4.1 and 4.2 are N/PN and 4.3 or 4.4 is N/PN -> Low"
 
     return "Some concerns", f"Unresolved D4 answers: 4.1={s41} 4.2={s42} 4.3={s43} 4.4={s44} 4.5={s45}"

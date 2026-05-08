@@ -53,7 +53,7 @@ SECTION_PATTERNS = {
 }
 
 SECTION_ORDER = list(SECTION_PATTERNS)
-MAX_SECTION_CHARS = 6000
+MAX_SECTION_CHARS = 10000
 
 
 def extract_full_text(pdf_path: str) -> str:
@@ -65,7 +65,7 @@ def cap_section(
     max_chars: int = MAX_SECTION_CHARS,
     keywords: list[str] | None = None,
 ) -> str:
-    if len(text) <= 8000:
+    if len(text) <= max_chars:
         return text
     if keywords is None:
         keywords = [
@@ -99,7 +99,11 @@ def cap_section(
         top_chunks = [chunk for _, _, chunk in chunks[:3] if chunk]
     marker = "\n[... truncated ...]\n"
     combined = marker.join(top_chunks)
-    return combined[:max_chars]
+    truncated = combined[:max_chars]
+    return (
+        truncated
+        + f"\n\n[NOTE: Section truncated at {MAX_SECTION_CHARS} characters. Critical content may be absent.]"
+    )
 
 
 def _normalize_heading(line: str) -> str:
@@ -124,6 +128,32 @@ def _detect_heading(line: str) -> str | None:
             if pattern in normalized or compact_pattern in compact_normalized:
                 return section
     return None
+
+
+def _augment_consort_from_results(sections: dict) -> dict:
+    """When CONSORT section is reference-only, search results/supplementary for flow numbers."""
+    import re
+
+    consort = sections.get("consort", "")
+    if len(consort) < 300 and re.search(r"fig(?:ure)?|supplement", consort, re.I):
+        pattern = re.compile(
+            r"(\d[\d,]*)\s+(?:patients?|participants?|subjects?)\s+"
+            r"(?:were\s+)?(?:enrolled|randomized|randomised|allocated|included|"
+            r"excluded|withdrew|lost|assigned|eligible|screened)",
+            re.I,
+        )
+        extra = []
+        for section_name in ("results", "supplementary", "methods"):
+            text = sections.get(section_name, "")
+            matches = pattern.findall(text[:5000])
+            if matches:
+                extra.append(
+                    f"\n[Patient flow numbers from {section_name} section: "
+                    + "; ".join(f"{m} patients" for m in matches[:10]) + "]"
+                )
+        if extra:
+            sections["consort"] = consort + "".join(extra)
+    return sections
 
 
 def parse_sections(full_text: str) -> dict[str, str]:
@@ -155,5 +185,7 @@ def parse_sections(full_text: str) -> dict[str, str]:
             sections["randomization"] = sections["methods"]
         if not sections["blinding"]:
             sections["blinding"] = sections["methods"]
+
+    sections = _augment_consort_from_results(sections)
 
     return sections

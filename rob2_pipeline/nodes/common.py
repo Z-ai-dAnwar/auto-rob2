@@ -1,10 +1,8 @@
 import time
 from typing import Callable, Optional
 
-from langchain_core.messages import HumanMessage
-
-from rob2_pipeline import llm_client
 from rob2_pipeline.cache import read_cache, write_cache
+from rob2_pipeline.config import build_provider
 from rob2_pipeline.types import LLMCallLogEntry
 from rob2_pipeline.xml_parser import validate_sq_answers
 
@@ -54,11 +52,10 @@ def call_node_llm(
         log.append(log_entry)
         return cached, log, parsed
 
-    llm = llm_client.get_llm()
+    provider = build_provider()
     start = time.perf_counter()
-    response = llm_client.call_llm(
-        llm, [HumanMessage(content=prompt)], node_name=node_name, system_message=SYSTEM_MESSAGE
-    )
+    response_obj = provider.complete(system=SYSTEM_MESSAGE, user=prompt)
+    response = response_obj.content
     parsed = None
     parse_error = None
     if parse_fn and parse_sq_ids:
@@ -71,12 +68,8 @@ def call_node_llm(
                 "Return only well-formed XML in exactly the requested schema.\n\n"
                 f"Original prompt:\n{prompt}"
             )
-            response = llm_client.call_llm(
-                llm,
-                [HumanMessage(content=repair_prompt)],
-                node_name=node_name,
-                system_message=SYSTEM_MESSAGE,
-            )
+            response_obj = provider.complete(system=SYSTEM_MESSAGE, user=repair_prompt)
+            response = response_obj.content
             parsed = _parse_and_validate(response)
             parse_error = None
     latency_ms = int((time.perf_counter() - start) * 1000)
@@ -87,6 +80,10 @@ def call_node_llm(
         "response_length_chars": len(response),
         "latency_ms": latency_ms,
         "cache_hit": False,
+        "model": response_obj.model,
+        "input_tokens": response_obj.input_tokens,
+        "output_tokens": response_obj.output_tokens,
+        "cached": response_obj.cached,
     }
     if parse_error is not None:
         log_entry["parse_error"] = str(parse_error)

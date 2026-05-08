@@ -97,4 +97,5 @@ def test_cap_section_prefers_keyword_dense_chunks():
 
     assert "[... truncated ...]" in capped
     assert "allocation" in capped.lower()
-    assert len(capped) <= 6000
+    assert "[NOTE: Section truncated at 10000 characters. Critical content may be absent.]" in capped
+    assert len(capped) <= 10000 + len("\n\n[NOTE: Section truncated at 10000 characters. Critical content may be absent.]")

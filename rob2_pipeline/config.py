@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass
 
+from dotenv import load_dotenv
+
 from rob2_pipeline.constants import DEFAULT_EFFECT_OF_INTEREST
 
 
@@ -24,4 +26,37 @@ def get_llm_config() -> LLMConfig:
 
 
 def get_default_effect_of_interest() -> str:
-    return os.getenv("ROB2_EFFECT_OF_INTEREST", DEFAULT_EFFECT_OF_INTEREST)
+    value = os.getenv("ROB2_EFFECT_OF_INTEREST", DEFAULT_EFFECT_OF_INTEREST)
+    if value not in ("ITT", "per-protocol"):
+        raise ValueError("ROB2_EFFECT_OF_INTEREST must be either 'ITT' or 'per-protocol'")
+    return value
+
+
+_llm_cfg = get_llm_config()
+LLM_MODEL = _llm_cfg.model
+LLM_TEMPERATURE = _llm_cfg.temperature
+LLM_MAX_TOKENS = _llm_cfg.max_tokens
+RPM_LIMIT = _llm_cfg.rpm_limit
+RPD_LIMIT = _llm_cfg.rpd_limit
+
+PROVIDER_NAME = os.getenv("ROB2_PROVIDER", "openrouter")
+
+
+def build_provider():
+    load_dotenv()
+    from rob2_pipeline.providers import get_provider
+
+    common = dict(model=LLM_MODEL, temperature=LLM_TEMPERATURE, max_tokens=LLM_MAX_TOKENS)
+    if PROVIDER_NAME == "openrouter":
+        return get_provider(
+            "openrouter",
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            rpm_limit=RPM_LIMIT,
+            rpd_limit=RPD_LIMIT,
+            **common,
+        )
+    elif PROVIDER_NAME == "anthropic":
+        return get_provider("anthropic", api_key=os.environ["ANTHROPIC_API_KEY"], **common)
+    elif PROVIDER_NAME == "openai":
+        return get_provider("openai", api_key=os.environ["OPENAI_API_KEY"], **common)
+    raise ValueError(f"Unknown ROB2_PROVIDER: {PROVIDER_NAME!r}")

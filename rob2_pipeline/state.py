@@ -31,7 +31,9 @@ class RoB2State(TypedDict):
     effect_of_interest: Annotated[str, take_latest]
     registration_number: Annotated[str, take_latest]
     registered_endpoint: Annotated[str, take_latest]
+    registered_secondary_endpoints: Annotated[str, take_latest]
     registered_analysis: Annotated[str, take_latest]
+    ctgov_outcomes: Annotated[str, take_latest]
     n_randomized: Annotated[str, take_latest]
     sources_consulted: Annotated[list[str], take_latest]
 

@@ -1,0 +1,36 @@
+import time
+
+from .base import LLMProvider, LLMResponse
+
+
+class AnthropicProvider(LLMProvider):
+    def __init__(self, api_key, model, temperature=0, max_tokens=2000):
+        from langchain_anthropic import ChatAnthropic
+
+        self._model = model
+        self.client = ChatAnthropic(
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    @property
+    def model_id(self):
+        return self._model
+
+    def complete(self, system, user):
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        start = time.time()
+        r = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+        usage = (r.response_metadata or {}).get("usage", {})
+        return LLMResponse(
+            r.content,
+            self._model,
+            usage.get("input_tokens", 0),
+            usage.get("output_tokens", 0),
+            (time.time() - start) * 1000,
+        )

@@ -64,6 +64,7 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
+        effect_of_interest=state.get("effect_of_interest", "ITT"),
         analysis_text=sections.get("analysis", ""),
         results_text=sections.get("results", ""),
     )

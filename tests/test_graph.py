@@ -1,10 +1,11 @@
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import fitz
 
 from rob2_pipeline.graph import build_rob2_graph
 from rob2_pipeline.pipeline import run_assessment
+from rob2_pipeline.providers.base import LLMResponse
 
 
 def _make_pdf(path: Path):
@@ -44,7 +45,7 @@ def _initial_state(pdf_path: str) -> dict:
         "intervention": "Not reported",
         "comparator": "Not reported",
         "outcome": "",
-        "outcome_type": "objective",
+        "outcome_type": "vital-status",
         "numerical_result": "Not reported",
         "effect_of_interest": "ITT",
         "registration_number": "Not reported",
@@ -66,7 +67,7 @@ def _initial_state(pdf_path: str) -> dict:
     }
 
 
-def _llm_response(*_args, node_name: str = "", **_kwargs):
+def _response_by_node(node_name: str):
     responses = {
         "section_parser": """
         <sections>
@@ -89,7 +90,7 @@ def _llm_response(*_args, node_name: str = "", **_kwargs):
           <experimental_intervention><value>Drug A</value><quote>"Drug A" (Abstract)</quote></experimental_intervention>
           <comparator_intervention><value>Placebo</value><quote>"placebo" (Abstract)</quote></comparator_intervention>
           <outcome_assessed><value>mortality</value><quote>"mortality" (Outcomes)</quote><is_primary>YES</is_primary></outcome_assessed>
-          <outcome_type>objective</outcome_type>
+          <outcome_type>vital-status</outcome_type>
           <numerical_result><value>RR 0.90 (95% CI 0.70-1.10)</value><quote>"RR 0.90" (Results)</quote></numerical_result>
           <n_randomized><value>100</value><quote>"100 participants" (Results)</quote></n_randomized>
           <trial_registration><number>NCT00000000</number><registry>ClinicalTrials.gov</registry><quote>"NCT00000000" (Registration)</quote></trial_registration>
@@ -144,32 +145,71 @@ def _llm_response(*_args, node_name: str = "", **_kwargs):
     return responses[node_name]
 
 
+def _node_from_prompt(prompt: str) -> str:
+    if "<screening>" in prompt:
+        return "rct_screener"
+    if "<preliminary_info>" in prompt:
+        return "preliminary_info"
+    if "<domain1>" in prompt:
+        return "domain1_sq"
+    if "<domain2_part1>" in prompt:
+        return "domain2_sq12"
+    if "<domain2_conditional>" in prompt:
+        return "domain2_conditional"
+    if "<domain2_analysis>" in prompt:
+        return "domain2_analysis"
+    if "<domain3>" in prompt:
+        return "domain3_sq"
+    if "<domain4>" in prompt:
+        return "domain4_sq"
+    if "<domain5>" in prompt:
+        return "domain5_sq"
+    raise KeyError("Unknown prompt")
+
+
+class _FakeProvider:
+    def __init__(self):
+        self.complete = Mock(side_effect=self._complete)
+
+    def _complete(self, system: str, user: str) -> LLMResponse:
+        node_name = _node_from_prompt(user)
+        return LLMResponse(_response_by_node(node_name), "test-model", 1, 1, 1.0)
+
+
 def test_graph_happy_path_with_mocked_llm(tmp_path):
     pdf_path = tmp_path / "trial.pdf"
     _make_pdf(pdf_path)
 
-    with patch("rob2_pipeline.llm_client.get_llm", return_value=object()), patch(
-        "rob2_pipeline.llm_client.call_llm", side_effect=_llm_response
-    ) as call_mock:
+    provider = _FakeProvider()
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
+        "rob2_pipeline.registration_api.fetch_registration", return_value=None
+    ):
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert state["overall_judgment"] == "Low"
     assert state["domain_judgments"] == {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}
     assert "# RoB 2 Assessment" in state["markdown_report"]
     assert len(state["llm_call_log"]) == 8
-    assert "domain2_conditional" not in [kwargs.get("node_name") for _, kwargs in call_mock.call_args_list]
+    assert provider.complete.call_count == 8
 
 
 def test_graph_stops_for_non_rct(tmp_path):
     pdf_path = tmp_path / "cohort.pdf"
     _make_pdf(pdf_path)
 
-    def non_rct_response(*_args, node_name: str = "", **_kwargs):
-        assert node_name == "rct_screener"
-        return "<screening><is_rct>NO</is_rct><evidence>cohort</evidence><study_design>Cohort</study_design><note>Use ROBINS-I</note></screening>"
+    class _NonRctProvider:
+        def complete(self, system: str, user: str) -> LLMResponse:
+            assert _node_from_prompt(user) == "rct_screener"
+            return LLMResponse(
+                "<screening><is_rct>NO</is_rct><evidence>cohort</evidence><study_design>Cohort</study_design><note>Use ROBINS-I</note></screening>",
+                "test-model",
+                1,
+                1,
+                1.0,
+            )
 
-    with patch("rob2_pipeline.llm_client.get_llm", return_value=object()), patch(
-        "rob2_pipeline.llm_client.call_llm", side_effect=non_rct_response
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_NonRctProvider()), patch(
+        "rob2_pipeline.registration_api.fetch_registration", return_value=None
     ):
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
@@ -184,12 +224,14 @@ def test_rct_screener_prompt_includes_randomization_context(tmp_path):
     _make_pdf(pdf_path)
     captured = {}
 
-    def capture_prompt(_llm, messages, node_name: str = "", **_kwargs):
-        captured[node_name] = messages[0].content
-        return _llm_response(_llm, messages, node_name=node_name)
+    class _CaptureProvider:
+        def complete(self, system: str, user: str) -> LLMResponse:
+            node_name = _node_from_prompt(user)
+            captured[node_name] = user
+            return LLMResponse(_response_by_node(node_name), "test-model", 1, 1, 1.0)
 
-    with patch("rob2_pipeline.llm_client.get_llm", return_value=object()), patch(
-        "rob2_pipeline.llm_client.call_llm", side_effect=capture_prompt
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_CaptureProvider()), patch(
+        "rob2_pipeline.registration_api.fetch_registration", return_value=None
     ):
         build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
@@ -202,8 +244,8 @@ def test_run_assessment_writes_outputs(tmp_path):
     output_dir = tmp_path / "outputs"
     _make_pdf(pdf_path)
 
-    with patch("rob2_pipeline.llm_client.get_llm", return_value=object()), patch(
-        "rob2_pipeline.llm_client.call_llm", side_effect=_llm_response
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_FakeProvider()), patch(
+        "rob2_pipeline.registration_api.fetch_registration", return_value=None
     ):
         state = run_assessment(str(pdf_path), output_dir=str(output_dir))
 

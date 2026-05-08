@@ -17,8 +17,8 @@ def judge_domain3(sq: dict) -> tuple[str, str]:
         return "Low", "3.2=Y/PY (evidence of no bias from missing data) -> Low"
     if s33 in ("N", "PN"):
         return "Low", "3.3=N/PN (missingness cannot depend on true value) -> Low"
-    if s33 in ("Y", "PY", "NI") and s34 in ("N", "PN"):
-        return "Some concerns", "3.3=Y/PY/NI but 3.4=N/PN -> Some concerns"
-    if s33 in ("Y", "PY", "NI") and s34 in ("Y", "PY", "NI"):
-        return "High", "3.3=Y/PY/NI and 3.4=Y/PY/NI -> High"
+    if s33 in ("Y", "PY") and s34 in ("Y", "PY"):
+        return "High", "3.3=Y/PY and 3.4=Y/PY -> High"
+    if (s33 in ("Y", "PY") and s34 in ("N", "PN", "NI")) or s33 == "NI":
+        return "Some concerns", "3.3=NI or 3.3=Y/PY with 3.4 not Y/PY -> Some concerns"
     return "Some concerns", f"Unresolved D3 answers: 3.1={s31} 3.2={s32} 3.3={s33} 3.4={s34}"
