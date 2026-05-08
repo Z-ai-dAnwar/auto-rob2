@@ -15,7 +15,11 @@ uv sync
 Create a local `.env` file:
 
 ```text
+ROB2_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_key_here
+# Optional alternatives when ROB2_PROVIDER changes:
+# ANTHROPIC_API_KEY=your_key_here
+# OPENAI_API_KEY=your_key_here
 ```
 
 `.env` and generated `outputs/` are ignored by git.
@@ -88,7 +92,9 @@ uv run python benchmark.py \
 
 - `rob2_pipeline/pdf_ingestion.py`: PyMuPDF text extraction and section parsing.
 - `rob2_pipeline/prompts.py`: prompt constants.
-- `rob2_pipeline/llm_client.py`: OpenRouter client, dotenv loading, retry, and proactive rate limiting.
+- `rob2_pipeline/providers/`: provider abstraction (`openrouter`, `anthropic`, `openai`) via LangChain integrations.
+- `rob2_pipeline/config.py`: provider selection/env config and `build_provider()`.
+- `rob2_pipeline/registration_api.py`: ClinicalTrials.gov API v2 fetch/extract/format helpers.
 - `rob2_pipeline/nodes/`: LangGraph nodes.
 - `rob2_pipeline/judges/`: deterministic RoB 2 decision tables.
 - `rob2_pipeline/graph.py`: sequential LangGraph wiring.

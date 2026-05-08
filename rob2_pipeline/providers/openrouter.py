@@ -2,15 +2,14 @@ import threading
 import time
 from collections import deque
 
-import httpx
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openrouter import ChatOpenRouter
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from .base import LLMProvider, LLMResponse
 
 
 class OpenRouterProvider(LLMProvider):
-    BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
-
     def __init__(
         self,
         api_key,
@@ -29,6 +28,12 @@ class OpenRouterProvider(LLMProvider):
         self._minute_window = deque()
         self._day_window = deque()
         self._lock = threading.Lock()
+        self.client = ChatOpenRouter(
+            api_key=api_key,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
     @property
     def model_id(self):
@@ -55,34 +60,18 @@ class OpenRouterProvider(LLMProvider):
     @retry(
         wait=wait_exponential(multiplier=2, min=5, max=120),
         stop=stop_after_attempt(5),
-        retry=retry_if_exception_type((httpx.HTTPStatusError, Exception)),
+        retry=retry_if_exception_type((Exception,)),
     )
     def complete(self, system: str, user: str) -> LLMResponse:
         self._wait_for_rate_limit()
         start = time.perf_counter()
-        payload = {
-            "model": self._model,
-            "temperature": self.temperature,
-            "max_tokens": self.max_tokens,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        with httpx.Client(timeout=120.0) as client:
-            response = client.post(self.BASE_URL, json=payload, headers=headers)
-            response.raise_for_status()
-            data = response.json()
+        response = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
         latency_ms = (time.perf_counter() - start) * 1000
-        usage = data.get("usage", {})
+        usage = response.usage_metadata or {}
         return LLMResponse(
-            content=data["choices"][0]["message"]["content"],
-            model=data.get("model", self._model),
-            input_tokens=usage.get("prompt_tokens", 0),
-            output_tokens=usage.get("completion_tokens", 0),
+            content=response.content,
+            model=self._model,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
             latency_ms=latency_ms,
         )
