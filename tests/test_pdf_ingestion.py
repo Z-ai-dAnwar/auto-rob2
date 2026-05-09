@@ -1,7 +1,8 @@
 import fitz
 
 import rob2_pipeline.pdf_ingestion as pdf_ingestion
-from rob2_pipeline.pdf_ingestion import cap_section, extract_full_text, parse_sections
+from rob2_pipeline.nodes.ingest import pdf_ingest_node
+from rob2_pipeline.pdf_ingestion import cap_section, extract_censoring_context, extract_full_text, parse_sections
 
 
 def test_extract_full_text_from_synthetic_pdf_via_fallback(tmp_path, monkeypatch):
@@ -173,3 +174,82 @@ def test_cap_section_prefers_keyword_dense_chunks():
     assert "allocation" in capped.lower()
     assert "[NOTE: Section truncated at 10000 characters. Critical content may be absent.]" in capped
     assert len(capped) <= 10000 + len("\n\n[NOTE: Section truncated at 10000 characters. Critical content may be absent.]")
+
+
+def test_parse_sections_from_docling_document_routes_correctly():
+    class MockItem:
+        def __init__(self, label, text="", table_md=""):
+            self.label = label
+            self.text = text
+            self._table_md = table_md
+
+        def export_to_markdown(self, doc=None):
+            return self._table_md
+
+    class MockDoc:
+        def __init__(self, items):
+            self._items = items
+
+        def iterate_items(self):
+            for item in self._items:
+                yield item, 1
+
+        def export_to_text(self):
+            return "\n".join(getattr(item, "text", "") for item in self._items)
+
+    items = [
+        MockItem("section_header", text="Methods"),
+        MockItem("text", text="Patients were randomly assigned in a 1:1 ratio."),
+        MockItem("section_header", text="Randomization"),
+        MockItem("text", text="Computer-generated sequence was used."),
+        MockItem("table", table_md="| baseline characteristics | age |\n|---|---|"),
+    ]
+    sections = pdf_ingestion._parse_sections_from_docling_document(MockDoc(items))
+
+    assert sections is not None
+    assert "randomly assigned" in sections["methods"]
+    assert "Computer-generated" in sections["randomization"]
+    assert "baseline characteristics" in sections["baseline"]
+
+
+def test_extract_censoring_context_finds_event_sentences():
+    full_text = "\n".join(
+        [
+            "Introduction line.",
+            "Irrelevant details.",
+            "At final analysis, 415 events were observed in 917 participants.",
+            "More methods text.",
+            "The study reports data maturity of 74% at the data cutoff.",
+            "Conclusion line.",
+        ]
+    )
+    result = extract_censoring_context(full_text, "Overall Survival")
+
+    assert "415 events" in result
+    assert "74%" in result
+    assert result
+    assert len(result) <= 2000
+
+
+def test_extract_censoring_context_returns_empty_for_no_matches():
+    full_text = "This study compared two interventions. Outcomes improved with treatment."
+    assert extract_censoring_context(full_text, "Overall Survival") == ""
+
+
+def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monkeypatch):
+    known_text = "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._parse_sections_from_docling_document", lambda _: None)
+
+    class BrokenConverter:
+        def convert(self, _):
+            raise RuntimeError("docling structured parse failed")
+
+    monkeypatch.setattr("docling.document_converter.DocumentConverter", BrokenConverter)
+
+    state = {"pdf_path": "trial.pdf"}
+    result = pdf_ingest_node(state)
+
+    assert "sections" in result
+    assert isinstance(result["sections"], dict)
+    assert "randomly assigned" in result["sections"]["methods"]

@@ -1,13 +1,32 @@
 from rob2_pipeline.nodes.common import call_node_llm
-from rob2_pipeline.pdf_ingestion import extract_full_text, parse_sections
+from rob2_pipeline.pdf_ingestion import (
+    _configure_docling_runtime,
+    _get_docling_converter,
+    _parse_sections_from_docling_document,
+    extract_full_text,
+    parse_sections,
+)
 from rob2_pipeline.prompts import PROMPT_RCT_SCREEN
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import extract_tag
 
 
 def pdf_ingest_node(state: RoB2State) -> RoB2State:
-    full_text = extract_full_text(state["pdf_path"])
-    sections = parse_sections(full_text)
+    pdf_path = state["pdf_path"]
+    full_text = extract_full_text(pdf_path)
+
+    sections = None
+    try:
+        _configure_docling_runtime()
+        converter = _get_docling_converter(use_ocr=False)
+        doc = converter.convert(pdf_path).document
+        sections = _parse_sections_from_docling_document(doc)
+    except Exception:
+        sections = None
+
+    if sections is None:
+        sections = parse_sections(full_text)
+
     return {"full_text": full_text, "sections": sections}
 
 

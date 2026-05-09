@@ -26,18 +26,12 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
     sq_2_1 = state.get("sq_answers", {}).get("2.1", {}).get("answer", "NI")
 
     if outcome_type == "patient-reported" and sq_2_1 in ("Y", "PY"):
+        existing_quote = parsed_sqs.get("4.3", {}).get("quote") or ""
+        quote = existing_quote if existing_quote and not existing_quote.startswith("Auto-set:") else state.get("sq_answers", {}).get("2.1", {}).get("quote", "No relevant text found")
         parsed_sqs["4.3"] = {
             "answer": "Y",
-            "quote": "Auto-set: patient-reported outcome with participants aware of assignment",
-            "justification": "Per Sterne et al. 2019: for participant-reported outcomes, the assessor is the participant, who cannot be blinded to their own treatment assignment.",
-            "uncertainty_flag": "NORMAL",
-        }
-
-    if outcome_type in ("vital-status", "biomarker"):
-        parsed_sqs["4.4"] = {
-            "answer": "N",
-            "quote": "Auto-set: vital-status or biomarker outcome",
-            "justification": "Per Sterne et al. 2019: knowledge is unlikely to influence vital-status or biomarker outcomes without judgment (e.g., all-cause mortality).",
+            "quote": quote or "No relevant text found",
+            "justification": "Per Sterne et al. 2019: for participant-reported outcomes, the assessor IS the participant. In an open-label trial, participants cannot be blinded to their own treatment assignment, so assessor awareness is structurally guaranteed.",
             "uncertainty_flag": "NORMAL",
         }
 

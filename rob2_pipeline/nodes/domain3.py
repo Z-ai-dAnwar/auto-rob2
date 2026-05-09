@@ -1,5 +1,6 @@
 from rob2_pipeline.judges.domain3 import judge_domain3
 from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
+from rob2_pipeline.pdf_ingestion import extract_censoring_context
 from rob2_pipeline.prompts import PROMPT_DOMAIN3
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -7,13 +8,22 @@ from rob2_pipeline.xml_parser import parse_sq_response
 
 def domain3_sq_node(state: RoB2State) -> RoB2State:
     sections = state["sections"]
+    censoring_snippet = extract_censoring_context(
+        state.get("full_text", ""),
+        state.get("outcome", ""),
+    )
+    missing_data_text = sections.get("missing_data", "") or sections.get("results", "")
+    if censoring_snippet:
+        missing_data_text = (
+            missing_data_text + "\n\n<censoring_data>\n" + censoring_snippet + "\n</censoring_data>"
+        )
     prompt = PROMPT_DOMAIN3.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
         n_randomized=state.get("n_randomized", "Not reported"),
         consort_text=sections.get("consort", ""),
-        missing_data_text=sections.get("missing_data", "") or sections.get("results", ""),
+        missing_data_text=missing_data_text,
         sensitivity_text=sections.get("analysis", ""),
     )
     response, log, parsed = call_node_llm(

@@ -44,7 +44,17 @@ DOMAIN_SQS = {
 
 
 def _clean_cell(value: str) -> str:
-    return (value or "No relevant text found").replace("\n", " ").replace("|", "\\|")
+    cleaned = value or "No relevant text found"
+    if cleaned.startswith("Auto-set:"):
+        cleaned = "No relevant text found"
+    return cleaned.replace("\n", " ").replace("|", "\\|")
+
+
+def _effect_label(state: RoB2State) -> str:
+    effect = state.get("effect_of_interest", "ITT")
+    if str(effect).lower() == "per-protocol":
+        return "Effect of adhering to intervention (per-protocol)"
+    return "Effect of assignment to intervention (intention-to-treat)"
 
 
 def _domain_table(state: RoB2State, domain: str) -> str:
@@ -82,20 +92,20 @@ def report_formatter_node(state: RoB2State) -> RoB2State:
     high_uncertainty_text = ", ".join(high_uncertainty) if high_uncertainty else "None"
     sources = ", ".join(state.get("sources_consulted", [])) or "Not reported"
     limitations = (
-        "This is an automated draft assessment. Human verification is required, especially for "
-        f"{state.get('ni_count', 0)} NI answer(s) and high-uncertainty SQs: {high_uncertainty_text}."
+        "This is an automated first-pass assessment for human review. Human verification is required, "
+        f"especially for {state.get('ni_count', 0)} NI answer(s), high-uncertainty signaling questions "
+        f"({high_uncertainty_text}), and any overall-judgment escalation flagged in the rationale."
     )
     parts = [
         "# RoB 2 Assessment",
         "",
         "## Trial information",
         f"- **Trial:** {state.get('intervention', 'Not reported')} vs {state.get('comparator', 'Not reported')}",
-        "- **Citation:** Not reported",
         f"- **Experimental intervention:** {state.get('intervention', 'Not reported')}",
         f"- **Comparator:** {state.get('comparator', 'Not reported')}",
         f"- **Outcome assessed:** {state.get('outcome', 'Not reported')}",
         f"- **Numerical result:** {state.get('numerical_result', 'Not reported')}",
-        "- **Effect of interest:** Effect of assignment to intervention (intention-to-treat)",
+        f"- **Effect of interest:** {_effect_label(state)}",
         f"- **Sources consulted:** {sources}",
         "",
     ]
@@ -109,13 +119,13 @@ def report_formatter_node(state: RoB2State) -> RoB2State:
             "",
             f"**Rationale:** {state.get('overall_rationale', 'Not assessed')}",
             "",
+            "## Limitations of this assessment",
+            limitations,
+            "",
             "## Quality flags",
             f"- NI answers: {state.get('ni_count', 0)}",
             f"- High-uncertainty signaling questions: {high_uncertainty_text}",
             f"- Human review priority: {state.get('human_review_priority', 'HIGH')}",
-            "",
-            "## Limitations of this assessment",
-            limitations,
         ]
     )
     markdown_report = "\n".join(parts)

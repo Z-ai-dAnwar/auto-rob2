@@ -8,7 +8,7 @@
       "skipped": false,
       "error": null,
       "notes": "",
-      "pdf_path": "inputs/benchmark/CHAARTED.pdf",
+      "pdf_path": "inputs\\benchmark\\CHAARTED.pdf",
       "reference": {
         "D1": "L",
         "D2": "L",
@@ -19,21 +19,21 @@
       },
       "pipeline": {
         "domain_judgments": {
-          "D1": "Low",
+          "D1": "Some concerns",
           "D3": "Low",
           "D4": "Low",
           "D5": "Low",
           "D2": "Low"
         },
-        "overall_judgment": "Low"
+        "overall_judgment": "Some concerns"
       },
       "comparison": {
-        "D1": true,
+        "D1": false,
         "D2": true,
         "D3": true,
         "D4": true,
         "D5": true,
-        "Overall": true
+        "Overall": false
       }
     },
     {
@@ -44,7 +44,7 @@
       "skipped": false,
       "error": null,
       "notes": "",
-      "pdf_path": "inputs/benchmark/CHAARTED.pdf",
+      "pdf_path": "inputs\\benchmark\\CHAARTED.pdf",
       "reference": {
         "D1": "L",
         "D2": "L",
@@ -55,38 +55,29 @@
       },
       "pipeline": {
         "domain_judgments": {
-          "D1": "Low",
+          "D1": "Some concerns",
           "D3": "Low",
-          "D4": "Low",
+          "D4": "Some concerns",
           "D5": "Some concerns",
           "D2": "Low"
         },
         "overall_judgment": "Some concerns"
       },
       "comparison": {
-        "D1": true,
+        "D1": false,
         "D2": true,
         "D3": true,
-        "D4": false,
+        "D4": true,
         "D5": false,
         "Overall": false
       }
-    },
-    {
-      "id": "CHAARTED:AE",
-      "trial": "CHAARTED",
-      "outcome_code": "AE",
-      "outcome": "Adverse Events",
-      "skipped": true,
-      "error": null,
-      "notes": "Trial not in reference"
     }
   ],
   "summary": {
     "evaluated_trials": 2,
     "agreement_counts": {
       "D1": {
-        "matches": 2,
+        "matches": 0,
         "total": 2
       },
       "D2": {
@@ -98,7 +89,7 @@
         "total": 2
       },
       "D4": {
-        "matches": 1,
+        "matches": 2,
         "total": 2
       },
       "D5": {
@@ -106,23 +97,23 @@
         "total": 2
       },
       "Overall": {
-        "matches": 1,
+        "matches": 0,
         "total": 2
       }
     },
     "agreement_rates": {
-      "D1": 1.0,
+      "D1": 0.0,
       "D2": 1.0,
       "D3": 1.0,
-      "D4": 0.5,
+      "D4": 1.0,
       "D5": 0.5,
-      "Overall": 0.5
+      "Overall": 0.0
     },
     "confusion_matrices": {
       "D1": {
         "Low": {
-          "Low": 2,
-          "Some concerns": 0,
+          "Low": 0,
+          "Some concerns": 2,
           "High": 0
         },
         "Some concerns": {
@@ -177,8 +168,8 @@
           "High": 0
         },
         "Some concerns": {
-          "Low": 1,
-          "Some concerns": 0,
+          "Low": 0,
+          "Some concerns": 1,
           "High": 0
         },
         "High": {
@@ -206,8 +197,8 @@
       },
       "Overall": {
         "Low": {
-          "Low": 1,
-          "Some concerns": 1,
+          "Low": 0,
+          "Some concerns": 2,
           "High": 0
         },
         "Some concerns": {
