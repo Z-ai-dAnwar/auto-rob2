@@ -53,13 +53,16 @@ coverage.xml
 cover/
 
 # Generated RoB 2 assessment outputs
-outputs/
+outputs/*
+!outputs/benchmark/
+!outputs/benchmark/**
 
 # Prompt cache
 .rob2_cache/
 
 # Local input PDFs for assessment runs
 inputs/*.pdf
+!inputs/benchmark/*.pdf
 
 # Translations
 *.mo

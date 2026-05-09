@@ -22,28 +22,30 @@ OPENROUTER_API_KEY=your_key_here
 # OPENAI_API_KEY=your_key_here
 ```
 
-`.env` and generated `outputs/` are ignored by git.
+`.env` and generated `outputs/` are ignored by git, except `outputs/benchmark/`.
 
 ## Project I/O
 
 Use this layout for local assessment runs:
 
 ```text
-data/references/  # benchmark ground-truth CSVs
-inputs/           # local PDFs to assess; PDFs are ignored by git
-outputs/          # generated reports and JSON data; ignored by git
+data/references/    # benchmark ground-truth CSVs
+inputs/             # local PDFs to assess; PDFs are ignored by git
+inputs/benchmark/   # benchmark PDFs (tracked by git)
+outputs/            # generated reports and JSON data; ignored by git
+outputs/benchmark/  # benchmark outputs (tracked by git)
 ```
 
-The included local test article is organized as:
+Example local input path:
 
 ```text
-inputs/NEJMoa1503747.pdf
+inputs/example.pdf
 ```
 
 ## Run
 
 ```bash
-uv run python main.py inputs/NEJMoa1503747.pdf --output-dir outputs
+uv run python main.py inputs/example.pdf --output-dir outputs
 ```
 
 Run every PDF in `inputs/`:
@@ -57,7 +59,7 @@ Or call the Python API:
 ```python
 from rob2_pipeline.pipeline import run_assessment
 
-state = run_assessment("inputs/NEJMoa1503747.pdf", output_dir="outputs")
+state = run_assessment("inputs/example.pdf", output_dir="outputs")
 ```
 
 Generated files:
@@ -67,7 +69,7 @@ Generated files:
 
 ## Benchmark
 
-Run benchmark comparisons against reference RoB 2 judgments:
+Run benchmark comparisons against reference RoB 2 judgments (defaults to `inputs/benchmark/`):
 
 ```bash
 uv run python benchmark.py \

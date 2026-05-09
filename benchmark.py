@@ -47,7 +47,11 @@ def _resolve_pdf(input_dir: Path, trial: str) -> Path | None:
 
 def main():
     parser = argparse.ArgumentParser(description="Run RoB 2 benchmark against reference judgments.")
-    parser.add_argument("--input-dir", default="inputs/", help="Directory containing trial PDFs.")
+    parser.add_argument(
+        "--input-dir",
+        default="inputs/benchmark/",
+        help="Directory containing trial PDFs.",
+    )
     parser.add_argument(
         "--reference-os",
         default=DEFAULT_REFERENCE_OS,
