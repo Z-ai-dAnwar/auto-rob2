@@ -16,6 +16,7 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         randomization_text=rag_contexts.get("d1") or format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]),
         baseline_text="" if rag_contexts.get("d1") else format_evidence(evidence["baseline_table"]),
         consort_text="" if rag_contexts.get("d1") else format_evidence(evidence["consort_flow"]),
+        ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain1_sq", parse_sq_response, ["1.1", "1.2", "1.3"]

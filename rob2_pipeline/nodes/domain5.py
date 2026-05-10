@@ -24,6 +24,7 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
         registered_secondary_endpoints=state.get("registered_secondary_endpoints", "Not reported"),
         reported_endpoint=state.get("outcome", "Not reported"),
         ctgov_outcomes=state.get("ctgov_outcomes", ""),
+        ctgov_description=state.get("ctgov_description", "(No ClinicalTrials.gov description available)"),
         registration_text=rag_contexts.get("d5") or format_evidence(evidence["d5_registration"]),
         sap_text="" if rag_contexts.get("d5") else format_evidence(evidence["d4_outcome_meas"]),
         results_text="" if rag_contexts.get("d5") else format_evidence(evidence["results"]),

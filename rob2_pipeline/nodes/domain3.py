@@ -18,6 +18,7 @@ def domain3_sq_node(state: RoB2State) -> RoB2State:
         consort_text="" if rag_contexts.get("d3") else format_evidence(evidence["consort_flow"]),
         missing_data_text=missing_data_text,
         sensitivity_text="" if rag_contexts.get("d3") else format_evidence(evidence["d4_outcome_meas"]),
+        ctgov_flow=state.get("ctgov_flow", "(No ClinicalTrials.gov participant flow available)"),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain3_sq", parse_sq_response, ["3.1", "3.2", "3.3", "3.4"]

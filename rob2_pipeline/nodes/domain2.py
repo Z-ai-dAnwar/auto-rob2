@@ -21,6 +21,7 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         blinding_text=rag_contexts.get("d2_blinding") or format_evidence(evidence["d2_blinding"]),
         methods_text="" if rag_contexts.get("d2_blinding") else format_evidence(evidence["methods"]),
+        ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_sq12", parse_sq_response, ["2.1", "2.2"]

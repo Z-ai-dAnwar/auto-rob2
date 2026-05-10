@@ -304,3 +304,73 @@ def test_run_assessment_writes_outputs(tmp_path):
     data = json.loads((output_dir / "trial_rob2_data.json").read_text(encoding="utf-8"))
     assert data["evidence"]["extraction_method"] == "docling_llm"
     assert "computer-generated sequence" in data["evidence"]["d1_randomization"]["text"]
+
+
+def test_preliminary_node_populates_ctgov_fields(monkeypatch):
+    """preliminary_info_node should populate CT.gov design, description, and flow fields."""
+    import rob2_pipeline.registration_api as api_mod
+    import rob2_pipeline.nodes.preliminary as preliminary_mod
+
+    fake_reg_data = {
+        "protocolSection": {
+            "designModule": {
+                "phases": ["PHASE3"],
+                "designInfo": {
+                    "allocationType": "RANDOMIZED",
+                    "interventionModel": "PARALLEL",
+                    "primaryPurpose": "TREATMENT",
+                    "maskingInfo": {"masking": "NONE", "whoMasked": []},
+                },
+                "enrollmentInfo": {"count": 790},
+            },
+            "descriptionModule": {
+                "briefSummary": "Phase III RCT.",
+                "detailedDescription": "PRIMARY: OS.",
+            },
+            "oversightModule": {"oversightHasDmc": True},
+            "sponsorCollaboratorsModule": {"leadSponsor": {"name": "Test Network", "class": "NETWORK"}},
+            "outcomesModule": {
+                "primaryOutcomes": [{"measure": "Overall Survival"}],
+                "secondaryOutcomes": [],
+                "otherOutcomes": [],
+            },
+        },
+        "resultsSection": {
+            "participantFlowModule": {
+                "groups": [{"id": "FG000", "title": "Drug A"}],
+                "periods": [
+                    {
+                        "milestones": [
+                            {
+                                "title": "STARTED",
+                                "achievements": [{"groupId": "FG000", "numSubjects": "790"}],
+                            }
+                        ]
+                    }
+                ],
+            }
+        },
+    }
+    response = """
+    <preliminary_info>
+      <experimental_intervention><value>Drug A</value></experimental_intervention>
+      <comparator_intervention><value>Placebo</value></comparator_intervention>
+      <outcome_assessed><value>mortality</value></outcome_assessed>
+      <outcome_type>vital-status</outcome_type>
+      <numerical_result><value>HR 0.90</value></numerical_result>
+      <n_randomized><value>790</value></n_randomized>
+      <trial_registration><number>NCT00309985</number></trial_registration>
+      <registered_primary_endpoint><value>Not reported</value></registered_primary_endpoint>
+      <registered_secondary_endpoints>Not reported</registered_secondary_endpoints>
+      <registered_analysis><value>ITT</value></registered_analysis>
+    </preliminary_info>
+    """
+
+    monkeypatch.setattr(api_mod, "fetch_registration", lambda nct_id, use_cache=True: fake_reg_data)
+    monkeypatch.setattr(preliminary_mod, "call_node_llm", lambda state, prompt, node_name: (response, [], None))
+
+    result = preliminary_mod.preliminary_info_node(_initial_state("trial.pdf"))
+
+    assert "RANDOMIZED" in result.get("ctgov_design", "")
+    assert "PRIMARY" in result.get("ctgov_description", "")
+    assert "STARTED" in result.get("ctgov_flow", "")

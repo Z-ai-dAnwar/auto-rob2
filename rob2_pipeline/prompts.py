@@ -126,7 +126,17 @@ Read the following sections:
 {consort_text}
 </consort_flow>
 
+<registry_design_metadata>
+{ctgov_design}
+</registry_design_metadata>
+
 Answer Domain 1 signaling questions: Bias arising from the randomization process.
+
+If ClinicalTrials.gov design metadata is provided above, treat it as authoritative evidence about the trial's registered design:
+- An allocation type of RANDOMIZED is evidence that the registry classifies the trial as randomized; without sequence-generation details, this supports PY rather than Y for Q1.1.
+- Masking = NONE confirms an open-label design, which is context for assessors but is not directly scored in D1.
+- Presence of a DMC or a research network lead sponsor is contextual registry information only; do not treat it as direct evidence of allocation concealment unless the paper or registry also describes a concealment or central allocation process.
+- Use NI only when both the paper text and registry metadata provide no meaningful basis for a judgment.
 
 For each question, choose exactly one answer: Y, PY, PN, N, or NI.
 Y/N means firm evidence is stated. PY/PN means a reasonable inference from indirect evidence. NI is reserved for genuine absence of enough information; it is not a default.
@@ -185,9 +195,15 @@ Read the following:
 {methods_text}
 </methods_interventions>
 
+<registry_design_metadata>
+{ctgov_design}
+</registry_design_metadata>
+
 Answer the first two Domain 2 signaling questions: Bias due to deviations from intended interventions.
 
 Important RoB 2 principle: an open-label trial is not automatically high risk. Risk depends on whether awareness led to deviations from intended interventions that arose because of the trial context, whether those deviations affected the outcome, whether they were balanced, and whether the analysis was appropriate.
+
+If ClinicalTrials.gov design metadata is provided above, use the masking field as authoritative confirmation when it maps to the person being assessed: masking = NONE confirms participants and carers were aware of their assignment (supports Y for Q2.1 and Q2.2). For blinded designs, check any listed masked parties before judging participants separately from carers or intervention deliverers.
 
 2.1 Were participants aware of their assigned intervention during the trial?
 - Y: participants were explicitly aware; the intervention made blinding impossible; or intervention-specific side effects/toxicities revealed assignment.
@@ -446,6 +462,10 @@ Read the following:
 {sensitivity_text}
 </sensitivity_analyses>
 
+<registry_participant_flow>
+{ctgov_flow}
+</registry_participant_flow>
+
 Answer Domain 3 signaling questions: Bias due to missing outcome data.
 
 3.1 Were data for this outcome available for all, or nearly all, participants randomized?
@@ -455,6 +475,8 @@ Nearly all means the number with missing outcome data is sufficiently small that
 - PN: noticeable missing data may affect the result.
 - N: a significant proportion of outcome data is missing or imputed in place of observed data.
 - NI: the extent of missing outcome data is not reported.
+
+If ClinicalTrials.gov participant flow data is provided above, use it as supporting participant disposition evidence for Q3.1. Do not assume treatment completion equals outcome-data availability; compare it with paper text about the assessed outcome and missing outcome data.
 
 If 3.1 is Y/PY, answer 3.2-3.4 as NA.
 
@@ -623,9 +645,13 @@ Read the following:
 {results_text}
 </results_section>
 
-<authoritative_registration_data>
+<authoritative_registration_outcomes>
 {ctgov_outcomes}
-</authoritative_registration_data>
+</authoritative_registration_outcomes>
+
+<authoritative_registration_description>
+{ctgov_description}
+</authoritative_registration_description>
 
 Answer Domain 5 signaling questions: Bias in selection of the reported result.
 
@@ -637,6 +663,8 @@ If a trial registration number is available, compare the registry/protocol outco
 - PN: plan is mentioned but not detailed enough, or unexplained deviations suggest possible post hoc decisions.
 - N: clear post hoc analysis decisions, endpoint switching, or result-based changes.
 - NI: no adequate information on pre-specified analysis intentions or timing.
+
+If a ClinicalTrials.gov registry description is provided above and lists PRIMARY, SECONDARY, or TERTIARY objectives, treat these as evidence that objectives were described in the registry. Objectives alone are not the same as prespecified endpoint definitions or a finalized pre-unblinding statistical analysis plan; use them together with protocol, SAP, amendment, and results-reporting evidence when judging Q5.1.
 
 5.2 Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements within the outcome domain?
 Examples include different scales, definitions, or time points.

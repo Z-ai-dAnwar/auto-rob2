@@ -37,6 +37,9 @@ class RoB2State(TypedDict, total=False):
     registered_secondary_endpoints: Annotated[str, take_latest]
     registered_analysis: Annotated[str, take_latest]
     ctgov_outcomes: Annotated[str, take_latest]
+    ctgov_design: Annotated[str, take_latest]
+    ctgov_description: Annotated[str, take_latest]
+    ctgov_flow: Annotated[str, take_latest]
     n_randomized: Annotated[str, take_latest]
     sources_consulted: Annotated[list[str], take_latest]
 

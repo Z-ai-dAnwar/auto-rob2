@@ -2,7 +2,10 @@ DOMAIN_QUERIES: dict[str, list[str]] = {
     "d1": [
         "allocation sequence randomization random number concealed envelope",
         "allocation concealment sealed envelope central randomization independent",
+        "method of sequence generation block stratified minimization computer generated",
+        "central allocation telephone internet randomization service independent pharmacist",
         "baseline characteristics demographics imbalance groups comparable",
+        "allocation procedure concealment of treatment assignment randomization procedure",
     ],
     "d2_blinding": [
         "participant blinded masked open-label double-blind aware treatment assignment",
@@ -35,5 +38,8 @@ DOMAIN_QUERIES: dict[str, list[str]] = {
         "trial registration protocol pre-specified primary outcome analysis plan",
         "ClinicalTrials.gov ISRCTN registered protocol amendment statistical analysis plan",
         "reported outcomes selective reporting pre-planned endpoints",
+        "statistical analysis plan SAP finalized pre-specified analysis",
+        "primary endpoint pre-specified registered endpoint outcome switching amendment",
+        "protocol deviation amendment change outcome definition time point analysis method",
     ],
 }

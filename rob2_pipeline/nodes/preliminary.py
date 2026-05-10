@@ -79,7 +79,17 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
 
     # Fetch registration data from ClinicalTrials.gov
     import os
-    from rob2_pipeline.registration_api import fetch_registration, extract_outcomes, format_outcomes_for_prompt
+    from rob2_pipeline.registration_api import (
+        extract_description,
+        extract_design_info,
+        extract_outcomes,
+        extract_participant_flow,
+        fetch_registration,
+        format_description_for_prompt,
+        format_design_for_prompt,
+        format_flow_for_prompt,
+        format_outcomes_for_prompt,
+    )
 
     _nct_id = state.get("registration_number", "")
     _use_cache = os.getenv("ROB2_CTGOV_CACHE", "1") != "0"
@@ -88,6 +98,9 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         if _reg_data:
             _outcomes = extract_outcomes(_reg_data)
             state["ctgov_outcomes"] = format_outcomes_for_prompt(_outcomes)
+            state["ctgov_design"] = format_design_for_prompt(extract_design_info(_reg_data))
+            state["ctgov_description"] = format_description_for_prompt(extract_description(_reg_data))
+            state["ctgov_flow"] = format_flow_for_prompt(extract_participant_flow(_reg_data))
             # Override secondary endpoints with API data (more reliable than text extraction)
             if _outcomes["secondary"]:
                 state["registered_secondary_endpoints"] = "; ".join(_outcomes["secondary"])
@@ -95,9 +108,17 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
             if _outcomes["primary"] and state.get("registered_endpoint") in ("Not reported", "", None):
                 state["registered_endpoint"] = "; ".join(_outcomes["primary"])
         else:
-            state["ctgov_outcomes"] = "(ClinicalTrials.gov data not available for this trial)"
+            _unavailable = "(ClinicalTrials.gov data not available for this trial)"
+            state["ctgov_outcomes"] = _unavailable
+            state["ctgov_design"] = _unavailable
+            state["ctgov_description"] = _unavailable
+            state["ctgov_flow"] = _unavailable
     else:
-        state["ctgov_outcomes"] = "(No NCT registration number — ClinicalTrials.gov lookup skipped)"
+        _skipped = "(No NCT registration number - ClinicalTrials.gov lookup skipped)"
+        state["ctgov_outcomes"] = _skipped
+        state["ctgov_design"] = _skipped
+        state["ctgov_description"] = _skipped
+        state["ctgov_flow"] = _skipped
 
     # Auto-detect safety outcomes and override effect_of_interest
     _safety_keywords = {
