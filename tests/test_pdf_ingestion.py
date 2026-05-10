@@ -401,3 +401,61 @@ def test_ingest_node_stores_docling_conversion_result(monkeypatch):
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
     assert result["docling_doc"] is converter.conversion_result
+
+
+def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
+    known_text = "Methods\nParticipants were randomly assigned."
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+
+    class MockConverter:
+        def __init__(self):
+            self.conversion_result = type("ConversionResult", (), {"document": object()})()
+
+        def convert(self, _):
+            return self.conversion_result
+
+    converter = MockConverter()
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.build_document_repr",
+        lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
+    )
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: False)
+
+    def fail_if_called(_doc_repr):
+        raise AssertionError("remote extraction should be skipped when disabled")
+
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called)
+
+    result = pdf_ingest_node({"pdf_path": "trial.pdf"})
+
+    assert result["evidence"]["extraction_method"] == "docling_struct"
+
+
+def test_ingest_node_skips_remote_extraction_for_apparent_non_rct(monkeypatch):
+    known_text = "Editorial commentary describing mechanism without any trial assignment."
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+
+    class MockConverter:
+        def __init__(self):
+            self.conversion_result = type("ConversionResult", (), {"document": object()})()
+
+        def convert(self, _):
+            return self.conversion_result
+
+    converter = MockConverter()
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.build_document_repr",
+        lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
+    )
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: True)
+
+    def fail_if_called(_doc_repr):
+        raise AssertionError("remote extraction should be skipped for apparent non-RCT text")
+
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called)
+
+    result = pdf_ingest_node({"pdf_path": "trial.pdf"})
+
+    assert result["evidence"]["extraction_method"] == "docling_struct"

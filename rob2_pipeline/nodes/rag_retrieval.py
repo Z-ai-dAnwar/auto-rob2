@@ -47,12 +47,16 @@ def rag_retrieval_node(state: RoB2State) -> dict:
     if conv_result is None:
         rag_contexts = _sections_fallback(state["evidence"])
     else:
-        chunks = chunk_docling_doc(conv_result)
-        index, chunks = build_index(chunks)
-        rag_contexts = {
-            key: retrieve(index, chunks, queries)
-            for key, queries in DOMAIN_QUERIES.items()
-        }
+        try:
+            chunks = chunk_docling_doc(conv_result)
+            index, chunks = build_index(chunks)
+            rag_contexts = {
+                key: retrieve(index, chunks, queries)
+                for key, queries in DOMAIN_QUERIES.items()
+            }
+        except Exception as error:  # noqa: BLE001
+            rag_contexts = _sections_fallback(state["evidence"])
+            state["evidence"]["warnings"].append(f"RAG retrieval failed: {error}")
 
     censoring = extract_censoring_context(state.get("full_text", ""), state.get("outcome", ""))
     if censoring:

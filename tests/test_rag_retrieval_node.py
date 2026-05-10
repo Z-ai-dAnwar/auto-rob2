@@ -54,3 +54,24 @@ def test_rag_retrieval_node_builds_index_and_augments_d3(monkeypatch):
     assert set(result["rag_contexts"]) == set(DOMAIN_QUERIES)
     assert len(calls) == len(DOMAIN_QUERIES)
     assert "415 events observed" in result["rag_contexts"]["d3"]
+
+
+def test_rag_retrieval_node_falls_back_when_rag_errors(monkeypatch):
+    import rob2_pipeline.nodes.rag_retrieval as node
+
+    def boom(_conv_result):
+        raise RuntimeError("embedding init failed")
+
+    monkeypatch.setattr(node, "chunk_docling_doc", boom)
+    monkeypatch.setattr(node, "extract_censoring_context", lambda full_text, outcome: "")
+
+    state = {
+        "docling_doc": object(),
+        "evidence": _evidence(),
+        "full_text": "",
+        "outcome": "Overall Survival",
+    }
+    result = node.rag_retrieval_node(state)
+
+    assert "Randomized centrally" in result["rag_contexts"]["d1"]
+    assert any("RAG retrieval failed" in warning for warning in state["evidence"]["warnings"])

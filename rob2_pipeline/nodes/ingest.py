@@ -3,6 +3,8 @@ from rob2_pipeline.models import format_evidence
 from rob2_pipeline.pdf_ingestion import (
     _configure_docling_runtime,
     _get_docling_converter,
+    allow_remote_evidence_extraction,
+    appears_rct_candidate,
     build_document_repr,
     extract_paper_evidence,
     extract_full_text,
@@ -27,6 +29,13 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
         doc_repr = build_document_repr(doc)
         if not doc_repr.full_text:
             doc_repr.full_text = full_text
+        evidence = extract_structural_paper_evidence(doc_repr)
+        if not allow_remote_evidence_extraction():
+            evidence["warnings"].append("Remote evidence extraction disabled by ROB2_REMOTE_EVIDENCE_EXTRACTION.")
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
+        if not appears_rct_candidate(doc_repr.to_prompt_repr() or doc_repr.full_text):
+            evidence["warnings"].append("Remote evidence extraction skipped for apparent non-RCT document.")
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
         try:
             evidence, log = extract_paper_evidence(doc_repr)
             return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "llm_call_log": log}

@@ -54,8 +54,6 @@ cover/
 
 # Generated RoB 2 assessment outputs
 outputs/*
-!outputs/benchmark/
-!outputs/benchmark/**
 
 # Prompt cache
 .rob2_cache/

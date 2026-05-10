@@ -9,6 +9,7 @@ import pymupdf4llm
 from lxml import etree  # type: ignore[import-untyped]
 
 from rob2_pipeline.config import build_provider
+from rob2_pipeline.docling_utils import export_table_markdown, label_name
 from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
 from rob2_pipeline.types import LLMCallLogEntry
 
@@ -76,6 +77,17 @@ _CENSORING_PATTERNS = [
     re.compile(r"(?i)\b\d[\d,]*\s*/\s*\d[\d,]*\s+participants?\b.*\bevents?\b"),
     re.compile(r"(?i)\b\d[\d,]*\s+events?\b.*\d|\d.*\b\d[\d,]*\s+events?\b"),
 ]
+
+
+def allow_remote_evidence_extraction() -> bool:
+    return os.getenv("ROB2_REMOTE_EVIDENCE_EXTRACTION", "1").strip() not in {"0", "false", "False"}
+
+
+def appears_rct_candidate(text: str) -> bool:
+    lowered = text.lower()
+    trial_signals = ["random", "randomized", "randomised", "assigned", "allocation", "placebo", "double-blind"]
+    context_signals = ["trial", "participants", "patients", "phase "]
+    return any(signal in lowered for signal in trial_signals) and any(signal in lowered for signal in context_signals)
 
 PROMPT_PAPER_EXTRACTION = """
 You are a clinical trial analyst. Extract the following content from the paper below.
@@ -219,30 +231,11 @@ def _normalize_extracted_text(text: str) -> str:
     return text.strip()
 
 
-def _label_name(item) -> str:
-    label = getattr(item, "label", None)
-    return getattr(label, "name", str(label)).upper() if label is not None else ""
-
-
 def _page_no(item) -> int:
     prov = getattr(item, "prov", None) or []
     if prov:
         return int(getattr(prov[0], "page_no", 0) or 0)
     return 0
-
-
-def _export_table_markdown(item, doc) -> str:
-    if hasattr(item, "export_to_markdown"):
-        try:
-            return (item.export_to_markdown(doc=doc) or "").strip()
-        except TypeError:
-            return (item.export_to_markdown() or "").strip()
-    if hasattr(item, "export_to_dataframe"):
-        try:
-            return item.export_to_dataframe(doc=doc).to_markdown()
-        except TypeError:
-            return item.export_to_dataframe().to_markdown()
-    return ""
 
 
 def _export_doc_markdown(doc) -> str:
@@ -280,9 +273,9 @@ def build_document_repr(doc) -> DocumentRepr:
 
     iterator = doc.iterate_items() if hasattr(doc, "iterate_items") else []
     for item, level in iterator:
-        label_name = _label_name(item)
+        item_label_name = label_name(item)
         item_text = (getattr(item, "text", "") or "").strip()
-        if label_name == "SECTION_HEADER":
+        if item_label_name == "SECTION_HEADER":
             flush()
             current_heading = item_text or None
             current_level = int(level or 1)
@@ -290,12 +283,12 @@ def build_document_repr(doc) -> DocumentRepr:
             continue
         if not current_page:
             current_page = _page_no(item)
-        if label_name == "TABLE":
-            table = _export_table_markdown(item, doc)
+        if item_label_name == "TABLE":
+            table = export_table_markdown(item, doc)
             if table:
                 current_tables.append(table)
             continue
-        if label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"} and item_text:
+        if item_label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"} and item_text:
             current_text.append(item_text)
 
     flush()

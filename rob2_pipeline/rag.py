@@ -4,6 +4,8 @@ from typing import Any
 import faiss
 import numpy as np
 
+from rob2_pipeline.docling_utils import export_table_markdown, label_name
+
 
 MAX_CHUNK_CHARS = 2000
 MIN_CHUNK_CHARS = 50
@@ -17,25 +19,6 @@ def _get_model():
 
         _MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     return _MODEL
-
-
-def _label_name(item: Any) -> str:
-    label = getattr(item, "label", None)
-    return getattr(label, "name", str(label)).upper() if label is not None else ""
-
-
-def _export_table_markdown(item: Any, doc: Any) -> str:
-    if hasattr(item, "export_to_markdown"):
-        try:
-            return (item.export_to_markdown(doc=doc) or "").strip()
-        except TypeError:
-            return (item.export_to_markdown() or "").strip()
-    if hasattr(item, "export_to_dataframe"):
-        try:
-            return item.export_to_dataframe(doc=doc).to_markdown()
-        except TypeError:
-            return item.export_to_dataframe().to_markdown()
-    return ""
 
 
 def _split_long_text(text: str, limit: int = MAX_CHUNK_CHARS) -> list[str]:
@@ -90,17 +73,17 @@ def chunk_docling_doc(conv_result) -> list[dict]:
 
     iterator = doc.iterate_items() if hasattr(doc, "iterate_items") else []
     for item, _level in iterator:
-        label_name = _label_name(item)
+        item_label_name = label_name(item)
         item_text = (getattr(item, "text", "") or "").strip()
-        if label_name == "SECTION_HEADER":
+        if item_label_name == "SECTION_HEADER":
             current_section = item_text or current_section
             continue
-        if label_name == "TABLE":
-            table = _export_table_markdown(item, doc)
+        if item_label_name == "TABLE":
+            table = export_table_markdown(item, doc)
             if table:
                 raw_chunks.append((current_section, f"{current_section}\n\n{table}"))
             continue
-        if label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM"} and item_text:
+        if item_label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM"} and item_text:
             raw_chunks.append((current_section, f"{current_section}\n\n{item_text}"))
 
     grouped: list[tuple[str, str]] = []
