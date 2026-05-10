@@ -133,9 +133,80 @@ def test_domain4_prompt_guides_outcome_specific_q44_reasoning():
 
     assert "definitions for multiple outcomes" in result
     assert "based only on the definition for Progression-Free Survival" in result
-    assert "Hard endpoints" in result
-    assert "Composite endpoints or investigator-assessed endpoints" in result
-    assert "Q4.4=PY" in result
+    assert "outcomes involving judgment" in result
+    assert "all-cause mortality" in result
+    assert "mechanical" in result
+
+
+def test_preliminary_prompt_excludes_composites_from_vital_status():
+    from rob2_pipeline.prompts import PROMPT_PRELIMINARY_INFO
+
+    assert "death is the only event that counts" in PROMPT_PRELIMINARY_INFO
+    assert "Do not use this category for composite endpoints" in PROMPT_PRELIMINARY_INFO
+    assert "Event-free survival combining death" in PROMPT_PRELIMINARY_INFO
+    assert "participant questionnaire" in PROMPT_PRELIMINARY_INFO
+    assert "PFS" not in PROMPT_PRELIMINARY_INFO
+    assert "CRPC" not in PROMPT_PRELIMINARY_INFO
+
+
+def test_domain2_conditional_prompt_calibrates_q23_to_trial_context():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN2_CONDITIONAL
+
+    assert "NI is a last resort" in PROMPT_DOMAIN2_CONDITIONAL
+    assert "recruitment, engagement, unblinding, or trial personnel" in PROMPT_DOMAIN2_CONDITIONAL
+    assert "consistent with what could occur outside the trial context" in PROMPT_DOMAIN2_CONDITIONAL
+    assert "protocol-consistent changes" in PROMPT_DOMAIN2_CONDITIONAL
+    assert "pre-treatment non-starts" not in PROMPT_DOMAIN2_CONDITIONAL
+    assert "external change in standard of care" not in PROMPT_DOMAIN2_CONDITIONAL
+
+
+def test_domain3_prompt_includes_general_time_to_event_censoring_guidance():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN3
+
+    assert "time-to-event analyses" in PROMPT_DOMAIN3
+    assert "participants' follow-up is censored when they stop or change their assigned intervention" in PROMPT_DOMAIN3
+    assert "rates of censoring differ between intervention groups" in PROMPT_DOMAIN3
+    assert "switching to second-line therapy is itself an outcome-related event" not in PROMPT_DOMAIN3
+
+
+def test_domain4_prompt_infers_assessor_awareness_in_open_label_trials():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN4
+
+    result = PROMPT_DOMAIN4.format(
+        intervention="Docetaxel + ADT",
+        comparator="ADT alone",
+        outcome="Progression-Free Survival",
+        outcome_type="clinician-composite",
+        sq_2_1="Y",
+        outcome_measurement_text="Progression was investigator-assessed.",
+        blinding_text="Open-label trial.",
+        rag_text="",
+    )
+
+    assert "If the trial is open-label (Q2.1=Y" in result
+    assert "answer PY (assessors likely aware of assignment) rather than NI" in result
+    assert "cannot be inferred from any available evidence" in result
+
+
+def test_domain4_prompt_restricts_q44_objective_rule_to_vital_status():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN4
+
+    assert "observer-reported outcomes involving judgment" in PROMPT_DOMAIN4
+    assert "observer-reported outcomes that do not involve judgment" in PROMPT_DOMAIN4
+    assert "centrally blinded" in PROMPT_DOMAIN4
+    assert "PFS" not in PROMPT_DOMAIN4
+    assert "TTP" not in PROMPT_DOMAIN4
+    assert "CRPC" not in PROMPT_DOMAIN4
+
+
+def test_domain4_prompt_calibrates_q45_some_concerns_vs_high():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN4
+
+    assert "could have been influenced" in PROMPT_DOMAIN4
+    assert "likely was influenced" in PROMPT_DOMAIN4
+    assert "patient-reported symptoms in trials of homeopathy" in PROMPT_DOMAIN4
+    assert "standardized outcome criteria" in PROMPT_DOMAIN4
+    assert "open-label oncology" not in PROMPT_DOMAIN4
 
 
 def test_domain5_prompt_clarifies_composite_endpoints_are_not_selective_measurements():

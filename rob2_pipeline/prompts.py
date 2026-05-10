@@ -67,11 +67,12 @@ For every extracted value, provide the exact quoted text from the available sour
   </outcome_assessed>
 
   <outcome_type>Classify the outcome type using exactly one of these five values:
-  - vital-status: all-cause mortality or an event defined purely as death with no clinical judgment required
+  - vital-status: all-cause mortality or disease-specific mortality assessed as a single criterion: death is the only event that counts. Do not use this category for composite endpoints that combine death with non-mortality criteria such as progression, relapse, or hospitalisation, even if death is one component.
   - biomarker: laboratory or imaging measurement with a pre-defined numerical threshold
   - clinician-composite: composite or time-to-event outcome requiring clinical or radiological judgment
   - clinician-graded: outcome assessed using a standardized clinical grading scale that still requires judgment
   - patient-reported: outcome assessed by the participant using a questionnaire or self-report instrument
+  Examples: all-cause mortality = `vital-status`; Event-free survival combining death with relapse, progression, or hospitalisation = `clinician-composite`; clinician-rated symptom or function scale = `clinician-graded`; participant questionnaire = `patient-reported`.
 </outcome_type>
 
   <numerical_result>
@@ -268,13 +269,15 @@ Read the following evidence. The Primary Evidence section was extracted specific
 
 Because 2.1 or 2.2 was Y/PY/NI, answer the conditional Domain 2 questions for the effect of assignment to intervention.
 
+Important RoB 2 principle: NI is a last resort. Do not use NI merely because a report omits an explicit statement that routine clinical-management events were unrelated to trial context when N or PN is a reasonable inference.
+
 2.3 Were there deviations from the intended intervention that arose because of the trial context?
-This question concerns changes from assigned intervention that are inconsistent with the protocol and occurred because of the trial context, such as recruitment/engagement effects or trial personnel undermining protocol implementation. Do not count protocol-consistent changes such as dose cessation for toxicity or additional interventions used to treat consequences of the assigned intervention.
-- Y: clear evidence that trial context caused protocol deviations or non-protocol interventions.
-- PY: strong indications that trial context led to unauthorized intervention changes or influenced adherence.
-- PN: deviations appear typical of routine practice outside a trial, or no indication suggests trial-context influence.
-- N: deviations are explicitly unrelated to trial context, are protocol-consistent, or reflect normal clinical management.
-- NI: the report does not state whether deviations arose because of trial context.
+This question concerns changes from assigned intervention that are inconsistent with the protocol and occurred because of the trial context, such as recruitment, engagement, unblinding, or trial personnel undermining protocol implementation in ways that would not happen outside the trial. Do not count protocol-consistent changes such as dose cessation for toxicity, treatment changes after outcome events, or additional interventions used to treat consequences of the assigned intervention.
+- Y: clear evidence that trial context caused protocol-inconsistent deviations or non-protocol interventions.
+- PY: strong indications that recruitment, engagement, unblinding, or trial personnel led to protocol-inconsistent intervention changes or influenced adherence in ways that would not happen outside the trial.
+- PN: deviations appear consistent with what could occur outside the trial context, or no indication suggests trial-context influence.
+- N: deviations are explicitly unrelated to trial context, are protocol-consistent changes, or reflect normal clinical management that could occur outside the trial context.
+- NI: use only when deviations are described but the available sources genuinely do not allow a reasonable PY or PN judgment about whether they arose because of the trial context.
 
 If 2.3 is N/PN/NI, answer 2.4 and 2.5 as NA.
 
@@ -537,6 +540,8 @@ If 3.3 is N/PN, answer 3.4 as NA. If 3.3 is Y/PY/NI, answer 3.4.
 
 3.4 If Y/PY/NI to 3.3: Is it likely that missingness in the outcome depended on its true value?
 Reasons include differences between groups in missing-data proportions, reasons suggesting outcome-dependence, reasons differing between groups, trial circumstances making outcome-dependent missingness likely, or time-to-event censoring when participants stop/change assigned intervention for outcome-related reasons.
+Per the RoB 2 supplement, five specific reasons support answering Y: (1) differences between groups in proportions of missing outcome data; (2) reported reasons for missingness provide evidence of outcome-dependence; (3) reported reasons differ between groups; (4) trial circumstances make outcome-dependent missingness likely; (5) in time-to-event analyses, participants' follow-up is censored when they stop or change their assigned intervention, for example because of drug toxicity or other context-specific outcome-related treatment changes.
+For time-to-event outcomes, check whether rates of censoring differ between intervention groups — a difference in censoring rates supports answering Y or PY.
 - Y: clear evidence makes outcome-dependent missingness likely.
 - PY: some evidence suggests outcome-dependent missingness.
 - PN: reasons/patterns mostly argue against likely outcome-dependence.
@@ -616,14 +621,15 @@ For participant-reported outcomes, the participant is the outcome assessor.
 - PY: assessors likely knew assignment but this is not explicit.
 - PN: assessor blinding likely but not explicitly verified.
 - N: assessors were blinded to intervention assignment.
-- NI: assessor awareness is not reported.
+- NI: assessor awareness is not reported and cannot be inferred from any available evidence.
+
+Inference rule: If the trial is open-label (Q2.1=Y as shown in the context above) and the report contains no mention of a central blinded outcome adjudication committee or independent blinded assessors, answer PY (assessors likely aware of assignment) rather than NI. Reserve NI for cases where the blinding status of outcome assessors genuinely cannot be inferred, which is unusual once Q2.1=Y is established.
 
 If 4.3 is N/PN, answer 4.4-4.5 as NA.
 
 4.4 If Y/PY/NI to 4.3: Could assessment of the outcome have been influenced by knowledge of intervention received?
-Knowledge can influence participant-reported outcomes, observer-reported outcomes involving judgment, and intervention-provider decision outcomes. It is unlikely to influence outcomes without judgment, such as all-cause mortality.
-- Hard endpoints (death, all-cause mortality, vital status) -> Q4.4=N because knowledge of assignment cannot influence the result.
-- Composite endpoints or investigator-assessed endpoints with judgmental components -> Q4.4=PY in an open-label trial, unless there is explicit evidence of blinded adjudication.
+Knowledge can influence participant-reported outcomes, observer-reported outcomes involving judgment, and intervention-provider decision outcomes. It is unlikely to influence observer-reported outcomes that do not involve judgment, such as all-cause mortality.
+Answer N or PN when the outcome is physiologically determined, mechanically measured, centrally blinded, or otherwise not plausibly susceptible to assessor knowledge. Answer Y or PY when the outcome assessment involves judgment that could plausibly be influenced by knowledge of intervention assignment.
 - Y: outcome is clearly subjective or requires major judgment.
 - PY: outcome includes subjective/judgmental elements despite standardization.
 - PN: outcome is mostly objective with limited room for judgment.
@@ -633,9 +639,10 @@ Knowledge can influence participant-reported outcomes, observer-reported outcome
 If 4.4 is N/PN, answer 4.5 as NA.
 
 4.5 If Y/PY/NI to 4.4: Is it likely that assessment of the outcome was influenced by knowledge of intervention received?
+This question distinguishes "could have been influenced" (Some concerns when Q4.5=N/PN) from "likely was influenced" (High when Q4.5=Y/PY/NI). High requires strong levels of belief in either beneficial or harmful effects of the intervention, for example patient-reported symptoms in trials of homeopathy, or assessments of recovery by a physiotherapist who delivered the intervention. When standardized outcome criteria are applied without evidence of strong beliefs, direct assessor involvement in delivering the intervention, or other mechanisms making influence likely, answer N or PN rather than Y or PY.
 - Y: strong beliefs or direct assessor involvement make influence likely.
 - PY: moderate evidence suggests likely influence.
-- PN: little evidence of influence; safeguards or standardized criteria reduce concern.
+- PN: little evidence of likely influence; standardized outcome criteria, safeguards, or absence of known strong prior beliefs reduce concern.
 - N: no apparent mechanism or evidence of likely influence.
 - NI: insufficient information about beliefs, expectations, or assessor role.
 
