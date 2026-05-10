@@ -591,6 +591,8 @@ Read the following evidence. The Primary Evidence section was extracted specific
 
 Answer Domain 4 signaling questions: Bias in measurement of the outcome.
 
+Outcome-specific instruction: first identify the outcome currently being assessed: {outcome}. When the outcome_measurement evidence contains definitions for multiple outcomes, answer based only on the definition for {outcome}. Do not anchor Domain 4 reasoning to a different endpoint, even if that endpoint is described first or in more detail.
+
 4.1 Was the method of measuring the outcome inappropriate?
 This asks about the measurement method, not whether the outcome itself is clinically ideal.
 - Y: method is clearly insensitive to plausible effects, invalid, or inappropriate for the outcome.
@@ -620,6 +622,8 @@ If 4.3 is N/PN, answer 4.4-4.5 as NA.
 
 4.4 If Y/PY/NI to 4.3: Could assessment of the outcome have been influenced by knowledge of intervention received?
 Knowledge can influence participant-reported outcomes, observer-reported outcomes involving judgment, and intervention-provider decision outcomes. It is unlikely to influence outcomes without judgment, such as all-cause mortality.
+- Hard endpoints (death, all-cause mortality, vital status) -> Q4.4=N because knowledge of assignment cannot influence the result.
+- Composite endpoints or investigator-assessed endpoints with judgmental components -> Q4.4=PY in an open-label trial, unless there is explicit evidence of blinded adjudication.
 - Y: outcome is clearly subjective or requires major judgment.
 - PY: outcome includes subjective/judgmental elements despite standardization.
 - PN: outcome is mostly objective with limited room for judgment.
@@ -667,7 +671,7 @@ If 4.4 is N/PN, answer 4.5 as NA.
 
 PROMPT_DOMAIN5 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
-TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
+TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Outcome type: {outcome_type}
 Numerical result being assessed: {numerical_result}
 Trial registration: {registration_number}
 Registered primary endpoint: {registered_endpoint}
@@ -720,6 +724,7 @@ If a ClinicalTrials.gov registry description is provided above and lists PRIMARY
 
 5.2 Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements within the outcome domain?
 Examples include different scales, definitions, or time points.
+A pre-specified composite endpoint is NOT multiple eligible outcome measurements merely because it combines several components into one measure. Answer Q5.2=N for composite endpoints unless there is evidence that specific components were selected post-hoc. Answer Q5.2=Y/PY only when the paper reports one specific scale, definition, component, or time point chosen from several separately pre-specified alternatives based on the observed results.
 - Y: multiple eligible measurements were available, only a subset is reported without justification, and selection based on favorability/significance is clear.
 - PY: multiple measurements were likely available and reporting appears potentially selective.
 - PN: most intended measurements are reported or omissions are explained.

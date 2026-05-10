@@ -202,6 +202,102 @@ class _FakeProvider:
         return LLMResponse(_response_by_node(node_name), "test-model", 1, 1, 1.0)
 
 
+def _pfs_response_by_node(node_name: str):
+    responses = dict(
+        paper_evidence_extraction="""
+        <evidence>
+          <abstract><text>Open-label randomized trial of docetaxel plus ADT versus ADT alone.</text><tables></tables></abstract>
+          <methods><text>Patients were randomly assigned. Overall survival and progression outcomes were assessed.</text><tables></tables></methods>
+          <results><text>Median time to biochemical, symptomatic, or radiographic progression was improved.</text><tables></tables></results>
+          <d1_randomization><text>Patients were randomly assigned by a central statistical center.</text><tables></tables></d1_randomization>
+          <d2_blinding><text>Open-label treatment assignment.</text><tables></tables></d2_blinding>
+          <d3_missing_data><text>All randomly assigned patients were followed.</text><tables></tables></d3_missing_data>
+          <d4_outcome_meas><text>Overall survival was time to death. Progression-free survival was biochemical, symptomatic, or radiographic progression.</text><tables></tables></d4_outcome_meas>
+          <d5_registration><text>ClinicalTrials.gov NCT00309985.</text><tables></tables></d5_registration>
+          <consort_flow><text>790 patients were randomized.</text><tables></tables></consort_flow>
+          <baseline_table><text>Baseline characteristics were balanced.</text><tables></tables></baseline_table>
+        </evidence>
+        """,
+        rct_screener="""
+        <screening><is_rct>YES</is_rct><evidence>randomly assigned</evidence><study_design>RCT</study_design><note></note></screening>
+        """,
+        preliminary_info="""
+        <preliminary_info>
+          <experimental_intervention><value>Docetaxel + ADT</value></experimental_intervention>
+          <comparator_intervention><value>ADT alone</value></comparator_intervention>
+          <outcome_assessed><value>Overall Survival</value></outcome_assessed>
+          <outcome_type>clinician-composite</outcome_type>
+          <numerical_result><value>HR 0.61</value></numerical_result>
+          <n_randomized><value>790</value></n_randomized>
+          <trial_registration><number>NCT00309985</number></trial_registration>
+          <registered_primary_endpoint><value>Overall Survival</value></registered_primary_endpoint>
+          <registered_secondary_endpoints>Not reported</registered_secondary_endpoints>
+          <registered_analysis><value>ITT</value></registered_analysis>
+        </preliminary_info>
+        """,
+        domain1_sq="""
+        <domain1>
+          <sq_1_1><answer>PY</answer><quote>randomly assigned</quote><justification>Randomized.</justification></sq_1_1>
+          <sq_1_2><answer>PY</answer><quote>central statistical center</quote><justification>Central randomization.</justification></sq_1_2>
+          <sq_1_3><answer>N</answer><quote>balanced</quote><justification>No imbalance.</justification></sq_1_3>
+        </domain1>
+        """,
+        domain2_sq12="""
+        <domain2_part1>
+          <sq_2_1><answer>Y</answer><quote>Open-label</quote><justification>Participants were aware.</justification></sq_2_1>
+          <sq_2_2><answer>Y</answer><quote>Open-label</quote><justification>Carers were aware.</justification></sq_2_2>
+        </domain2_part1>
+        """,
+        domain2_conditional="""
+        <domain2_conditional>
+          <sq_2_3><answer>N</answer><quote>No deviations</quote><justification>No deviations from intended interventions.</justification></sq_2_3>
+          <sq_2_4><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification><uncertainty_flag>NORMAL</uncertainty_flag></sq_2_4>
+          <sq_2_5><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification></sq_2_5>
+        </domain2_conditional>
+        """,
+        domain2_analysis="""
+        <domain2_analysis>
+          <sq_2_6><answer>Y</answer><quote>ITT</quote><justification>ITT analysis was used.</justification></sq_2_6>
+          <sq_2_7><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification></sq_2_7>
+        </domain2_analysis>
+        """,
+        domain3_sq="""
+        <domain3>
+          <sq_3_1><answer>Y</answer><quote>All followed</quote><completeness_calculation>790/790</completeness_calculation><justification>Complete follow-up.</justification></sq_3_1>
+          <sq_3_2><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification></sq_3_2>
+          <sq_3_3><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification><uncertainty_flag>NORMAL</uncertainty_flag></sq_3_3>
+          <sq_3_4><answer>NA</answer><quote>Not applicable</quote><justification>Not applicable</justification><uncertainty_flag>NORMAL</uncertainty_flag></sq_3_4>
+        </domain3>
+        """,
+        domain4_sq="""
+        <domain4>
+          <sq_4_1><answer>N</answer><quote>Progression-free survival definition</quote><justification>Standard endpoint.</justification></sq_4_1>
+          <sq_4_2><answer>N</answer><quote>Same definition</quote><justification>Same method.</justification></sq_4_2>
+          <sq_4_3><answer>PY</answer><quote>Open-label</quote><justification>Assessors likely aware.</justification></sq_4_3>
+          <sq_4_4><answer>PY</answer><quote>biochemical, symptomatic, or radiographic progression</quote><justification>Progression includes judgmental components.</justification></sq_4_4>
+          <sq_4_5><answer>N</answer><quote>No evidence of actual influence</quote><justification>No direct evidence that assessment was influenced.</justification><uncertainty_flag>NORMAL</uncertainty_flag></sq_4_5>
+        </domain4>
+        """,
+        domain5_sq="""
+        <domain5>
+          <sq_5_1><answer>Y</answer><quote>NCT00309985</quote><justification>Registered before analysis.</justification><registration_comparison>No discrepancy.</registration_comparison></sq_5_1>
+          <sq_5_2><answer>N</answer><quote>Progression-free survival was registered</quote><justification>The composite endpoint was pre-specified, not selected post hoc.</justification></sq_5_2>
+          <sq_5_3><answer>N</answer><quote>ITT analysis</quote><justification>No selective analysis evident.</justification></sq_5_3>
+        </domain5>
+        """,
+    )
+    return responses[node_name]
+
+
+class _PfsProvider:
+    def __init__(self):
+        self.complete = Mock(side_effect=self._complete)
+
+    def _complete(self, system: str, user: str) -> LLMResponse:
+        node_name = _node_from_prompt(user)
+        return LLMResponse(_pfs_response_by_node(node_name), "test-model", 1, 1, 1.0)
+
+
 class _FakeConverter:
     def convert(self, _pdf_path):
         return type("ConversionResult", (), {"document": object()})()
@@ -231,6 +327,38 @@ def test_graph_happy_path_with_mocked_llm(tmp_path):
     assert "# RoB 2 Assessment" in state["markdown_report"]
     assert len(state["llm_call_log"]) == 9
     assert provider.complete.call_count == 9
+
+
+def test_graph_pfs_composite_endpoint_d4_some_concerns_d5_low(tmp_path):
+    pdf_path = tmp_path / "trial.pdf"
+    _make_pdf(pdf_path)
+    fake_reg_data = {
+        "protocolSection": {
+            "designModule": {},
+            "descriptionModule": {},
+            "outcomesModule": {
+                "primaryOutcomes": [{"measure": "Overall Survival"}],
+                "secondaryOutcomes": [{"measure": "Progression-Free Survival"}],
+                "otherOutcomes": [],
+            },
+        }
+    }
+
+    provider = _PfsProvider()
+    state = _initial_state(str(pdf_path))
+    state["outcome"] = "Progression-Free Survival"
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
+        "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
+    ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=fake_reg_data), patch(
+        "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+        result = build_rob2_graph().invoke(state)
+
+    assert result["registered_endpoint"] == "Progression-Free Survival"
+    assert result["domain_judgments"]["D4"] == "Some concerns"
+    assert result["domain_judgments"]["D5"] == "Low"
+    assert result["sq_answers"]["4.4"]["answer"] == "PY"
+    assert result["sq_answers"]["5.2"]["answer"] == "N"
 
 
 def test_graph_stops_for_non_rct(tmp_path):
@@ -374,3 +502,45 @@ def test_preliminary_node_populates_ctgov_fields(monkeypatch):
     assert "RANDOMIZED" in result.get("ctgov_design", "")
     assert "PRIMARY" in result.get("ctgov_description", "")
     assert "STARTED" in result.get("ctgov_flow", "")
+
+
+def test_preliminary_node_surfaces_matching_secondary_endpoint(monkeypatch):
+    import rob2_pipeline.registration_api as api_mod
+    import rob2_pipeline.nodes.preliminary as preliminary_mod
+
+    fake_reg_data = {
+        "protocolSection": {
+            "designModule": {},
+            "descriptionModule": {},
+            "outcomesModule": {
+                "primaryOutcomes": [{"measure": "Overall Survival"}],
+                "secondaryOutcomes": [{"measure": "Progression-Free Survival"}],
+                "otherOutcomes": [],
+            },
+        }
+    }
+    response = """
+    <preliminary_info>
+      <experimental_intervention><value>Docetaxel + ADT</value></experimental_intervention>
+      <comparator_intervention><value>ADT alone</value></comparator_intervention>
+      <outcome_assessed><value>Overall Survival</value></outcome_assessed>
+      <outcome_type>clinician-composite</outcome_type>
+      <numerical_result><value>HR 0.61</value></numerical_result>
+      <n_randomized><value>790</value></n_randomized>
+      <trial_registration><number>NCT00309985</number></trial_registration>
+      <registered_primary_endpoint><value>Overall Survival</value></registered_primary_endpoint>
+      <registered_secondary_endpoints>Not reported</registered_secondary_endpoints>
+      <registered_analysis><value>ITT</value></registered_analysis>
+    </preliminary_info>
+    """
+    state = _initial_state("trial.pdf")
+    state["outcome"] = "Progression-Free Survival"
+
+    monkeypatch.setattr(api_mod, "fetch_registration", lambda nct_id, use_cache=True: fake_reg_data)
+    monkeypatch.setattr(preliminary_mod, "call_node_llm", lambda state, prompt, node_name: (response, [], None))
+
+    result = preliminary_mod.preliminary_info_node(state)
+
+    assert result["outcome"] == "Progression-Free Survival"
+    assert result["registered_endpoint"] == "Progression-Free Survival"
+    assert result["registered_secondary_endpoints"] == "Progression-Free Survival"

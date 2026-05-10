@@ -70,6 +70,7 @@ def test_prompt_domain5_accepts_ctgov_description():
         intervention="Docetaxel + ADT",
         comparator="ADT alone",
         outcome="Overall Survival",
+        outcome_type="vital-status",
         numerical_result="HR 0.61",
         registration_number="NCT00309985",
         registered_endpoint="Overall Survival",
@@ -111,3 +112,53 @@ def test_domain1_prompt_guides_stratified_cooperative_group_concealment_inferenc
 
     assert "stratified randomization" in PROMPT_DOMAIN1
     assert "PY rather than NI for Q1.2" in PROMPT_DOMAIN1
+
+
+def test_domain4_prompt_guides_outcome_specific_q44_reasoning():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN4
+
+    result = PROMPT_DOMAIN4.format(
+        intervention="Docetaxel + ADT",
+        comparator="ADT alone",
+        outcome="Progression-Free Survival",
+        outcome_type="clinician-composite",
+        sq_2_1="Y",
+        outcome_measurement_text=(
+            "Overall survival was defined as time from randomization to death. "
+            "Progression-free survival was biochemical, symptomatic, or radiographic progression."
+        ),
+        blinding_text="Open-label trial.",
+        rag_text="",
+    )
+
+    assert "definitions for multiple outcomes" in result
+    assert "based only on the definition for Progression-Free Survival" in result
+    assert "Hard endpoints" in result
+    assert "Composite endpoints or investigator-assessed endpoints" in result
+    assert "Q4.4=PY" in result
+
+
+def test_domain5_prompt_clarifies_composite_endpoints_are_not_selective_measurements():
+    from rob2_pipeline.prompts import PROMPT_DOMAIN5
+
+    result = PROMPT_DOMAIN5.format(
+        intervention="Docetaxel + ADT",
+        comparator="ADT alone",
+        outcome="Progression-Free Survival",
+        outcome_type="clinician-composite",
+        numerical_result="HR 0.61",
+        registration_number="NCT00309985",
+        registered_endpoint="Progression-Free Survival",
+        registered_secondary_endpoints="Progression-Free Survival",
+        reported_endpoint="Progression-Free Survival",
+        ctgov_outcomes="SECONDARY: Progression-Free Survival",
+        ctgov_description="",
+        registration_text="",
+        sap_text="",
+        results_text="",
+        rag_text="",
+    )
+
+    assert "A pre-specified composite endpoint" in result
+    assert "is NOT multiple eligible outcome measurements" in result
+    assert "Answer Q5.2=N" in result

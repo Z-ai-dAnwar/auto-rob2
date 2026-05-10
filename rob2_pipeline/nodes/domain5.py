@@ -18,6 +18,7 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
+        outcome_type=state.get("outcome_type", "clinician-composite"),
         numerical_result=state.get("numerical_result", "Not reported"),
         registration_number=state.get("registration_number", "Not reported"),
         registered_endpoint=state.get("registered_endpoint", "Not reported"),

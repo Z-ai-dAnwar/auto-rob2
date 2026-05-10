@@ -31,6 +31,48 @@ def _prefer_extracted(value: str, fallback: str) -> str:
     return fallback if value == "Not reported" and fallback != "Not reported" else value
 
 
+def _normalize_endpoint_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+
+
+def _endpoint_matches(assessed_outcome: str, endpoint: str) -> bool:
+    assessed = _normalize_endpoint_name(assessed_outcome)
+    candidate = _normalize_endpoint_name(endpoint)
+    if not assessed or not candidate or candidate == "not reported":
+        return False
+    return assessed == candidate or assessed in candidate or candidate in assessed
+
+
+def _split_endpoint_list(value: str) -> list[str]:
+    if not value or value == "Not reported":
+        return []
+    return [part.strip() for part in re.split(r";|\n", value) if part.strip()]
+
+
+def _ctgov_outcome_candidates(ctgov_outcomes: str) -> list[str]:
+    candidates = []
+    for line in ctgov_outcomes.splitlines():
+        if ":" not in line:
+            continue
+        _, values = line.split(":", 1)
+        candidates.extend(part.strip() for part in values.split(";") if part.strip())
+    return candidates
+
+
+def _matching_registered_endpoint(state: RoB2State) -> str | None:
+    assessed_outcome = state.get("outcome", "")
+    registered_endpoint = state.get("registered_endpoint", "")
+    if _endpoint_matches(assessed_outcome, registered_endpoint):
+        return None
+
+    candidates = _split_endpoint_list(state.get("registered_secondary_endpoints", ""))
+    candidates.extend(_ctgov_outcome_candidates(state.get("ctgov_outcomes", "")))
+    for candidate in candidates:
+        if _endpoint_matches(assessed_outcome, candidate):
+            return candidate
+    return None
+
+
 def preliminary_info_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     prompt = PROMPT_PRELIMINARY_INFO.format(
@@ -119,6 +161,10 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         state["ctgov_design"] = _skipped
         state["ctgov_description"] = _skipped
         state["ctgov_flow"] = _skipped
+
+    _matched_registered_endpoint = _matching_registered_endpoint(state)
+    if _matched_registered_endpoint:
+        state["registered_endpoint"] = _matched_registered_endpoint
 
     # Auto-detect safety outcomes and override effect_of_interest
     _safety_keywords = {
