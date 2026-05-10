@@ -10,14 +10,18 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
     sq21 = state.get("sq_answers", {}).get("2.1", {}).get("answer", "NI")
+    rag_text = "\n\n".join(
+        text for text in [rag_contexts.get("d4_measurement", ""), rag_contexts.get("d4_assessor", "")] if text
+    )
     prompt = PROMPT_DOMAIN4.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
         outcome_type=state.get("outcome_type", "clinician-composite"),
         sq_2_1=sq21,
-        outcome_measurement_text=rag_contexts.get("d4_measurement") or format_evidence(evidence["d4_outcome_meas"]) or format_evidence(evidence["methods"]),
-        blinding_text=rag_contexts.get("d4_assessor") or format_evidence(evidence["d2_blinding"]),
+        outcome_measurement_text=format_evidence(evidence["d4_outcome_meas"]) or format_evidence(evidence["methods"]),
+        blinding_text=format_evidence(evidence["d2_blinding"]),
+        rag_text=rag_text,
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain4_sq", parse_sq_response, ["4.1", "4.2", "4.3", "4.4", "4.5"]

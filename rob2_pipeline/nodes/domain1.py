@@ -13,9 +13,10 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        randomization_text=rag_contexts.get("d1") or format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]),
-        baseline_text="" if rag_contexts.get("d1") else format_evidence(evidence["baseline_table"]),
-        consort_text="" if rag_contexts.get("d1") else format_evidence(evidence["consort_flow"]),
+        randomization_text=format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]),
+        baseline_text=format_evidence(evidence["baseline_table"]),
+        consort_text=format_evidence(evidence["consort_flow"]),
+        rag_text=rag_contexts.get("d1", ""),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm(

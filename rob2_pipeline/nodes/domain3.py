@@ -9,15 +9,16 @@ from rob2_pipeline.xml_parser import parse_sq_response
 def domain3_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
-    missing_data_text = rag_contexts.get("d3") or format_evidence(evidence["d3_missing_data"]) or format_evidence(evidence["results"])
+    missing_data_text = format_evidence(evidence["d3_missing_data"]) or format_evidence(evidence["results"])
     prompt = PROMPT_DOMAIN3.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
         n_randomized=state.get("n_randomized", "Not reported"),
-        consort_text="" if rag_contexts.get("d3") else format_evidence(evidence["consort_flow"]),
+        consort_text=format_evidence(evidence["consort_flow"]),
         missing_data_text=missing_data_text,
-        sensitivity_text="" if rag_contexts.get("d3") else format_evidence(evidence["d4_outcome_meas"]),
+        sensitivity_text=format_evidence(evidence["d4_outcome_meas"]),
+        rag_text=rag_contexts.get("d3", ""),
         ctgov_flow=state.get("ctgov_flow", "(No ClinicalTrials.gov participant flow available)"),
     )
     response, log, parsed = call_node_llm(

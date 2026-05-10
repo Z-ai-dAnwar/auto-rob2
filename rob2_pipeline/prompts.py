@@ -112,7 +112,9 @@ PROMPT_DOMAIN1 = """You are an expert systematic reviewer applying the Cochrane 
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 
-Read the following sections:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <randomization_section>
 {randomization_text}
@@ -129,6 +131,9 @@ Read the following sections:
 <registry_design_metadata>
 {ctgov_design}
 </registry_design_metadata>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer Domain 1 signaling questions: Bias arising from the randomization process.
 
@@ -154,6 +159,8 @@ Y/N means firm evidence is stated. PY/PN means a reasonable inference from indir
 - PN: the method is described incompletely and suggests possible inadequacy, such as envelopes without enough safeguards.
 - N: enrolling investigators or participants could know or predict the forthcoming allocation.
 - NI: no useful information about allocation concealment is provided.
+
+For large multicenter cooperative-group trials with stratified randomization, balanced groups, and no suggestion that recruiters could foresee assignments, answer PY rather than NI for Q1.2 even if the exact operational concealment mechanism is not named. Reserve NI for reports that only say randomized and provide no trial-infrastructure, stratification, or baseline-balance context.
 
 1.3 Did baseline differences between intervention groups suggest a problem with the randomization process?
 Baseline differences compatible with chance do not indicate bias.
@@ -185,7 +192,9 @@ PROMPT_DOMAIN2_SQ12 = """You are an expert systematic reviewer applying the Coch
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Effect of interest: effect of assignment to intervention (intention-to-treat)
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <blinding_section>
 {blinding_text}
@@ -198,6 +207,9 @@ Read the following:
 <registry_design_metadata>
 {ctgov_design}
 </registry_design_metadata>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer the first two Domain 2 signaling questions: Bias due to deviations from intended interventions.
 
@@ -239,7 +251,9 @@ PROMPT_DOMAIN2_CONDITIONAL = """You are an expert systematic reviewer applying t
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Prior answers: Q2.1 = {sq_2_1} | Q2.2 = {sq_2_2}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <protocol_adherence>
 {deviations_text}
@@ -248,6 +262,9 @@ Read the following:
 <concomitant_medications>
 {concomitant_text}
 </concomitant_medications>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Because 2.1 or 2.2 was Y/PY/NI, answer the conditional Domain 2 questions for the effect of assignment to intervention.
 
@@ -302,7 +319,9 @@ TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Prior answers: Q2.1 = {sq_2_1} | Q2.2 = {sq_2_2}
 Effect of interest: effect of adhering to intervention (per-protocol)
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <protocol_adherence>
 {deviations_text}
@@ -311,6 +330,9 @@ Read the following:
 <concomitant_medications>
 {concomitant_text}
 </concomitant_medications>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer the Domain 2 Version B conditional questions for bias due to deviations from intended interventions when estimating the effect of adhering to intervention.
 
@@ -364,7 +386,9 @@ PROMPT_DOMAIN2_ANALYSIS = """You are an expert systematic reviewer applying the 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Effect of interest in pipeline state: {effect_of_interest}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <statistical_analysis>
 {analysis_text}
@@ -373,6 +397,9 @@ Read the following:
 <results_participants>
 {results_text}
 </results_participants>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer Domain 2 analysis questions for the effect of assignment to intervention unless the user explicitly configured a per-protocol/adhering effect. For assignment/ITT, appropriate analyses include strict ITT, modified ITT excluding only participants with missing outcome data, and post-randomization exclusions limited to independently determined ineligible participants. Naive per-protocol, as-treated, and analyses excluding eligible participants post-randomization are inappropriate for the assignment effect.
 
@@ -410,7 +437,9 @@ PROMPT_DOMAIN2_ADHERING_ANALYSIS = """You are an expert systematic reviewer appl
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Effect of interest in pipeline state: {effect_of_interest}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <statistical_analysis>
 {analysis_text}
@@ -419,6 +448,9 @@ Read the following:
 <results_participants>
 {results_text}
 </results_participants>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer Domain 2 Version B analysis question for the effect of adhering to intervention. Naive per-protocol analyses, as-treated analyses, ITT analyses, and analysis by treatment received will usually be inappropriate for estimating the effect of adhering to intervention. Appropriate methods may include instrumental variable analyses for a single all-or-nothing baseline intervention, or inverse probability weighting to adjust for censoring of participants who cease adherence in sustained treatment strategies. Such methods depend on strong assumptions that should be appropriate and justified.
 
@@ -448,7 +480,9 @@ PROMPT_DOMAIN3 = """You are an expert systematic reviewer applying the Cochrane 
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | N randomized: {n_randomized}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <consort_flow>
 {consort_text}
@@ -465,6 +499,9 @@ Read the following:
 <registry_participant_flow>
 {ctgov_flow}
 </registry_participant_flow>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer Domain 3 signaling questions: Bias due to missing outcome data.
 
@@ -537,7 +574,9 @@ PROMPT_DOMAIN4 = """You are an expert systematic reviewer applying the Cochrane 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Outcome type: {outcome_type}
 Q2.1 participants aware of assignment: {sq_2_1}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
 
 <outcome_measurement>
 {outcome_measurement_text}
@@ -546,6 +585,9 @@ Read the following:
 <blinding_section>
 {blinding_text}
 </blinding_section>
+
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
 
 Answer Domain 4 signaling questions: Bias in measurement of the outcome.
 
@@ -631,7 +673,12 @@ Trial registration: {registration_number}
 Registered primary endpoint: {registered_endpoint}
 Reported outcome being assessed: {reported_endpoint}
 
-Read the following:
+Read the following evidence. The Primary Evidence section was extracted specifically for this domain. Use it as your primary source. The Additional Retrieved Context supplements it; it may contain supporting detail not present in the primary section.
+
+=== PRIMARY EVIDENCE (domain-extracted - treat as authoritative) ===
+
+Registered primary endpoint: {registered_endpoint}
+Registered secondary endpoints: {registered_secondary_endpoints}
 
 <registration_or_protocol>
 {registration_text}
@@ -653,6 +700,9 @@ Read the following:
 {ctgov_description}
 </authoritative_registration_description>
 
+=== ADDITIONAL RETRIEVED CONTEXT (full-document search) ===
+{rag_text}
+
 Answer Domain 5 signaling questions: Bias in selection of the reported result.
 
 If a trial registration number is available, compare the registry/protocol outcomes and analysis intentions against the result being assessed. Focus on whether the numerical result was selected on the basis of the results, not merely whether the assessed outcome was primary or secondary.
@@ -663,6 +713,8 @@ If a trial registration number is available, compare the registry/protocol outco
 - PN: plan is mentioned but not detailed enough, or unexplained deviations suggest possible post hoc decisions.
 - N: clear post hoc analysis decisions, endpoint switching, or result-based changes.
 - NI: no adequate information on pre-specified analysis intentions or timing.
+
+Answer Y or PY for 5.1 if a trial registration number is cited and the registration predates the primary analysis, or if the paper explicitly states that primary endpoints or the statistical analysis plan were prespecified or publicly available. Do not require every statistical detail, such as covariate lists, imputation methods, or sensitivity analyses, to be reprinted in the paper itself. A registration number combined with a prespecification claim is sufficient for Y. Answer PN only if there is specific evidence that the analysis plan changed after data unblinding, or if no registration exists and no prespecification is documented anywhere.
 
 If a ClinicalTrials.gov registry description is provided above and lists PRIMARY, SECONDARY, or TERTIARY objectives, treat these as evidence that objectives were described in the registry. Objectives alone are not the same as prespecified endpoint definitions or a finalized pre-unblinding statistical analysis plan; use them together with protocol, SAP, amendment, and results-reporting evidence when judging Q5.1.
 

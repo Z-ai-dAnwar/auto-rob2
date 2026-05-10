@@ -19,8 +19,9 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        blinding_text=rag_contexts.get("d2_blinding") or format_evidence(evidence["d2_blinding"]),
-        methods_text="" if rag_contexts.get("d2_blinding") else format_evidence(evidence["methods"]),
+        blinding_text=format_evidence(evidence["d2_blinding"]),
+        methods_text=format_evidence(evidence["methods"]),
+        rag_text=rag_contexts.get("d2_blinding", ""),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm(
@@ -59,8 +60,9 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         sq_2_1=sq.get("2.1", {}).get("answer", "NI"),
         sq_2_2=sq.get("2.2", {}).get("answer", "NI"),
-        deviations_text=rag_contexts.get("d2_deviations") or format_evidence(evidence["d2_blinding"]) + "\n" + format_evidence(evidence["results"]),
-        concomitant_text="" if rag_contexts.get("d2_deviations") else format_evidence(evidence["methods"]),
+        deviations_text=format_evidence(evidence["d2_blinding"]) + "\n" + format_evidence(evidence["results"]),
+        concomitant_text=format_evidence(evidence["methods"]),
+        rag_text=rag_contexts.get("d2_deviations", ""),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_conditional", parse_sq_response, ["2.3", "2.4", "2.5"]
@@ -90,8 +92,9 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         comparator=state["comparator"],
         outcome=state["outcome"],
         effect_of_interest=state.get("effect_of_interest", "ITT"),
-        analysis_text=rag_contexts.get("d2_analysis") or format_evidence(evidence["d4_outcome_meas"]),
-        results_text="" if rag_contexts.get("d2_analysis") else format_evidence(evidence["results"]),
+        analysis_text=format_evidence(evidence["d4_outcome_meas"]),
+        results_text=format_evidence(evidence["results"]),
+        rag_text=rag_contexts.get("d2_analysis", ""),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_analysis", parse_sq_response, ["2.6", "2.7"]
