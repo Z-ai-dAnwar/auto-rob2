@@ -1,7 +1,7 @@
 import re
 from typing import Optional
 
-from lxml import etree
+from lxml import etree  # type: ignore[import-untyped]
 
 
 VALID_ANSWERS = {"Y", "PY", "PN", "N", "NI", "NA"}

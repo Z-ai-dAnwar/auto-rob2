@@ -1,6 +1,7 @@
 import operator
-from typing import Annotated, TypedDict
+from typing import Annotated, Any, TypedDict
 
+from rob2_pipeline.models import PaperEvidence
 from rob2_pipeline.types import LLMCallLogEntry
 
 
@@ -14,11 +15,13 @@ def take_latest(_left, right):
     return right
 
 
-class RoB2State(TypedDict):
+class RoB2State(TypedDict, total=False):
     # === INPUT ===
     pdf_path: Annotated[str, take_latest]
     full_text: Annotated[str, take_latest]
-    sections: Annotated[dict[str, str], take_latest]
+    evidence: Annotated[PaperEvidence, take_latest]
+    docling_doc: Annotated[Any, take_latest]
+    rag_contexts: Annotated[dict[str, str], take_latest]
 
     # === PRELIMINARY INFO ===
     is_rct: Annotated[bool, take_latest]

@@ -2,6 +2,7 @@ import re
 
 from lxml import etree
 
+from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, format_evidence
 from rob2_pipeline.nodes.common import call_node_llm
 from rob2_pipeline.prompts import PROMPT_PRELIMINARY_INFO
 from rob2_pipeline.state import RoB2State
@@ -31,18 +32,20 @@ def _prefer_extracted(value: str, fallback: str) -> str:
 
 
 def preliminary_info_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
     prompt = PROMPT_PRELIMINARY_INFO.format(
-        abstract_text=sections.get("abstract", ""),
-        methods_text=sections.get("methods", ""),
-        results_text=sections.get("results", ""),
-        registration_text=sections.get("registration", ""),
-        consort_text=sections.get("consort", ""),
+        abstract_text=format_evidence(evidence["abstract"]),
+        methods_text=format_evidence(evidence["methods"]),
+        results_text=format_evidence(evidence["results"]),
+        registration_text=format_evidence(evidence["d5_registration"]),
+        consort_text=format_evidence(evidence["consort_flow"]),
     )
     response, log, _ = call_node_llm(state, prompt, "preliminary_info")
     requested_outcome = state.get("outcome", "")
     extracted_outcome = _nested_text(response, "outcome_assessed", "value")
-    evidence_text = "\n".join([state.get("full_text", ""), *sections.values()])
+    evidence_text = "\n".join(
+        [state.get("full_text", ""), *(format_evidence(evidence[field]) for field in EVIDENCE_SECTION_FIELDS)]
+    )
     registration_number = _prefer_extracted(
         _nested_text(response, "trial_registration", "number"),
         _first_match(evidence_text, [r"\b(NCT\d{8})\b", r"\b(ISRCTN\d+)\b"]),
@@ -67,7 +70,7 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         "registered_endpoint": _nested_text(response, "registered_primary_endpoint", "value"),
         "registered_secondary_endpoints": (extract_tag(response, "registered_secondary_endpoints") or "Not reported").strip(),
         "registered_analysis": registered_analysis,
-        "sources_consulted": [name for name, text in sections.items() if text],
+        "sources_consulted": [field for field in EVIDENCE_SECTION_FIELDS if format_evidence(evidence[field])],
         "llm_call_log": log,
     }
 

@@ -1,8 +1,16 @@
 import logging
 import os
 import re
+import time
+from dataclasses import dataclass
+from typing import cast
 
 import pymupdf4llm
+from lxml import etree  # type: ignore[import-untyped]
+
+from rob2_pipeline.config import build_provider
+from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
+from rob2_pipeline.types import LLMCallLogEntry
 
 
 SECTION_PATTERNS = {
@@ -68,6 +76,64 @@ _CENSORING_PATTERNS = [
     re.compile(r"(?i)\b\d[\d,]*\s*/\s*\d[\d,]*\s+participants?\b.*\bevents?\b"),
     re.compile(r"(?i)\b\d[\d,]*\s+events?\b.*\d|\d.*\b\d[\d,]*\s+events?\b"),
 ]
+
+PROMPT_PAPER_EXTRACTION = """
+You are a clinical trial analyst. Extract the following content from the paper below.
+For each section, return all relevant narrative text AND any tables that belong to it.
+If content is not present, return empty strings - do not invent content.
+
+<paper>
+{paper}
+</paper>
+
+Return only XML in this shape:
+<evidence>
+  <abstract><text></text><tables></tables></abstract>
+  <methods><text></text><tables></tables></methods>
+  <results><text></text><tables></tables></results>
+  <d1_randomization><text>allocation sequence, concealment, baseline balance</text><tables></tables></d1_randomization>
+  <d2_blinding><text>masking, open-label status, protocol deviations</text><tables></tables></d2_blinding>
+  <d3_missing_data><text>dropout, ITT, missing outcome data</text><tables></tables></d3_missing_data>
+  <d4_outcome_meas><text>outcome definitions, measurement, analysis plan</text><tables></tables></d4_outcome_meas>
+  <d5_registration><text>registration, protocol, pre-specified endpoints</text><tables></tables></d5_registration>
+  <consort_flow><text></text><tables></tables></consort_flow>
+  <baseline_table><text></text><tables></tables></baseline_table>
+</evidence>
+""".strip()
+
+PAPER_EXTRACTION_SYSTEM_MESSAGE = (
+    "You are an expert systematic reviewer extracting clinical trial evidence. "
+    "Respond only in the XML format specified in the prompt."
+)
+
+
+@dataclass
+class DocBlock:
+    heading: str | None
+    level: int
+    text: str
+    tables: list[str]
+    page_start: int
+
+
+@dataclass
+class DocumentRepr:
+    blocks: list[DocBlock]
+    full_text: str
+
+    def to_prompt_repr(self) -> str:
+        parts = []
+        for block in self.blocks:
+            heading = block.heading or "Document"
+            level = max(1, min(block.level or 1, 6))
+            section_parts = [f"{'#' * level} {heading}"]
+            if block.text.strip():
+                section_parts.append(block.text.strip())
+            for table in block.tables:
+                if table.strip():
+                    section_parts.append(f"[TABLE]\n{table.strip()}\n[/TABLE]")
+            parts.append("\n\n".join(section_parts))
+        return "\n\n".join(parts) if parts else self.full_text
 
 
 def extract_full_text(pdf_path: str) -> str:
@@ -151,6 +217,197 @@ def _normalize_extracted_text(text: str) -> str:
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{4,}", "\n\n\n", text)
     return text.strip()
+
+
+def _label_name(item) -> str:
+    label = getattr(item, "label", None)
+    return getattr(label, "name", str(label)).upper() if label is not None else ""
+
+
+def _page_no(item) -> int:
+    prov = getattr(item, "prov", None) or []
+    if prov:
+        return int(getattr(prov[0], "page_no", 0) or 0)
+    return 0
+
+
+def _export_table_markdown(item, doc) -> str:
+    if hasattr(item, "export_to_markdown"):
+        try:
+            return (item.export_to_markdown(doc=doc) or "").strip()
+        except TypeError:
+            return (item.export_to_markdown() or "").strip()
+    if hasattr(item, "export_to_dataframe"):
+        try:
+            return item.export_to_dataframe(doc=doc).to_markdown()
+        except TypeError:
+            return item.export_to_dataframe().to_markdown()
+    return ""
+
+
+def _export_doc_markdown(doc) -> str:
+    if hasattr(doc, "export_to_markdown"):
+        return (doc.export_to_markdown() or "").strip()
+    if hasattr(doc, "export_to_text"):
+        return (doc.export_to_text() or "").strip()
+    return ""
+
+
+def build_document_repr(doc) -> DocumentRepr:
+    blocks: list[DocBlock] = []
+    current_heading: str | None = None
+    current_level = 0
+    current_text: list[str] = []
+    current_tables: list[str] = []
+    current_page = 0
+
+    def flush() -> None:
+        nonlocal current_text, current_tables, current_page
+        text = "\n".join(part for part in current_text if part).strip()
+        if text or current_tables:
+            blocks.append(
+                DocBlock(
+                    heading=current_heading,
+                    level=current_level,
+                    text=text,
+                    tables=list(current_tables),
+                    page_start=current_page,
+                )
+            )
+        current_text = []
+        current_tables = []
+        current_page = 0
+
+    iterator = doc.iterate_items() if hasattr(doc, "iterate_items") else []
+    for item, level in iterator:
+        label_name = _label_name(item)
+        item_text = (getattr(item, "text", "") or "").strip()
+        if label_name == "SECTION_HEADER":
+            flush()
+            current_heading = item_text or None
+            current_level = int(level or 1)
+            current_page = _page_no(item)
+            continue
+        if not current_page:
+            current_page = _page_no(item)
+        if label_name == "TABLE":
+            table = _export_table_markdown(item, doc)
+            if table:
+                current_tables.append(table)
+            continue
+        if label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"} and item_text:
+            current_text.append(item_text)
+
+    flush()
+    return DocumentRepr(blocks=blocks, full_text=_export_doc_markdown(doc))
+
+
+def _tables_from_xml(parent) -> list[str]:
+    tables_el = parent.find("tables")
+    if tables_el is None:
+        return []
+    child_tables = ["".join(table.itertext()).strip() for table in tables_el.findall(".//table")]
+    child_tables = [table for table in child_tables if table]
+    if child_tables:
+        return child_tables
+    text = "".join(tables_el.itertext()).strip()
+    return [text] if text else []
+
+
+def _parse_paper_evidence_response(response: str) -> PaperEvidence:
+    cleaned = re.sub(r"```xml\s*|\s*```", "", response).strip()
+    parser = etree.XMLParser(recover=True)
+    root = etree.fromstring(f"<root>{cleaned}</root>".encode(), parser=parser)
+    evidence = empty_paper_evidence("docling_llm")
+    for field in EVIDENCE_SECTION_FIELDS:
+        field_el = root.find(f".//{field}")
+        if field_el is None:
+            continue
+        text = (field_el.findtext("text") or "").strip()
+        cast(dict[str, object], evidence)[field] = {
+            "text": text,
+            "tables": _tables_from_xml(field_el),
+            "source": "llm_extract",
+        }
+    return evidence
+
+
+def extract_paper_evidence(doc_repr: DocumentRepr) -> tuple[PaperEvidence, list[LLMCallLogEntry]]:
+    prompt = PROMPT_PAPER_EXTRACTION.format(paper=doc_repr.to_prompt_repr())
+    provider = build_provider()
+    start = time.perf_counter()
+    response_obj = provider.complete(system=PAPER_EXTRACTION_SYSTEM_MESSAGE, user=prompt)
+    response = response_obj.content
+    evidence = _parse_paper_evidence_response(response)
+    latency_ms = int((time.perf_counter() - start) * 1000)
+    log: list[LLMCallLogEntry] = [
+        {
+            "node": "paper_evidence_extraction",
+            "prompt_length_chars": len(prompt),
+            "response_length_chars": len(response),
+            "latency_ms": latency_ms,
+            "cache_hit": False,
+            "model": response_obj.model,
+            "input_tokens": response_obj.input_tokens,
+            "output_tokens": response_obj.output_tokens,
+            "cached": response_obj.cached,
+        }
+    ]
+    return evidence, log
+
+
+def paper_evidence_from_sections(
+    sections: dict[str, str],
+    extraction_method: str = "fallback",
+    source: str = "keyword_fallback",
+    warnings: list[str] | None = None,
+) -> PaperEvidence:
+    evidence = empty_paper_evidence(extraction_method)
+    mapping = {
+        "abstract": ["abstract"],
+        "methods": ["methods"],
+        "results": ["results"],
+        "d1_randomization": ["randomization", "methods"],
+        "d2_blinding": ["blinding", "methods"],
+        "d3_missing_data": ["missing_data", "results"],
+        "d4_outcome_meas": ["outcomes", "analysis", "results"],
+        "d5_registration": ["registration"],
+        "consort_flow": ["consort"],
+        "baseline_table": ["baseline"],
+    }
+    for field, section_names in mapping.items():
+        text = "\n\n".join(sections.get(name, "") for name in section_names if sections.get(name, "")).strip()
+        cast(dict[str, object], evidence)[field] = {
+            "text": cap_section(text) if text else "",
+            "tables": [],
+            "source": source,
+        }
+    evidence["warnings"] = warnings or []
+    return evidence
+
+
+def extract_structural_paper_evidence(doc_repr: DocumentRepr) -> PaperEvidence:
+    evidence = paper_evidence_from_sections(
+        parse_sections(doc_repr.to_prompt_repr() or doc_repr.full_text),
+        extraction_method="docling_struct",
+        source="docling_struct",
+        warnings=["LLM evidence extraction failed; used Docling structural keyword mapping."],
+    )
+    table_mapping = {
+        "baseline_table": SECTION_PATTERNS["baseline"],
+        "consort_flow": SECTION_PATTERNS["consort"],
+        "results": SECTION_PATTERNS["results"],
+        "d4_outcome_meas": SECTION_PATTERNS["outcomes"] + SECTION_PATTERNS["analysis"],
+        "d5_registration": SECTION_PATTERNS["registration"],
+    }
+    for block in doc_repr.blocks:
+        searchable = "\n".join([block.heading or "", block.text, *block.tables]).lower()
+        for field, keywords in table_mapping.items():
+            if block.tables and any(keyword in searchable for keyword in keywords):
+                field_evidence = cast(dict[str, object], evidence)[field]
+                tables = cast(list[str], cast(dict[str, object], field_evidence)["tables"])
+                tables.extend(table for table in block.tables if table not in tables)
+    return evidence
 
 
 def cap_section(
@@ -280,7 +537,7 @@ def _augment_consort_from_results(sections: dict) -> dict:
 
 def _parse_sections_from_docling_document(doc) -> dict[str, str] | None:
     try:
-        buffers = {name: [] for name in SECTION_ORDER}
+        buffers: dict[str, list[str]] = {name: [] for name in SECTION_ORDER}
         sections = {name: "" for name in SECTION_ORDER}
         current_section: str | None = None
 
@@ -388,7 +645,7 @@ def extract_censoring_context(full_text: str, outcome: str) -> str:
 def parse_sections(full_text: str) -> dict[str, str]:
     sections = {name: "" for name in SECTION_ORDER}
     current_section: str | None = None
-    buffers = {name: [] for name in SECTION_ORDER}
+    buffers: dict[str, list[str]] = {name: [] for name in SECTION_ORDER}
 
     for raw_line in full_text.splitlines():
         line = raw_line.strip()

@@ -2,15 +2,16 @@
 
 ## Pipeline Overview
 
-`auto-rob2` runs a sequential LangGraph workflow:
+`auto-rob2` runs a sequential LangGraph workflow with a local retrieval layer:
 
 1. PDF ingestion and section parsing
 2. RCT screening
 3. Preliminary trial metadata extraction
-4. Domain-level signaling questions (D1-D5)
-5. Deterministic domain judgments
-6. Deterministic overall judgment
-7. Report generation (Markdown + JSON)
+4. Per-document RAG retrieval from Docling chunks
+5. Domain-level signaling questions (D1-D5)
+6. Deterministic domain judgments
+7. Deterministic overall judgment
+8. Report generation (Markdown + JSON)
 
 Main graph wiring is in `rob2_pipeline/graph.py`.
 
@@ -25,6 +26,12 @@ Outputs per run:
   - Extracts full text and section-level snippets.
   - Includes CONSORT augmentation fallback from results/supplementary text.
 
+- `rob2_pipeline/rag.py`
+  - Builds local Docling chunks, embeds them with `sentence-transformers/all-MiniLM-L6-v2`, and retrieves with FAISS.
+
+- `rob2_pipeline/rag_queries.py`
+  - Static query sets for D1-D5 retrieval contexts.
+
 - `rob2_pipeline/pipeline.py`
   - Public orchestration entrypoint for assessments.
 
@@ -35,6 +42,7 @@ Outputs per run:
   - LangGraph node implementations.
   - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
   - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
+  - `nodes/rag_retrieval.py` builds `rag_contexts` from the per-document Docling result.
 
 - `rob2_pipeline/providers/`
   - Provider abstraction around LangChain chat models.
@@ -60,10 +68,11 @@ Outputs per run:
 1. `pdf_ingest`: markdown extraction + deterministic section parsing
 2. `rct_screener`: stop early for non-RCT studies
 3. `preliminary_info`: trial metadata extraction
-4. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
-5. Domain judge nodes produce deterministic domain judgments
-6. `overall_judge`: overall risk + review priority
-7. `report_formatter`: markdown report payload
+4. `rag_retrieval`: per-document chunking, embedding, and local retrieval
+5. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
+6. Domain judge nodes produce deterministic domain judgments
+7. `overall_judge`: overall risk + review priority
+8. `report_formatter`: markdown report payload
 
 ## Concurrency Model
 
@@ -84,6 +93,7 @@ Important fields:
 
 - `sq_answers`: parsed signaling-question answers
 - `domain_judgments`, `domain_rationales`
+- `docling_doc`, `rag_contexts`
 - `effect_of_interest`: `ITT` or `per-protocol`
 - `registered_endpoint`, `registered_secondary_endpoints`
 - `ctgov_outcomes`
@@ -96,6 +106,9 @@ Important fields:
   - `OPENROUTER_API_KEY`
   - `ANTHROPIC_API_KEY`
   - `OPENAI_API_KEY`
+- Hugging Face auth may be needed once for the embedding model download:
+  - `hf auth login`
+  - or set `HF_TOKEN`
 - LLM config:
   - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`
   - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`
@@ -127,7 +140,9 @@ Typical failure triage:
    - Check model output for malformed tags/code fences
 2. Missing sections
    - Check deterministic section headings and patterns in `rob2_pipeline/pdf_ingestion.py`
-3. Domain logic disagreements
+3. RAG retrieval gaps
+   - Inspect `rag_contexts` and `rob2_pipeline/rag.py`
+4. Domain logic disagreements
    - Inspect `sq_answers` and judge modules under `rob2_pipeline/judges/`
 
 ## Extending the System

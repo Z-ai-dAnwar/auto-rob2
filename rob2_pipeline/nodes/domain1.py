@@ -1,4 +1,5 @@
 from rob2_pipeline.judges.domain1 import judge_domain1
+from rob2_pipeline.models import format_evidence
 from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers
 from rob2_pipeline.prompts import PROMPT_DOMAIN1
 from rob2_pipeline.state import RoB2State
@@ -6,14 +7,15 @@ from rob2_pipeline.xml_parser import parse_sq_response
 
 
 def domain1_sq_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
+    rag_contexts = state.get("rag_contexts", {})
     prompt = PROMPT_DOMAIN1.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        randomization_text=sections.get("randomization", "") or sections.get("methods", ""),
-        baseline_text=sections.get("baseline", ""),
-        consort_text=sections.get("consort", ""),
+        randomization_text=rag_contexts.get("d1") or format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]),
+        baseline_text="" if rag_contexts.get("d1") else format_evidence(evidence["baseline_table"]),
+        consort_text="" if rag_contexts.get("d1") else format_evidence(evidence["consort_flow"]),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain1_sq", parse_sq_response, ["1.1", "1.2", "1.3"]

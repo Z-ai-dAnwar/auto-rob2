@@ -21,6 +21,7 @@ JSON_OUTPUT_KEYS = (
     "registered_endpoint",
     "registered_analysis",
     "n_randomized",
+    "evidence",
     "sources_consulted",
     "sq_answers",
     "domain_judgments",

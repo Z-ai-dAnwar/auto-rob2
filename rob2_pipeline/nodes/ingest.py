@@ -1,9 +1,13 @@
 from rob2_pipeline.nodes.common import call_node_llm
+from rob2_pipeline.models import format_evidence
 from rob2_pipeline.pdf_ingestion import (
     _configure_docling_runtime,
     _get_docling_converter,
-    _parse_sections_from_docling_document,
+    build_document_repr,
+    extract_paper_evidence,
     extract_full_text,
+    extract_structural_paper_evidence,
+    paper_evidence_from_sections,
     parse_sections,
 )
 from rob2_pipeline.prompts import PROMPT_RCT_SCREEN
@@ -15,30 +19,41 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
     pdf_path = state["pdf_path"]
     full_text = extract_full_text(pdf_path)
 
-    sections = None
     try:
         _configure_docling_runtime()
         converter = _get_docling_converter(use_ocr=False)
-        doc = converter.convert(pdf_path).document
-        sections = _parse_sections_from_docling_document(doc)
+        conv_result = converter.convert(pdf_path)
+        doc = conv_result.document
+        doc_repr = build_document_repr(doc)
+        if not doc_repr.full_text:
+            doc_repr.full_text = full_text
+        try:
+            evidence, log = extract_paper_evidence(doc_repr)
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "llm_call_log": log}
+        except Exception as error:  # noqa: BLE001
+            evidence = extract_structural_paper_evidence(doc_repr)
+            evidence["warnings"].append(f"LLM evidence extraction failed: {error}")
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
     except Exception:
-        sections = None
-
-    if sections is None:
         sections = parse_sections(full_text)
-
-    return {"full_text": full_text, "sections": sections}
+        evidence = paper_evidence_from_sections(
+            sections,
+            extraction_method="fallback",
+            source="keyword_fallback",
+            warnings=["Docling structural extraction failed; used text keyword fallback."],
+        )
+        return {"full_text": full_text, "evidence": evidence, "docling_doc": None}
 
 
 def rct_screener_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
     methods_text = "\n\n".join(
         part
         for part in [
-            sections.get("abstract", ""),
-            sections.get("methods", ""),
-            sections.get("randomization", ""),
-            sections.get("consort", ""),
+            format_evidence(evidence["abstract"]),
+            format_evidence(evidence["methods"]),
+            format_evidence(evidence["d1_randomization"]),
+            format_evidence(evidence["consort_flow"]),
         ]
         if part
     )

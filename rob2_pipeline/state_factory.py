@@ -1,4 +1,5 @@
 from rob2_pipeline.constants import DEFAULT_EFFECT_OF_INTEREST, NOT_REPORTED
+from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.state import RoB2State
 
 
@@ -11,7 +12,9 @@ def create_initial_state(
     return {
         "pdf_path": pdf_path,
         "full_text": "",
-        "sections": {},
+        "evidence": empty_paper_evidence(),
+        "docling_doc": None,
+        "rag_contexts": {},
         "is_rct": False,
         "rct_screen_evidence": "",
         "intervention": NOT_REPORTED,

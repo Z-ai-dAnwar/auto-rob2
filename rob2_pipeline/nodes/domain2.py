@@ -1,4 +1,5 @@
 from rob2_pipeline.judges.domain2 import judge_domain2
+from rob2_pipeline.models import format_evidence
 from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
 from rob2_pipeline.prompts import (
     PROMPT_DOMAIN2_ADHERING_ANALYSIS,
@@ -12,13 +13,14 @@ from rob2_pipeline.xml_parser import parse_sq_response
 
 
 def domain2_sq12_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
+    rag_contexts = state.get("rag_contexts", {})
     prompt = PROMPT_DOMAIN2_SQ12.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        blinding_text=sections.get("blinding", ""),
-        methods_text=sections.get("methods", ""),
+        blinding_text=rag_contexts.get("d2_blinding") or format_evidence(evidence["d2_blinding"]),
+        methods_text="" if rag_contexts.get("d2_blinding") else format_evidence(evidence["methods"]),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_sq12", parse_sq_response, ["2.1", "2.2"]
@@ -42,7 +44,8 @@ def d2_needs_conditional(state: RoB2State) -> str:
 
 
 def domain2_conditional_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
+    rag_contexts = state.get("rag_contexts", {})
     sq = state["sq_answers"]
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_CONDITIONAL
@@ -55,8 +58,8 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         sq_2_1=sq.get("2.1", {}).get("answer", "NI"),
         sq_2_2=sq.get("2.2", {}).get("answer", "NI"),
-        deviations_text=sections.get("methods", "") + "\n" + sections.get("results", ""),
-        concomitant_text=sections.get("methods", ""),
+        deviations_text=rag_contexts.get("d2_deviations") or format_evidence(evidence["d2_blinding"]) + "\n" + format_evidence(evidence["results"]),
+        concomitant_text="" if rag_contexts.get("d2_deviations") else format_evidence(evidence["methods"]),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_conditional", parse_sq_response, ["2.3", "2.4", "2.5"]
@@ -74,7 +77,8 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
 
 
 def domain2_analysis_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
+    evidence = state["evidence"]
+    rag_contexts = state.get("rag_contexts", {})
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_ANALYSIS
         if state.get("effect_of_interest", "ITT").lower() == "per-protocol"
@@ -85,8 +89,8 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         comparator=state["comparator"],
         outcome=state["outcome"],
         effect_of_interest=state.get("effect_of_interest", "ITT"),
-        analysis_text=sections.get("analysis", ""),
-        results_text=sections.get("results", ""),
+        analysis_text=rag_contexts.get("d2_analysis") or format_evidence(evidence["d4_outcome_meas"]),
+        results_text="" if rag_contexts.get("d2_analysis") else format_evidence(evidence["results"]),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain2_analysis", parse_sq_response, ["2.6", "2.7"]

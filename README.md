@@ -2,7 +2,7 @@
 
 Automated draft Cochrane Risk of Bias 2 (RoB 2) assessment for randomized controlled trial PDFs.
 
-The pipeline uses a LangGraph state machine to orchestrate PDF ingestion, LLM signaling-question extraction, deterministic RoB 2 domain judgment algorithms, overall judgment, and Markdown/JSON reporting.
+The pipeline uses a LangGraph state machine to orchestrate PDF ingestion, per-document local RAG retrieval, LLM signaling-question extraction, deterministic RoB 2 domain judgment algorithms, overall judgment, and Markdown/JSON reporting.
 
 ## Setup
 
@@ -11,6 +11,8 @@ Install dependencies with `uv`:
 ```bash
 uv sync
 ```
+
+The RAG layer uses local embeddings and FAISS. The first model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
 
 Create a local `.env` file:
 
@@ -93,6 +95,7 @@ uv run python benchmark.py \
 ## Architecture
 
 - `rob2_pipeline/pdf_ingestion.py`: PyMuPDF text extraction and section parsing.
+- `rob2_pipeline/rag.py`: local Docling chunking, embedding, and FAISS retrieval.
 - `rob2_pipeline/prompts.py`: prompt constants.
 - `rob2_pipeline/providers/`: provider abstraction (`openrouter`, `anthropic`, `openai`) via LangChain integrations.
 - `rob2_pipeline/config.py`: provider selection/env config and `build_provider()`.
@@ -100,6 +103,7 @@ uv run python benchmark.py \
 - `rob2_pipeline/nodes/`: LangGraph nodes.
 - `rob2_pipeline/judges/`: deterministic RoB 2 decision tables.
 - `rob2_pipeline/graph.py`: sequential LangGraph wiring.
+- `rob2_pipeline/nodes/rag_retrieval.py`: per-document retrieval context builder.
 - `rob2_pipeline/pipeline.py`: user-facing entry point and output writing.
 - `tests/`: deterministic and mocked graph tests.
 

@@ -1,9 +1,12 @@
 from pathlib import Path
+import json
 from unittest.mock import Mock, patch
 
 import fitz
 
 from rob2_pipeline.graph import build_rob2_graph
+from rob2_pipeline.models import empty_paper_evidence
+from rob2_pipeline.pdf_ingestion import DocumentRepr
 from rob2_pipeline.pipeline import run_assessment
 from rob2_pipeline.providers.base import LLMResponse
 
@@ -59,7 +62,7 @@ def _initial_state(pdf_path: str) -> dict:
     return {
         "pdf_path": pdf_path,
         "full_text": "",
-        "sections": {},
+        "evidence": empty_paper_evidence(),
         "is_rct": False,
         "rct_screen_evidence": "",
         "intervention": "Not reported",
@@ -89,18 +92,19 @@ def _initial_state(pdf_path: str) -> dict:
 
 def _response_by_node(node_name: str):
     responses = {
-        "section_parser": """
-        <sections>
-          <section name="abstract"><start>0</start><end>60</end></section>
-          <section name="methods"><start>61</start><end>180</end></section>
-          <section name="randomization"><start>100</start><end>160</end></section>
-          <section name="blinding"><start>120</start><end>175</end></section>
-          <section name="outcomes"><start>181</start><end>240</end></section>
-          <section name="analysis"><start>120</start><end>220</end></section>
-          <section name="results"><start>241</start><end>320</end></section>
-          <section name="missing_data"><start>241</start><end>320</end></section>
-          <section name="registration"><start>321</start><end>420</end></section>
-        </sections>
+        "paper_evidence_extraction": """
+        <evidence>
+          <abstract><text>This randomized controlled trial compared Drug A with placebo.</text><tables></tables></abstract>
+          <methods><text>Participants were randomly assigned using a computer-generated sequence. Allocation was concealed centrally. The trial used intention-to-treat analysis.</text><tables></tables></methods>
+          <results><text>100 participants were randomized and all had outcome data.</text><tables></tables></results>
+          <d1_randomization><text>Participants were randomly assigned using a computer-generated sequence. Allocation was concealed centrally.</text><tables></tables></d1_randomization>
+          <d2_blinding><text>Participants and investigators were blinded.</text><tables></tables></d2_blinding>
+          <d3_missing_data><text>100 participants were randomized and all had outcome data.</text><tables></tables></d3_missing_data>
+          <d4_outcome_meas><text>The primary outcome was mortality. The trial used intention-to-treat analysis.</text><tables></tables></d4_outcome_meas>
+          <d5_registration><text>ClinicalTrials.gov NCT00000000.</text><tables></tables></d5_registration>
+          <consort_flow><text>100 participants were randomized.</text><tables></tables></consort_flow>
+          <baseline_table><text>baseline balanced</text><tables></tables></baseline_table>
+        </evidence>
         """,
         "rct_screener": """
         <screening><is_rct>YES</is_rct><evidence>"randomly assigned"</evidence><study_design>RCT</study_design><note></note></screening>
@@ -166,6 +170,8 @@ def _response_by_node(node_name: str):
 
 
 def _node_from_prompt(prompt: str) -> str:
+    if "<evidence>" in prompt and "d1_randomization" in prompt:
+        return "paper_evidence_extraction"
     if "<screening>" in prompt:
         return "rct_screener"
     if "<preliminary_info>" in prompt:
@@ -196,21 +202,35 @@ class _FakeProvider:
         return LLMResponse(_response_by_node(node_name), "test-model", 1, 1, 1.0)
 
 
+class _FakeConverter:
+    def convert(self, _pdf_path):
+        return type("ConversionResult", (), {"document": object()})()
+
+
+def _patch_ingest_dependencies():
+    return patch("rob2_pipeline.nodes.ingest._get_docling_converter", return_value=_FakeConverter()), patch(
+        "rob2_pipeline.nodes.ingest.build_document_repr",
+        return_value=DocumentRepr(blocks=[], full_text=_pdf_text()),
+    )
+
+
 def test_graph_happy_path_with_mocked_llm(tmp_path):
     pdf_path = tmp_path / "trial.pdf"
     _make_pdf(pdf_path)
 
     provider = _FakeProvider()
     with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
-        "rob2_pipeline.registration_api.fetch_registration", return_value=None
-    ), patch("rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()):
+        "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
+    ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
+        "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert state["overall_judgment"] == "Low"
     assert state["domain_judgments"] == {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}
     assert "# RoB 2 Assessment" in state["markdown_report"]
-    assert len(state["llm_call_log"]) == 8
-    assert provider.complete.call_count == 8
+    assert len(state["llm_call_log"]) == 9
+    assert provider.complete.call_count == 9
 
 
 def test_graph_stops_for_non_rct(tmp_path):
@@ -228,9 +248,12 @@ def test_graph_stops_for_non_rct(tmp_path):
                 1.0,
             )
 
-    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_NonRctProvider()), patch(
-        "rob2_pipeline.registration_api.fetch_registration", return_value=None
-    ), patch("rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()):
+    provider = _NonRctProvider()
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
+        "rob2_pipeline.pdf_ingestion.build_provider", return_value=_FakeProvider()
+    ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
+        "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert state["is_rct"] is False
@@ -250,9 +273,12 @@ def test_rct_screener_prompt_includes_randomization_context(tmp_path):
             captured[node_name] = user
             return LLMResponse(_response_by_node(node_name), "test-model", 1, 1, 1.0)
 
-    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_CaptureProvider()), patch(
-        "rob2_pipeline.registration_api.fetch_registration", return_value=None
-    ), patch("rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()):
+    provider = _CaptureProvider()
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
+        "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
+    ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
+        "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
         build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert "randomized controlled trial" in captured["rct_screener"]
@@ -264,11 +290,17 @@ def test_run_assessment_writes_outputs(tmp_path):
     output_dir = tmp_path / "outputs"
     _make_pdf(pdf_path)
 
-    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_FakeProvider()), patch(
-        "rob2_pipeline.registration_api.fetch_registration", return_value=None
-    ), patch("rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()):
+    provider = _FakeProvider()
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=provider), patch(
+        "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
+    ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
+        "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
         state = run_assessment(str(pdf_path), output_dir=str(output_dir))
 
     assert state["overall_judgment"] == "Low"
     assert (output_dir / "trial_rob2_report.md").exists()
     assert (output_dir / "trial_rob2_data.json").exists()
+    data = json.loads((output_dir / "trial_rob2_data.json").read_text(encoding="utf-8"))
+    assert data["evidence"]["extraction_method"] == "docling_llm"
+    assert "computer-generated sequence" in data["evidence"]["d1_randomization"]["text"]

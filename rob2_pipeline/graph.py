@@ -14,6 +14,7 @@ from rob2_pipeline.nodes.domain5 import domain5_judge_node, domain5_sq_node
 from rob2_pipeline.nodes.ingest import pdf_ingest_node, rct_screener_node
 from rob2_pipeline.nodes.overall import overall_judge_node
 from rob2_pipeline.nodes.preliminary import preliminary_info_node
+from rob2_pipeline.nodes.rag_retrieval import rag_retrieval_node
 from rob2_pipeline.nodes.reporter import report_formatter_node
 from rob2_pipeline.state import RoB2State
 
@@ -28,6 +29,7 @@ def build_rob2_graph():
     g.add_node("pdf_ingest", pdf_ingest_node)
     g.add_node("rct_screener", rct_screener_node)
     g.add_node("preliminary_info", preliminary_info_node)
+    g.add_node("rag_retrieval", rag_retrieval_node)
 
     g.add_node("domain1_sq", domain1_sq_node)
     g.add_node("domain1_judge", domain1_judge_node)
@@ -56,8 +58,9 @@ def build_rob2_graph():
         lambda s: "continue" if s["is_rct"] else "stop",
         {"continue": "preliminary_info", "stop": END},
     )
+    g.add_edge("preliminary_info", "rag_retrieval")
     for domain_start in DOMAIN_START_NODES:
-        g.add_edge("preliminary_info", domain_start)
+        g.add_edge("rag_retrieval", domain_start)
 
     g.add_edge("domain1_sq", "domain1_judge")
     g.add_edge("domain1_judge", "overall_judge")

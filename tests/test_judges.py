@@ -9,7 +9,8 @@ from rob2_pipeline.judges import (
     judge_overall,
 )
 from rob2_pipeline.nodes.domain3 import domain3_judge_node
-from rob2_pipeline.nodes.domain4 import domain4_judge_node
+from rob2_pipeline.models import empty_paper_evidence
+from rob2_pipeline.nodes.domain4 import domain4_judge_node, domain4_sq_node
 from rob2_pipeline.nodes.domain5 import domain5_judge_node
 from rob2_pipeline.prompts import PROMPT_DOMAIN2_ADHERING_ANALYSIS, PROMPT_DOMAIN2_ADHERING_CONDITIONAL, PROMPT_DOMAIN5
 
@@ -174,6 +175,92 @@ def test_domain_nodes_do_not_override_algorithm_by_outcome_label():
         "domain_rationales": {},
     }
     assert domain5_judge_node(d5_state)["domain_judgments"]["D5"] == "Some concerns"
+
+
+def test_domain4_autosets_clinician_assessor_awareness_in_open_label_trial(monkeypatch):
+    def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
+        parsed = {
+            "4.1": {"answer": "N", "quote": "measurement", "justification": "standard", "uncertainty_flag": "NORMAL"},
+            "4.2": {"answer": "N", "quote": "method", "justification": "same", "uncertainty_flag": "NORMAL"},
+            "4.3": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
+            "4.4": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
+            "4.5": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
+        }
+        return "", [], parsed
+
+    monkeypatch.setattr("rob2_pipeline.nodes.domain4.call_node_llm", fake_call_node_llm)
+    state = {
+        "intervention": "Drug A",
+        "comparator": "Placebo",
+        "outcome": "Progression-free survival",
+        "outcome_type": "clinician-graded",
+        "evidence": empty_paper_evidence(),
+        "rag_contexts": {"d4_measurement": "RECIST assessment", "d4_assessor": "open-label"},
+        "sq_answers": {"2.1": {"answer": "N"}, "2.2": {"answer": "Y", "quote": "open-label"}},
+    }
+
+    result = domain4_sq_node(state)
+
+    assert result["sq_answers"]["4.3"]["answer"] == "PY"
+    assert "clinician grading" in result["sq_answers"]["4.3"]["justification"]
+
+
+def test_domain4_autosets_objective_outcome_uninfluenced_when_awareness_unknown(monkeypatch):
+    def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
+        parsed = {
+            "4.1": {"answer": "N", "quote": "vital status", "justification": "appropriate", "uncertainty_flag": "NORMAL"},
+            "4.2": {"answer": "N", "quote": "same method", "justification": "same", "uncertainty_flag": "NORMAL"},
+            "4.3": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
+            "4.4": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
+            "4.5": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
+        }
+        return "", [], parsed
+
+    monkeypatch.setattr("rob2_pipeline.nodes.domain4.call_node_llm", fake_call_node_llm)
+    state = {
+        "intervention": "Drug A",
+        "comparator": "Placebo",
+        "outcome": "Overall Survival",
+        "outcome_type": "vital-status",
+        "evidence": empty_paper_evidence(),
+        "rag_contexts": {"d4_measurement": "overall survival", "d4_assessor": "vital status"},
+        "sq_answers": {"2.1": {"answer": "Y"}, "2.2": {"answer": "Y"}},
+    }
+
+    result = domain4_sq_node(state)
+
+    assert result["sq_answers"]["4.3"]["answer"] == "NI"
+    assert result["sq_answers"]["4.4"]["answer"] == "N"
+    assert result["sq_answers"]["4.5"]["answer"] == "NA"
+
+
+def test_domain4_normalizes_invalid_assessor_na_for_objective_outcome(monkeypatch):
+    def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
+        parsed = {
+            "4.1": {"answer": "N", "quote": "vital status", "justification": "appropriate", "uncertainty_flag": "NORMAL"},
+            "4.2": {"answer": "N", "quote": "same method", "justification": "same", "uncertainty_flag": "NORMAL"},
+            "4.3": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
+            "4.4": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
+            "4.5": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
+        }
+        return "", [], parsed
+
+    monkeypatch.setattr("rob2_pipeline.nodes.domain4.call_node_llm", fake_call_node_llm)
+    state = {
+        "intervention": "Drug A",
+        "comparator": "Placebo",
+        "outcome": "Overall Survival",
+        "outcome_type": "vital-status",
+        "evidence": empty_paper_evidence(),
+        "rag_contexts": {"d4_measurement": "overall survival", "d4_assessor": "vital status"},
+        "sq_answers": {},
+    }
+
+    result = domain4_sq_node(state)
+
+    assert result["sq_answers"]["4.3"]["answer"] == "NI"
+    assert result["sq_answers"]["4.4"]["answer"] == "N"
+    assert result["sq_answers"]["4.5"]["answer"] == "NA"
 
 
 def test_prompts_include_skill_domain2_and_domain5_guidance():

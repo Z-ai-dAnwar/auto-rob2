@@ -1,0 +1,232 @@
+{
+  "pdf_path": "inputs\\benchmark\\CHAARTED.pdf",
+  "is_rct": true,
+  "rct_screen_evidence": "\"Patients were randomly assigned to ADT alone or to combination therapy with ADT plus docetaxel\"",
+  "intervention": "ADT plus docetaxel (75 mg/m² every 3 weeks for six cycles, with dexamethasone premedication)",
+  "comparator": "ADT alone",
+  "outcome": "Overall Survival",
+  "outcome_type": "vital-status",
+  "numerical_result": "HR 0.61 (95% CI 0.47 to 0.80)",
+  "effect_of_interest": "ITT",
+  "registration_number": "NCT00309985",
+  "registered_endpoint": "Not reported",
+  "registered_analysis": "Intention‑to‑treat analysis",
+  "n_randomized": "790",
+  "evidence": {
+    "abstract": {
+      "text": "From the Department of Medicine (C.J.S.) and the Department of Biostatistics and Computational Biology (Y.-H.C.), DanaFarber Cancer Institute, Boston; Harvard Medical School, Boston (C.J.S.); Johns Hopkins University, Baltimore (M.C., M.E.); University of Wisconsin Carbone Cancer Center (G.L., D.F.J.) and School of Medicine and Public Health (D.F.J.), Madison; Fox Chase Cancer Center, Temple University Health System, Philadelphia (Y.-N.W.); Indiana University Melvin and Bren Simon Cancer Center, Indianapolis (N.H.); Mayo Clinic, Rochester, MN (M.K.); University Hospitals Case Medical Center, Seidman Cancer Center (M.M.C.), and Cleveland Clinic Taussig Cancer Institute (J.A.G.) - both in Cleveland; University of Virginia Cancer Center, Charlottesville (R.D.); Comprehensive Cancer Centers of Nevada, Las Vegas (N.J.V.); Siteman Cancer Center, Washington University School of Medicine, St. Louis (J.P.); NorthShore University HealthSystem, Evanston, IL (D.S.); University of Michigan Comprehensive Cancer Center, Ann Arbor (M.H.); and Rutgers Cancer Institute of New Jersey, New Brunswick (R.S.D.). Address reprint requests to Dr. Sweeney at christopher_sweeney@dfci.harvard.edu. This article was published on August 5, 2015, at NEJM.org. N Engl J Med 2015;373:737-46. DOI: 10.1056/NEJMoa1503747 Copyright © 2015 Massachusetts Medical Society.",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "methods": {
+      "text": "We assigned men with metastatic, hormone-sensitive prostate cancer to receive either ADT plus docetaxel (at a dose of 75 mg per square meter of body-surface area every 3 weeks for six cycles) or ADT alone. The primary objective was to test the hypothesis that the median overall survival would be 33.3% longer among patients receiving docetaxel added to ADT early during therapy than among patients receiving ADT alone. Patients were randomly assigned to ADT alone or to combination therapy with ADT plus docetaxel at a dose of 75 mg per square meter of body-surface area given every 3 weeks for six cycles, with premedication with 8 mg of oral dexamethasone at 12 hours, 3 hours, and 1 hour before docetaxel infusion. Daily prednisone was not required. Patients were stratified according to age (70 years vs. ≥70 years), ECOG performance-status score (0 or 1 vs. 2), planned use of combined androgen blockade for more than 30 days (yes vs. no) or agents approved for prevention of skeletal-related events in castration‑resistant disease (zoledronic acid or denosumab) (yes vs. no). Additional stratification factors were duration of prior adjuvant ADT (12 months vs. ≥12 months) and extent of metastases (high volume vs. low volume). No dose modifications of ADT were allowed; for docetaxel, up to two dose reductions (to 65 mg/m² and 55 mg/m²) were permitted based on toxicity. Toxicity was graded using NCI CTCAE version 3.0 (until September 2011) and version 4.0 thereafter. Patients assigned to combination therapy were seen every 3 weeks during docetaxel administration and then every 3 months; ADT‑alone patients were seen every 3 months. PSA levels were measured at each scheduled visit; imaging was performed at baseline and at progression. Overall survival was defined as time from randomization to death from any cause. Time to castration‑resistant prostate cancer and time to clinical progression were also defined. An intention‑to‑treat analysis was planned.",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "results": {
+      "text": "A total of 790 patients (median age, 63 years) underwent randomization. After a median follow‑up of 28.9 months, the median overall survival was 13.6 months longer with ADT plus docetaxel (57.6 months vs. 44.0 months; hazard ratio for death 0.61; 95% CI 0.47 to 0.80; P0.001). The median time to biochemical, symptomatic, or radiographic progression was 20.2 months in the combination group versus 11.7 months in the ADT‑alone group (HR 0.61; 95% CI 0.51 to 0.72; P0.001). The proportion of patients with PSA 0.2 ng/mL at 12 months was 27.7% vs. 16.8% (P0.001). Grade 3 or 4 febrile neutropenia occurred in 6.2% of the combination group, grade 3 or 4 infection with neutropenia in 2.3%, and grade 3 sensory and motor neuropathy each in 0.5%. The median overall survival benefit was more pronounced in the high‑volume disease subgroup (49.2 vs. 32.2 months; HR 0.60; 95% CI 0.45 to 0.81; P0.001). Secondary endpoints showed similar advantages for the combination arm (Table 2). Adverse‑event profile for grade 3 or higher toxicities is presented in Table 3.",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "d1_randomization": {
+      "text": "",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "d2_blinding": {
+      "text": "",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "d3_missing_data": {
+      "text": "",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "d4_outcome_meas": {
+      "text": "",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "d5_registration": {
+      "text": "ClinicalTrials.gov number, NCT00309985.",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "consort_flow": {
+      "text": "",
+      "tables": [],
+      "source": "llm_extract"
+    },
+    "baseline_table": {
+      "text": "Baseline characteristics of the randomized patients.",
+      "tables": [
+        "Table 1. Baseline Characteristics of the Patients.\n        \n          ADT Alone (N=393)Combination (N=397)\n        \n        \n          Age – yrMedian 63 (Range 39‑91)Median 64 (Range 36‑88)\n          Race – no. (%)White 330 (84.0); Black 37 (9.4); Other 6 (1.5); Unknown 20 (5.1)White 344 (86.6); Black 39 (9.8); Other 4 (1.0); Unknown 10 (2.5)\n          ECOG performance status – no. (%)0 272 (69.2); 1 115 (29.3); 2 6 (1.5)0 277 (69.8); 1 114 (28.7); 2 6 (1.5)\n          Volume of metastases – no. (%)Low 143 (36.4); High 250 (63.6)Low 134 (33.8); High 263 (66.2)\n          Visceral metastases – no. (%)66 (16.8)57 (14.4)\n          Gleason score – no. (%)4‑6 21 (5.3); 7 83 (21.1); 8‑10 243 (61.8); Unknown 46 (11.7)4‑6 21 (5.3); 7 96 (24.2); 8‑10 241 (60.7); Unknown 39 (9.8)\n          PSA level at start of ADT (ng/mL) – median (range)Median 52.1 (0.1‑8056.0)Median 50.9 (0.2‑8540.1)\n          Prior treatment for prostate cancer – no. (%)No local therapy 286 (72.8); Primary radiation 33 (8.4); Prostatectomy 73 (18.6); Missing 1 (0.3)No local therapy 289 (72.8); Primary radiation 27 (6.8); Prostatectomy 81 (20.4); Missing 0\n          Adjuvant ADT – no. (%)16 (4.1)18 (4.5)\n          Time from start of ADT to randomization – mo, median (range)Median 1.3 (0.03‑3.9)Median 1.2 (0.03‑3.9)\n          No ADT before randomization – no. (%)52 (13.2)51 (12.8)"
+      ],
+      "source": "llm_extract"
+    },
+    "extraction_method": "docling_llm",
+    "warnings": []
+  },
+  "sources_consulted": [
+    "abstract",
+    "methods",
+    "results",
+    "d5_registration",
+    "baseline_table"
+  ],
+  "sq_answers": {
+    "1.1": {
+      "answer": "NI",
+      "quote": "\"The protocol with the statistical analysis plan is available with the full text of this article at NEJM.org.\" (Study Oversight)",
+      "justification": "The paper mentions a protocol but provides no description of how the allocation sequence was generated.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "1.2": {
+      "answer": "NI",
+      "quote": "\"The first two authors attest that the study was conducted and monitored as specified by the protocol.\" (Study Oversight)",
+      "justification": "No details are given about how allocation concealment was achieved, only that the study followed the protocol.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "1.3": {
+      "answer": "N",
+      "quote": "\"Age – median 64 vs 63; Race – White 86.6% vs 84.0%; ECOG 0 69.8% vs 69.2%; High volume metastases 66.2% vs 63.6%\" (Baseline Characteristics Table)",
+      "justification": "Baseline characteristics are well balanced between groups, showing no important imbalances that would suggest a problem with randomization.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.1": {
+      "answer": "PY",
+      "quote": "\"All randomly assigned patients were followed and included in the primary analysis of their assigned group.\" (Patients section)",
+      "justification": "Blinding is not described, and the distinct side‑effect profile of docetaxel makes participant awareness likely.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.2": {
+      "answer": "PY",
+      "quote": "\"All randomly assigned patients were followed and included in the primary analysis of their assigned group.\" (Patients section)",
+      "justification": "Blinding of carers and intervention deliverers is not reported, and the obvious administration of chemotherapy versus hormonal therapy would likely reveal allocation.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "3.1": {
+      "answer": "Y",
+      "quote": "\"All randomly assigned patients were followed and included in the primary analysis of their assigned group.\" (Patients section)",
+      "justification": "Outcome (overall survival) was reported for every randomized participant, either as an event or censored observation.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "3.2": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "3.3": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "3.4": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "4.1": {
+      "answer": "N",
+      "quote": "\"Kaplan-Meier estimates were used for event-time distributions\" (Statistical Analysis)",
+      "justification": "Overall survival was measured using standard time‑to‑event methods, which are appropriate for this outcome.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "4.2": {
+      "answer": "N",
+      "quote": "\"Kaplan-Meier estimates were used for event-time distributions\" (Statistical Analysis)",
+      "justification": "The same survival analysis procedures were applied to both intervention groups.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "4.3": {
+      "answer": "N",
+      "quote": "\"An intention-to-treat analysis was conducted that included all randomly assigned patients\" (Statistical Analysis)",
+      "justification": "Outcome assessors (e.g., vital‑status registries) are unlikely to know treatment allocation.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "4.4": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "4.5": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "5.1": {
+      "answer": "PN",
+      "quote": "\"With each amendment, the sample size was adjusted... an intention-to-treat analysis plan was used... Kaplan-Meier estimates... Cox proportional-hazard models, stratified according to the factors described above, were used to estimate hazard ratios\"",
+      "justification": "The protocol mentions an intention‑to‑treat analysis and the statistical methods, but does not provide a detailed, finalized analysis plan dated before unblinding.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "5.2": {
+      "answer": "N",
+      "quote": "No relevant text found",
+      "justification": "Only overall survival is reported for this domain; no alternative time points, scales, or definitions are described.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "5.3": {
+      "answer": "N",
+      "quote": "No relevant text found",
+      "justification": "The analysis described (stratified Cox model and log‑rank test) appears to be the sole pre‑specified approach, with no indication of alternative models or covariate sets.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.3": {
+      "answer": "N",
+      "quote": "\"6 patients in the combination group did not start the assigned therapy\" (Assigned Therapy Administered and Subsequent Therapy) or \"All randomly assigned patients were followed and included in the primary analysis of their assigned group\" (Patients)",
+      "justification": "Deviations (non‑start or non‑completion) are reported as typical adherence issues and are not described as arising from the trial context.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.4": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.5": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.6": {
+      "answer": "Y",
+      "quote": "\"All randomly assigned patients were followed and included in the primary analysis of their assigned group.\" (Statistical Analysis)",
+      "justification": "Explicit statement that the analysis included all randomized participants according to assignment, indicating a proper ITT approach.",
+      "uncertainty_flag": "NORMAL"
+    },
+    "2.7": {
+      "answer": "NA",
+      "quote": "Not applicable",
+      "justification": "Not applicable",
+      "uncertainty_flag": "NORMAL"
+    }
+  },
+  "domain_judgments": {
+    "D1": "Some concerns",
+    "D3": "Low",
+    "D4": "Low",
+    "D5": "Some concerns",
+    "D2": "Low"
+  },
+  "domain_rationales": {
+    "D1": "Row: Any / NI / N-PN-NI -> Some concerns (concealment unclear)",
+    "D3": "3.1=Y/PY (nearly complete data) -> Low",
+    "D4": "4.1=N/PN/NI, 4.2=N/PN, and 4.3=N/PN -> Low",
+    "D5": "5.1=PN 5.2=N 5.3=N -> Some concerns",
+    "D2": "Part1=Low (Part1 Low: awareness present/unclear but no trial-context deviations); Part2=Low (2.6=Y/PY (appropriate ITT analysis) -> Part2=Low)"
+  },
+  "overall_judgment": "Some concerns",
+  "overall_rationale": "Some concerns in 2 domains: D1, D5. 2 domains with Some concerns. Skill guidance: present both Some concerns and High as plausible if the concerns are complementary and together substantially lower confidence. FLAG FOR HUMAN REVIEW.",
+  "ni_count": 2,
+  "high_uncertainty_sqs": [],
+  "human_review_priority": "MEDIUM",
+  "errors": []
+}

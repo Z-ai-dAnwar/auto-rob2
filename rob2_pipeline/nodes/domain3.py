@@ -1,30 +1,23 @@
 from rob2_pipeline.judges.domain3 import judge_domain3
+from rob2_pipeline.models import format_evidence
 from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
-from rob2_pipeline.pdf_ingestion import extract_censoring_context
 from rob2_pipeline.prompts import PROMPT_DOMAIN3
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
 
 
 def domain3_sq_node(state: RoB2State) -> RoB2State:
-    sections = state["sections"]
-    censoring_snippet = extract_censoring_context(
-        state.get("full_text", ""),
-        state.get("outcome", ""),
-    )
-    missing_data_text = sections.get("missing_data", "") or sections.get("results", "")
-    if censoring_snippet:
-        missing_data_text = (
-            missing_data_text + "\n\n<censoring_data>\n" + censoring_snippet + "\n</censoring_data>"
-        )
+    evidence = state["evidence"]
+    rag_contexts = state.get("rag_contexts", {})
+    missing_data_text = rag_contexts.get("d3") or format_evidence(evidence["d3_missing_data"]) or format_evidence(evidence["results"])
     prompt = PROMPT_DOMAIN3.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
         n_randomized=state.get("n_randomized", "Not reported"),
-        consort_text=sections.get("consort", ""),
+        consort_text="" if rag_contexts.get("d3") else format_evidence(evidence["consort_flow"]),
         missing_data_text=missing_data_text,
-        sensitivity_text=sections.get("analysis", ""),
+        sensitivity_text="" if rag_contexts.get("d3") else format_evidence(evidence["d4_outcome_meas"]),
     )
     response, log, parsed = call_node_llm(
         state, prompt, "domain3_sq", parse_sq_response, ["3.1", "3.2", "3.3", "3.4"]
