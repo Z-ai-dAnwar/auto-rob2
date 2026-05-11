@@ -151,6 +151,40 @@ def test_domain_prompts_include_canonical_methodology_blocks():
     assert "SQ 4.5" in PROMPT_DOMAIN4
 
 
+def test_domain_prompts_do_not_duplicate_rendered_sq_rule_cards():
+    from rob2_pipeline.prompts import (
+        PROMPT_DOMAIN1,
+        PROMPT_DOMAIN2_ADHERING_ANALYSIS,
+        PROMPT_DOMAIN2_ANALYSIS,
+        PROMPT_DOMAIN2_CONDITIONAL,
+        PROMPT_DOMAIN3,
+        PROMPT_DOMAIN4,
+        PROMPT_DOMAIN5,
+    )
+
+    duplicated_local_headings = [
+        "1.1 Was the allocation sequence random?",
+        "2.3 Were there deviations from the intended intervention",
+        "3.1 Were data for this outcome available",
+        "4.1 Was the method of measuring the outcome inappropriate?",
+        "5.1 Were the data that produced this result analysed",
+    ]
+    combined = "\n".join(
+        [
+            PROMPT_DOMAIN1,
+            PROMPT_DOMAIN2_CONDITIONAL,
+            PROMPT_DOMAIN2_ANALYSIS,
+            PROMPT_DOMAIN2_ADHERING_ANALYSIS,
+            PROMPT_DOMAIN3,
+            PROMPT_DOMAIN4,
+            PROMPT_DOMAIN5,
+        ]
+    )
+
+    for heading in duplicated_local_headings:
+        assert heading not in combined
+
+
 def test_domain5_prompt_includes_methodology_and_preserves_outcome_scope():
     from rob2_pipeline.prompts import PROMPT_DOMAIN5
 

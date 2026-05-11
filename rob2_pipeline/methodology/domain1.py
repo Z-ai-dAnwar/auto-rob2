@@ -35,6 +35,10 @@ DOMAIN1_METHODOLOGY = DomainMethodology(
                 "NI": ResponseRule("No useful allocation concealment information is available."),
             },
             [Citation(SUPP, "p.1"), Citation(SUPP, "p.4")],
+            notes=[
+                'Also score Y or PY when the report describes restricted access to the allocation list using patterns such as "accessible only to [role]", "only [role] had access to the allocation sequence", "[role] alone maintained the randomisation list", or "allocation was not disclosed until after enrolment". These describe concealment through information restriction even if no sealed envelope or telephone system is mentioned. Do not confuse "accessible only to the data manager (and later to investigators after enrolment)" with lack of concealment: disclosure to investigators after enrolment is expected post-randomisation unblinding and does not imply the allocation was known before enrolment.',
+                "For large multicenter cooperative-group trials with stratified randomization, balanced groups, and no suggestion that recruiters could foresee assignments, answer PY rather than NI for Q1.2 even if the exact operational concealment mechanism is not named. Reserve NI for reports that only say randomized and provide no trial-infrastructure, stratification, or baseline-balance context.",
+            ],
         ),
         "1.3": RuleCard(
             "1.3",
