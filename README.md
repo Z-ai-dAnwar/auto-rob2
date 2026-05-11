@@ -6,13 +6,13 @@ The pipeline uses a LangGraph state machine to orchestrate PDF ingestion, per-do
 
 ## Setup
 
-Install dependencies with `uv`:
+Install dependencies with `uv`. The project expects Python `>=3.13`.
 
 ```bash
 uv sync
 ```
 
-The RAG layer uses local embeddings and FAISS. The first model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
+The RAG layer uses Docling chunks, local `sentence-transformers` embeddings, and FAISS. The first model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
 
 Create a local `.env` file:
 
@@ -50,6 +50,19 @@ inputs/example.pdf
 uv run python main.py inputs/example.pdf --output-dir outputs
 ```
 
+Assess a specific outcome or effect of interest:
+
+```bash
+uv run python main.py inputs/example.pdf --outcome "Functional Recovery" --effect ITT --output-dir outputs
+```
+
+Useful runtime flags:
+
+- `--outcome`: specific outcome to assess; otherwise the preliminary node selects the primary outcome when possible.
+- `--effect`: effect of interest, `ITT` or `per-protocol`; defaults to `ROB2_EFFECT_OF_INTEREST` or `ITT`.
+- `--no-cache`: bypass the prompt cache for this run.
+- `--debug`: print a compact state summary after each assessment.
+
 Run every PDF in `inputs/`:
 
 ```bash
@@ -61,7 +74,12 @@ Or call the Python API:
 ```python
 from rob2_pipeline.pipeline import run_assessment
 
-state = run_assessment("inputs/example.pdf", output_dir="outputs")
+state = run_assessment(
+    "inputs/example.pdf",
+    outcome="Functional Recovery",
+    effect_of_interest="ITT",
+    output_dir="outputs",
+)
 ```
 
 Generated files:
@@ -78,6 +96,21 @@ uv run python benchmark.py \
   --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE
 ```
 
+Benchmark outcome codes are:
+
+- `OS`: Overall Survival
+- `PFS`: Progression-Free Survival
+- `AE`: Adverse Events
+
+Outcome-map entries can include an optional cohort label, useful for separating visible calibration runs from held-out validation runs:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map CHAARTED:OS:calibration ARCHES:PFS:validation PEACE-1:AE:validation
+```
+
+If no cohort label is provided, results store `unspecified` internally in JSON. Markdown reports hide the cohort table and column when all runs are unspecified.
+
 Default reference CSV locations:
 
 - `data/references/overall_survival.csv`
@@ -92,11 +125,15 @@ uv run python benchmark.py \
   --dry-run
 ```
 
+Benchmark outputs are written to the requested output directory as `benchmark_report.md`, `benchmark_results.json`, and per-trial assessment subdirectories such as `<TRIAL>_<outcome_code>/`.
+
 ## Architecture
 
 - `rob2_pipeline/pdf_ingestion.py`: PyMuPDF text extraction and section parsing.
 - `rob2_pipeline/rag.py`: local Docling chunking, embedding, and FAISS retrieval.
-- `rob2_pipeline/prompts.py`: prompt constants.
+- `rob2_pipeline/rag_queries.py`: domain-specific retrieval query sets; D1 queries are intentionally outcome-agnostic.
+- `rob2_pipeline/methodology/`: canonical RoB 2 rule cards and renderer used by prompt templates.
+- `rob2_pipeline/prompts.py`: prompt templates plus rendered canonical methodology blocks.
 - `rob2_pipeline/providers/`: provider abstraction (`openrouter`, `anthropic`, `openai`) via LangChain integrations.
 - `rob2_pipeline/config.py`: provider selection/env config and `build_provider()`.
 - `rob2_pipeline/registration_api.py`: ClinicalTrials.gov API v2 fetch/extract/format helpers.
@@ -105,6 +142,7 @@ uv run python benchmark.py \
 - `rob2_pipeline/graph.py`: sequential LangGraph wiring.
 - `rob2_pipeline/nodes/rag_retrieval.py`: per-document retrieval context builder.
 - `rob2_pipeline/pipeline.py`: user-facing entry point and output writing.
+- `rob2_pipeline/benchmark.py`: benchmark runner, comparison, summaries, and report writer.
 - `tests/`: deterministic and mocked graph tests.
 
 ## Important Notes

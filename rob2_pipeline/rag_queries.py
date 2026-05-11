@@ -1,3 +1,6 @@
+D1_QUERY_NOTE = "D1 queries are trial-level and intentionally outcome-agnostic."
+
+
 DOMAIN_QUERIES: dict[str, list[str]] = {
     "d1": [
         "allocation sequence randomization random number concealed envelope",

@@ -2,13 +2,13 @@
 
 ## Pipeline Overview
 
-`auto-rob2` runs a sequential LangGraph workflow with a local retrieval layer:
+`auto-rob2` runs a LangGraph workflow with local retrieval and deterministic RoB 2 adjudication:
 
 1. PDF ingestion and section parsing
 2. RCT screening
-3. Preliminary trial metadata extraction
+3. Preliminary trial metadata extraction with ClinicalTrials.gov enrichment
 4. Per-document RAG retrieval from Docling chunks
-5. Domain-level signaling questions (D1-D5)
+5. Parallel domain-level signaling-question fan-out (D1-D5)
 6. Deterministic domain judgments
 7. Deterministic overall judgment
 8. Report generation (Markdown + JSON)
@@ -31,12 +31,20 @@ Outputs per run:
 
 - `rob2_pipeline/rag_queries.py`
   - Static query sets for D1-D5 retrieval contexts.
+  - D1 queries are trial-level and intentionally outcome-agnostic.
+
+- `rob2_pipeline/methodology/`
+  - Canonical RoB 2 methodology guidance used by prompts.
+  - `types.py` defines citations, response rules, rule cards, and domain methodology containers.
+  - `domain1.py` through `domain5.py` define source-backed SQ guidance.
+  - `render.py` turns selected rule cards into compact prompt sections.
 
 - `rob2_pipeline/pipeline.py`
   - Public orchestration entrypoint for assessments.
 
 - `rob2_pipeline/prompts.py`
   - Prompt templates for RCT screening, preliminary extraction, and D1-D5 signaling questions.
+  - Imports rendered methodology blocks from `rob2_pipeline/methodology/` so SQ guidance has one canonical source.
 
 - `rob2_pipeline/nodes/`
   - LangGraph node implementations.
@@ -51,7 +59,7 @@ Outputs per run:
 
 - `rob2_pipeline/registration_api.py`
   - Fetches and formats outcomes from ClinicalTrials.gov API v2.
-  - Used to populate `ctgov_outcomes` and improve Domain 5 context.
+  - Used to populate `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`, and registered endpoint fields.
 
 - `rob2_pipeline/judges/`
   - Deterministic RoB 2 decision tables for D1-D5 and overall judgment.
@@ -63,6 +71,10 @@ Outputs per run:
 - `rob2_pipeline/xml_parser.py`
   - Strict XML extraction/parsing for SQ answers and metadata.
 
+- `rob2_pipeline/benchmark.py`
+  - Loads reference CSV rows, runs assessments for requested trial/outcome pairs, compares judgments, builds confusion matrices, and writes benchmark Markdown/JSON reports.
+  - Supports optional cohort labels such as `calibration` and `validation`; default `unspecified` labels are stored in JSON but hidden from Markdown reports when no meaningful labels are present.
+
 ## Execution Flow
 
 1. `pdf_ingest`: markdown extraction + deterministic section parsing
@@ -70,9 +82,10 @@ Outputs per run:
 3. `preliminary_info`: trial metadata extraction
 4. `rag_retrieval`: per-document chunking, embedding, and local retrieval
 5. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
-6. Domain judge nodes produce deterministic domain judgments
-7. `overall_judge`: overall risk + review priority
-8. `report_formatter`: markdown report payload
+6. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
+7. Domain judge nodes produce deterministic domain judgments
+8. `overall_judge`: overall risk + review priority
+9. `report_formatter`: markdown report payload
 
 ## Concurrency Model
 
@@ -96,7 +109,7 @@ Important fields:
 - `docling_doc`, `rag_contexts`
 - `effect_of_interest`: `ITT` or `per-protocol`
 - `registered_endpoint`, `registered_secondary_endpoints`
-- `ctgov_outcomes`
+- `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`
 - `llm_call_log`, `errors`
 
 ## Runtime and Configuration
@@ -133,6 +146,26 @@ Run tests:
 uv run python -m pytest -q
 ```
 
+Run focused tests:
+
+```bash
+uv run python -m pytest tests/test_benchmark.py -q
+```
+
+Syntax-check changed Python files when a full test run is unnecessary:
+
+```bash
+uv run python -m py_compile rob2_pipeline/benchmark.py tests/test_benchmark.py
+```
+
+Validate benchmark inputs without LLM calls:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map CHAARTED:OS:calibration CHAARTED:PFS:validation \
+  --dry-run
+```
+
 Typical failure triage:
 
 1. XML parse failures
@@ -149,11 +182,12 @@ Typical failure triage:
 
 Add a new domain:
 
-1. Add prompt template
-2. Add SQ node + judge node
-3. Wire graph edges
-4. Add state keys/reducers if parallel writers are introduced
-5. Add tests for parsing + deterministic judge logic
+1. Add methodology rule cards under `rob2_pipeline/methodology/`
+2. Add prompt template that renders the relevant methodology block
+3. Add SQ node + judge node
+4. Wire graph edges
+5. Add state keys/reducers if parallel writers are introduced
+6. Add tests for methodology rendering, parsing, and deterministic judge logic
 
 Add a new cached LLM node:
 

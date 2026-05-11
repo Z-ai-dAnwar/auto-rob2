@@ -14,15 +14,19 @@ def _parse_outcome_map(values: list[str]) -> list[dict[str, str]]:
     parsed: list[dict[str, str]] = []
     for item in values:
         if ":" not in item:
-            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME")
-        trial, outcome = item.split(":", 1)
+            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
+        parts = item.split(":")
+        if len(parts) not in (2, 3):
+            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
+        trial, outcome = parts[0], parts[1]
+        cohort = parts[2].strip() if len(parts) == 3 else "unspecified"
         trial = trial.strip()
         outcome = outcome.strip().upper()
         if not trial or not outcome:
-            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME")
+            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
         if outcome not in OUTCOME_LABELS:
             raise ValueError(f"Invalid outcome code '{outcome}'. Use one of: {', '.join(OUTCOME_LABELS)}")
-        parsed.append({"trial": trial, "outcome_code": outcome})
+        parsed.append({"trial": trial, "outcome_code": outcome, "cohort": cohort or "unspecified"})
     return parsed
 
 
@@ -71,7 +75,7 @@ def main():
         "--outcome-map",
         nargs="+",
         required=True,
-        help="Trial:outcome mappings, e.g. CHAARTED:OS ARCHES:PFS",
+        help="Trial:outcome mappings, e.g. CHAARTED:OS ARCHES:PFS or CHAARTED:OS:calibration",
     )
     parser.add_argument("--output-dir", default="outputs/benchmark/", help="Benchmark output directory.")
     parser.add_argument("--no-cache", action="store_true", help="Bypass prompt cache for this run.")
@@ -109,7 +113,7 @@ def main():
             if pdf is None:
                 status.append("PDF not found")
             details = "; ".join(status) if status else "OK"
-            print(f"- {trial} -> {OUTCOME_LABELS[code]} ({details})")
+            print(f"- {trial} -> {OUTCOME_LABELS[code]} [{item.get('cohort', 'unspecified')}] ({details})")
         return
 
     results = run_benchmark(

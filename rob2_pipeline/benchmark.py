@@ -52,16 +52,20 @@ def _find_pdf_for_trial(pdf_dir: Path, trial_name: str) -> Path | None:
     return None
 
 
-def _iter_outcome_map(outcome_map) -> list[tuple[str, str]]:
+def _iter_outcome_map(outcome_map) -> list[tuple[str, str, str]]:
     if isinstance(outcome_map, dict):
-        return list(outcome_map.items())
+        return [(trial, code, "unspecified") for trial, code in outcome_map.items()]
     pairs = []
     for item in outcome_map:
         if isinstance(item, dict):
-            pairs.append((item["trial"], item["outcome_code"]))
+            pairs.append((item["trial"], item["outcome_code"], item.get("cohort", "unspecified")))
         else:
-            trial, outcome_code = item
-            pairs.append((trial, outcome_code))
+            if len(item) == 2:
+                trial, outcome_code = item
+                cohort = "unspecified"
+            else:
+                trial, outcome_code, cohort = item
+            pairs.append((trial, outcome_code, cohort))
     return pairs
 
 
@@ -111,7 +115,7 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
         }
 
     results: list[dict] = []
-    for trial_name, outcome_code in _iter_outcome_map(outcome_map):
+    for trial_name, outcome_code, cohort in _iter_outcome_map(outcome_map):
         code = _strip(outcome_code).upper()
         outcome_label = OUTCOME_LABELS.get(code, "")
         trial_result: dict[str, Any] = {
@@ -119,6 +123,7 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
             "trial": trial_name,
             "outcome_code": code,
             "outcome": outcome_label,
+            "cohort": _strip(cohort) or "unspecified",
             "skipped": False,
             "error": None,
             "notes": "",
@@ -181,7 +186,7 @@ def _empty_confusion() -> dict[str, dict[str, int]]:
     return {row: {col: 0 for col in JUDGMENT_ORDER} for row in JUDGMENT_ORDER}
 
 
-def summarize_benchmark(results) -> dict:
+def _summarize_results_subset(results) -> dict:
     fields = [*DOMAINS, "Overall"]
     counts = {field: {"matches": 0, "total": 0} for field in fields}
     confusion = {field: _empty_confusion() for field in fields}
@@ -227,6 +232,16 @@ def summarize_benchmark(results) -> dict:
     }
 
 
+def summarize_benchmark(results) -> dict:
+    summary = _summarize_results_subset(results)
+    cohorts: dict[str, list[dict]] = {}
+    for result in results:
+        cohort = _strip(result.get("cohort")) or "unspecified"
+        cohorts.setdefault(cohort, []).append(result)
+    summary["cohorts"] = {cohort: _summarize_results_subset(items) for cohort, items in sorted(cohorts.items())}
+    return summary
+
+
 def write_benchmark_report(results, summary, output_path):
     output_path = Path(output_path)
     report_path = output_path.parent / "benchmark_report.md"
@@ -239,6 +254,7 @@ def write_benchmark_report(results, summary, output_path):
     )
 
     fields = [*DOMAINS, "Overall"]
+    has_meaningful_cohort = any((_strip(result.get("cohort")) or "unspecified") != "unspecified" for result in results)
     lines = [
         "# Benchmark Report",
         "",
@@ -254,15 +270,29 @@ def write_benchmark_report(results, summary, output_path):
         rate = summary.get("agreement_rates", {}).get(field, 0.0) * 100
         lines.append(f"| {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |")
 
-    lines.extend(
-        [
-            "",
-            "## Per-Trial Details",
-            "",
-            "| Trial | Outcome | D1 | D2 | D3 | D4 | D5 | Overall | Notes |",
-            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-        ]
-    )
+    if has_meaningful_cohort and summary.get("cohorts"):
+        lines.extend(["", "## Cohort Agreement", "", "| Cohort | Field | Agreement |", "| --- | --- | ---: |"])
+        for cohort, cohort_summary in summary["cohorts"].items():
+            for field in fields:
+                counts = cohort_summary.get("agreement_counts", {}).get(field, {"matches": 0, "total": 0})
+                rate = cohort_summary.get("agreement_rates", {}).get(field, 0.0) * 100
+                lines.append(f"| {cohort} | {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |")
+
+    lines.extend(["", "## Per-Trial Details", ""])
+    if has_meaningful_cohort:
+        lines.extend(
+            [
+                "| Trial | Outcome | Cohort | D1 | D2 | D3 | D4 | D5 | Overall | Notes |",
+                "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "| Trial | Outcome | D1 | D2 | D3 | D4 | D5 | Overall | Notes |",
+                "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+            ]
+        )
     for result in results:
         comparison = result.get("comparison") or {}
 
@@ -279,22 +309,14 @@ def write_benchmark_report(results, summary, output_path):
             notes = _strip(result.get("error"))
         notes = notes[:80]
 
-        lines.append(
-            "| "
-            + " | ".join(
-                [
-                    _strip(result.get("id")) or _strip(result.get("trial")),
-                    _strip(result.get("outcome")) or _strip(result.get("outcome_code")),
-                    mark("D1"),
-                    mark("D2"),
-                    mark("D3"),
-                    mark("D4"),
-                    mark("D5"),
-                    mark("Overall"),
-                    notes or "-",
-                ]
-            )
-            + " |"
-        )
+        row = [
+            _strip(result.get("id")) or _strip(result.get("trial")),
+            _strip(result.get("outcome")) or _strip(result.get("outcome_code")),
+        ]
+        if has_meaningful_cohort:
+            row.append(_strip(result.get("cohort")) or "unspecified")
+        row.extend([mark("D1"), mark("D2"), mark("D3"), mark("D4"), mark("D5"), mark("Overall"), notes or "-"])
+
+        lines.append("| " + " | ".join(row) + " |")
 
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

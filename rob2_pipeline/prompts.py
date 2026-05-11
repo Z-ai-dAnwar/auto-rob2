@@ -1,3 +1,29 @@
+from rob2_pipeline.methodology import (
+    DOMAIN1_METHODOLOGY,
+    DOMAIN2_ADHERING_METHODOLOGY,
+    DOMAIN2_ASSIGNMENT_METHODOLOGY,
+    DOMAIN3_METHODOLOGY,
+    DOMAIN4_METHODOLOGY,
+    DOMAIN5_METHODOLOGY,
+)
+from rob2_pipeline.methodology.render import render_methodology
+
+
+DOMAIN1_METHODOLOGY_TEXT = render_methodology(DOMAIN1_METHODOLOGY, ["1.1", "1.2", "1.3"])
+DOMAIN2_SQ12_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.1", "2.2"])
+DOMAIN2_CONDITIONAL_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.3", "2.4", "2.5"]
+)
+DOMAIN2_ANALYSIS_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.6", "2.7"])
+DOMAIN2_ADHERING_CONDITIONAL_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN2_ADHERING_METHODOLOGY, ["2.3a", "2.4a", "2.5a"]
+)
+DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ADHERING_METHODOLOGY, ["2.6a"])
+DOMAIN3_METHODOLOGY_TEXT = render_methodology(DOMAIN3_METHODOLOGY, ["3.1", "3.2", "3.3", "3.4"])
+DOMAIN4_METHODOLOGY_TEXT = render_methodology(DOMAIN4_METHODOLOGY, ["4.1", "4.2", "4.3", "4.4", "4.5"])
+DOMAIN5_METHODOLOGY_TEXT = render_methodology(DOMAIN5_METHODOLOGY, ["5.1", "5.2", "5.3"])
+
+
 PROMPT_RCT_SCREEN = """You are a systematic review methodologist. Verify whether the input study is a randomized controlled trial before any RoB 2 assessment.
 
 Read the following text carefully:
@@ -67,12 +93,12 @@ For every extracted value, provide the exact quoted text from the available sour
   </outcome_assessed>
 
   <outcome_type>Classify the outcome type using exactly one of these five values:
-  - vital-status: all-cause mortality or disease-specific mortality assessed as a single criterion: death is the only event that counts. Do not use this category for composite endpoints that combine death with non-mortality criteria such as progression, relapse, or hospitalisation, even if death is one component.
+  - vital-status: all-cause mortality or disease-specific mortality assessed as a single criterion: death is the only event that counts. Do not use this category for composite endpoints that combine death with non-mortality criteria such as relapse, hospitalisation, or treatment failure, even if death is one component.
   - biomarker: laboratory or imaging measurement with a pre-defined numerical threshold
   - clinician-composite: composite or time-to-event outcome requiring clinical or radiological judgment
   - clinician-graded: outcome assessed using a standardized clinical grading scale that still requires judgment
   - patient-reported: outcome assessed by the participant using a questionnaire or self-report instrument
-  Examples: all-cause mortality = `vital-status`; Event-free survival combining death with relapse, progression, or hospitalisation = `clinician-composite`; clinician-rated symptom or function scale = `clinician-graded`; participant questionnaire = `patient-reported`.
+  Examples: mortality-only endpoint = `vital-status`; composite endpoint combining death with another clinical event = `clinician-composite`; standardized clinician-rated response scale = `clinician-graded`; participant questionnaire = `patient-reported`.
 </outcome_type>
 
   <numerical_result>
@@ -137,6 +163,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 1 signaling questions: Bias arising from the randomization process.
+""" + DOMAIN1_METHODOLOGY_TEXT + """
 
 If ClinicalTrials.gov design metadata is provided above, treat it as authoritative evidence about the trial's registered design:
 - An allocation type of RANDOMIZED is evidence that the registry classifies the trial as randomized; without sequence-generation details, this supports PY rather than Y for Q1.1.
@@ -160,6 +187,8 @@ Y/N means firm evidence is stated. PY/PN means a reasonable inference from indir
 - PN: the method is described incompletely and suggests possible inadequacy, such as envelopes without enough safeguards.
 - N: enrolling investigators or participants could know or predict the forthcoming allocation.
 - NI: no useful information about allocation concealment is provided.
+
+Also score Y or PY when the report describes restricted access to the allocation list using patterns such as "accessible only to [role]", "only [role] had access to the allocation sequence", "[role] alone maintained the randomisation list", or "allocation was not disclosed until after enrolment". These describe concealment through information restriction even if no sealed envelope or telephone system is mentioned. Do not confuse "accessible only to the data manager (and later to investigators after enrolment)" with lack of concealment: disclosure to investigators after enrolment is expected post-randomisation unblinding and does not imply the allocation was known before enrolment.
 
 For large multicenter cooperative-group trials with stratified randomization, balanced groups, and no suggestion that recruiters could foresee assignments, answer PY rather than NI for Q1.2 even if the exact operational concealment mechanism is not named. Reserve NI for reports that only say randomized and provide no trial-infrastructure, stratification, or baseline-balance context.
 
@@ -213,6 +242,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer the first two Domain 2 signaling questions: Bias due to deviations from intended interventions.
+""" + DOMAIN2_SQ12_METHODOLOGY_TEXT + """
 
 Important RoB 2 principle: an open-label trial is not automatically high risk. Risk depends on whether awareness led to deviations from intended interventions that arose because of the trial context, whether those deviations affected the outcome, whether they were balanced, and whether the analysis was appropriate.
 
@@ -268,8 +298,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Because 2.1 or 2.2 was Y/PY/NI, answer the conditional Domain 2 questions for the effect of assignment to intervention.
+""" + DOMAIN2_CONDITIONAL_METHODOLOGY_TEXT + """
 
-Important RoB 2 principle: NI is a last resort. Do not use NI merely because a report omits an explicit statement that routine clinical-management events were unrelated to trial context when N or PN is a reasonable inference.
+Important RoB 2 principle: NI is a last resort. NI is appropriate only when deviations are described that could plausibly have arisen from the trial context but the report does not clarify their origin. Do not use NI merely because a report omits an explicit statement that routine clinical-management events were unrelated to trial context when N or PN is a reasonable inference.
 
 2.3 Were there deviations from the intended intervention that arose because of the trial context?
 This question concerns changes from assigned intervention that are inconsistent with the protocol and occurred because of the trial context, such as recruitment, engagement, unblinding, or trial personnel undermining protocol implementation in ways that would not happen outside the trial. Do not count protocol-consistent changes such as dose cessation for toxicity, treatment changes after outcome events, or additional interventions used to treat consequences of the assigned intervention.
@@ -338,6 +369,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer the Domain 2 Version B conditional questions for bias due to deviations from intended interventions when estimating the effect of adhering to intervention.
+""" + DOMAIN2_ADHERING_CONDITIONAL_METHODOLOGY_TEXT + """
 
 2.3 If applicable, if Y/PY/NI to 2.1 or 2.2: Were important non-protocol interventions balanced across intervention groups?
 Important non-protocol interventions are additional interventions or exposures that are inconsistent with the trial protocol, may be received with or after starting assigned intervention, and are prognostic for the outcome.
@@ -405,6 +437,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 2 analysis questions for the effect of assignment to intervention unless the user explicitly configured a per-protocol/adhering effect. For assignment/ITT, appropriate analyses include strict ITT, modified ITT excluding only participants with missing outcome data, and post-randomization exclusions limited to independently determined ineligible participants. Naive per-protocol, as-treated, and analyses excluding eligible participants post-randomization are inappropriate for the assignment effect.
+""" + DOMAIN2_ANALYSIS_METHODOLOGY_TEXT + """
 
 2.6 Was an appropriate analysis used to estimate the effect of assignment to intervention?
 - Y: clear ITT analysis, appropriate mITT, or exclusions limited to independently determined ineligible participants.
@@ -456,6 +489,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 2 Version B analysis question for the effect of adhering to intervention. Naive per-protocol analyses, as-treated analyses, ITT analyses, and analysis by treatment received will usually be inappropriate for estimating the effect of adhering to intervention. Appropriate methods may include instrumental variable analyses for a single all-or-nothing baseline intervention, or inverse probability weighting to adjust for censoring of participants who cease adherence in sustained treatment strategies. Such methods depend on strong assumptions that should be appropriate and justified.
+""" + DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT + """
 
 2.6 Was an appropriate analysis used to estimate the effect of adhering to the intervention?
 - Y: an appropriate causal method for the adherence effect was clearly used and justified, such as suitable instrumental variable analysis or inverse probability weighting.
@@ -507,9 +541,12 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 3 signaling questions: Bias due to missing outcome data.
+""" + DOMAIN3_METHODOLOGY_TEXT + """
 
 3.1 Were data for this outcome available for all, or nearly all, participants randomized?
 Nearly all means the number with missing outcome data is sufficiently small that their outcomes could have made no important difference. For continuous outcomes, 95 percent availability is often sufficient. For dichotomous outcomes, compare missing participants with observed events. Imputed data are missing data for this question.
+Before answering, calculate the percentage of randomised participants whose outcome data are included in the analysis: (analysis N / randomised N) x 100. If >= 10% of randomised participants are excluded from or absent in the analysis, answer N or PN rather than Y or PY. Report this calculation in the <completeness_calculation> field.
+For time-to-event outcomes, participants who are administratively censored at end-of-follow-up are NOT missing. Participants censored early because they withdrew, were lost to follow-up, or switched treatments are potentially missing. If the proportion of non-event censorings appears large relative to observed events, investigate whether censoring is informative before answering Y.
 - Y: data available for all randomized participants, or enough participants have data that missing outcomes could not materially affect the result.
 - PY: data are available for nearly all participants and missingness is unlikely to matter.
 - PN: noticeable missing data may affect the result.
@@ -540,8 +577,8 @@ If 3.3 is N/PN, answer 3.4 as NA. If 3.3 is Y/PY/NI, answer 3.4.
 
 3.4 If Y/PY/NI to 3.3: Is it likely that missingness in the outcome depended on its true value?
 Reasons include differences between groups in missing-data proportions, reasons suggesting outcome-dependence, reasons differing between groups, trial circumstances making outcome-dependent missingness likely, or time-to-event censoring when participants stop/change assigned intervention for outcome-related reasons.
-Per the RoB 2 supplement, five specific reasons support answering Y: (1) differences between groups in proportions of missing outcome data; (2) reported reasons for missingness provide evidence of outcome-dependence; (3) reported reasons differ between groups; (4) trial circumstances make outcome-dependent missingness likely; (5) in time-to-event analyses, participants' follow-up is censored when they stop or change their assigned intervention, for example because of drug toxicity or other context-specific outcome-related treatment changes.
-For time-to-event outcomes, check whether rates of censoring differ between intervention groups — a difference in censoring rates supports answering Y or PY.
+Per the RoB 2 supplement, five specific reasons support answering Y: (1) differences between groups in proportions of missing outcome data; (2) reported reasons for missingness provide evidence of outcome-dependence; (3) reported reasons differ between groups; (4) trial circumstances make outcome-dependent missingness likely; (5) in time-to-event analyses, participants' follow-up is censored when they stop or change their assigned intervention for reasons related to prognosis, treatment failure, or the outcome process.
+For time-to-event outcomes, check whether rates of censoring differ between intervention groups — a meaningful difference in censoring rates supports answering Y or PY.
 - Y: clear evidence makes outcome-dependent missingness likely.
 - PY: some evidence suggests outcome-dependent missingness.
 - PN: reasons/patterns mostly argue against likely outcome-dependence.
@@ -595,6 +632,7 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 4 signaling questions: Bias in measurement of the outcome.
+""" + DOMAIN4_METHODOLOGY_TEXT + """
 
 Outcome-specific instruction: first identify the outcome currently being assessed: {outcome}. When the outcome_measurement evidence contains definitions for multiple outcomes, answer based only on the definition for {outcome}. Do not anchor Domain 4 reasoning to a different endpoint, even if that endpoint is described first or in more detail.
 
@@ -607,11 +645,13 @@ This asks about the measurement method, not whether the outcome itself is clinic
 - NI: insufficient detail about the measurement method.
 
 4.2 Could measurement or ascertainment of the outcome have differed between intervention groups?
-- Y: different methods, thresholds, timing, visit frequency, or diagnostic opportunities between groups.
-- PY: possible differences in measurement/timing/detection opportunities.
+- Y: different methods, thresholds, timing, or passive diagnostic opportunities between groups.
+- PY: possible differences in measurement, timing, or passive detection opportunities.
 - PN: methods appear consistent with minor uncertainty.
 - N: identical methods, thresholds, and comparable timing across groups.
 - NI: insufficient information to determine whether ascertainment differed.
+
+Q4.2 covers two types of differential ascertainment, and the distinction matters because Y/PY leads directly to High. Passive detection bias (answer Y/PY) occurs when one arm has more unscheduled clinical contacts than the other, creating additional opportunities for events to be passively identified during routine care. Active protocol-specified assessments (answer N/PN) occur when both arms undergo the same pre-specified outcome assessments, such as same imaging modality, same criteria, same protocol-defined schedule, but treatment-administration visit frequency happens to differ. Extra treatment visits are not additional outcome-assessment occasions when the measurement method, criteria, and schedule are identical. If the trial uses a pre-specified assessment protocol applied identically to both arms, answer N or PN even if one arm attends clinic more frequently for treatment administration.
 
 If 4.1 or 4.2 is Y/PY, answer 4.3-4.5 as NA.
 
@@ -629,7 +669,7 @@ If 4.3 is N/PN, answer 4.4-4.5 as NA.
 
 4.4 If Y/PY/NI to 4.3: Could assessment of the outcome have been influenced by knowledge of intervention received?
 Knowledge can influence participant-reported outcomes, observer-reported outcomes involving judgment, and intervention-provider decision outcomes. It is unlikely to influence observer-reported outcomes that do not involve judgment, such as all-cause mortality.
-Answer N or PN when the outcome is physiologically determined, mechanically measured, centrally blinded, or otherwise not plausibly susceptible to assessor knowledge. Answer Y or PY when the outcome assessment involves judgment that could plausibly be influenced by knowledge of intervention assignment.
+Answer N or PN when the outcome is physiologically determined, mechanically measured, centrally blinded, or otherwise not plausibly susceptible to assessor knowledge. For outcome assessments involving judgment, answer Y or PY unless explicit evidence shows the criteria and process are judgment-free.
 - Y: outcome is clearly subjective or requires major judgment.
 - PY: outcome includes subjective/judgmental elements despite standardization.
 - PN: outcome is mostly objective with limited room for judgment.
@@ -639,10 +679,10 @@ Answer N or PN when the outcome is physiologically determined, mechanically meas
 If 4.4 is N/PN, answer 4.5 as NA.
 
 4.5 If Y/PY/NI to 4.4: Is it likely that assessment of the outcome was influenced by knowledge of intervention received?
-This question distinguishes "could have been influenced" (Some concerns when Q4.5=N/PN) from "likely was influenced" (High when Q4.5=Y/PY/NI). High requires strong levels of belief in either beneficial or harmful effects of the intervention, for example patient-reported symptoms in trials of homeopathy, or assessments of recovery by a physiotherapist who delivered the intervention. When standardized outcome criteria are applied without evidence of strong beliefs, direct assessor involvement in delivering the intervention, or other mechanisms making influence likely, answer N or PN rather than Y or PY.
+This question distinguishes "could have been influenced" (Some concerns when Q4.5=N/PN) from "likely was influenced" (High when Q4.5=Y/PY/NI). High requires strong levels of belief in either beneficial or harmful effects of the intervention, for example patient-reported symptoms in trials of homeopathy, or assessments of recovery by a physiotherapist who delivered the intervention. When standardized criteria are applied without evidence of strong beliefs, direct assessor involvement in delivering the intervention, or other mechanisms making influence likely, answer N or PN rather than Y or PY.
 - Y: strong beliefs or direct assessor involvement make influence likely.
 - PY: moderate evidence suggests likely influence.
-- PN: little evidence of likely influence; standardized outcome criteria, safeguards, or absence of known strong prior beliefs reduce concern.
+- PN: little evidence of likely influence; standardized criteria, safeguards, or absence of known strong prior beliefs reduce concern.
 - N: no apparent mechanism or evidence of likely influence.
 - NI: insufficient information about beliefs, expectations, or assessor role.
 
@@ -715,6 +755,9 @@ Registered secondary endpoints: {registered_secondary_endpoints}
 {rag_text}
 
 Answer Domain 5 signaling questions: Bias in selection of the reported result.
+""" + DOMAIN5_METHODOLOGY_TEXT + """
+
+IMPORTANT: You are assessing Domain 5 for the specific outcome: {outcome}. All three questions concern whether the {outcome} result was selectively reported. Do NOT reason about whether other outcomes were selectively reported or chosen. Each outcome is assessed independently.
 
 If a trial registration number is available, compare the registry/protocol outcomes and analysis intentions against the result being assessed. Focus on whether the numerical result was selected on the basis of the results, not merely whether the assessed outcome was primary or secondary.
 
@@ -732,6 +775,7 @@ If a ClinicalTrials.gov registry description is provided above and lists PRIMARY
 5.2 Is the numerical result being assessed likely to have been selected, on the basis of the results, from multiple eligible outcome measurements within the outcome domain?
 Examples include different scales, definitions, or time points.
 A pre-specified composite endpoint is NOT multiple eligible outcome measurements merely because it combines several components into one measure. Answer Q5.2=N for composite endpoints unless there is evidence that specific components were selected post-hoc. Answer Q5.2=Y/PY only when the paper reports one specific scale, definition, component, or time point chosen from several separately pre-specified alternatives based on the observed results.
+Pre-specified co-primary endpoints are not multiple eligible outcome measurements relative to each other: each is pre-specified and expected to be reported. Reporting multiple pre-specified co-primary endpoints does not by itself constitute selective outcome selection for any one endpoint.
 - Y: multiple eligible measurements were available, only a subset is reported without justification, and selection based on favorability/significance is clear.
 - PY: multiple measurements were likely available and reporting appears potentially selective.
 - PN: most intended measurements are reported or omissions are explained.
