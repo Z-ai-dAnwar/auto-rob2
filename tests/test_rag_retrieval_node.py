@@ -1,4 +1,15 @@
+"""Tests for rag_retrieval_node with the LangChain FAISS API."""
+
+from unittest.mock import MagicMock
+
+from langchain_core.documents import Document
+
 from rob2_pipeline.models import empty_paper_evidence
+from rob2_pipeline.types import ChunkMeta
+
+
+def _make_doc(text: str, section: str = "Methods") -> Document:
+    return Document(page_content=text, metadata={"section": section, "page_numbers": [1]})
 
 
 def _evidence():
@@ -13,65 +24,93 @@ def _evidence():
     return evidence
 
 
-def test_rag_retrieval_node_uses_fallback_evidence_when_docling_doc_absent():
-    from rob2_pipeline.nodes.rag_retrieval import rag_retrieval_node
-    from rob2_pipeline.rag_queries import DOMAIN_QUERIES
-
-    result = rag_retrieval_node({"evidence": _evidence(), "full_text": "", "outcome": "Overall Survival"})
-
-    assert set(result["rag_contexts"]) == set(DOMAIN_QUERIES)
-    assert "Randomized centrally" in result["rag_contexts"]["d1"]
-    assert "Open-label" in result["rag_contexts"]["d2_blinding"]
-    assert "All randomized" in result["rag_contexts"]["d2_analysis"]
-    assert "NCT00000000" in result["rag_contexts"]["d5"]
+def _base_state(docling_chunks):
+    return {
+        "docling_chunks": docling_chunks,
+        "full_text": "sample",
+        "evidence": _evidence(),
+        "errors": [],
+        "outcome": "Overall Survival",
+    }
 
 
-def test_rag_retrieval_node_builds_index_and_augments_d3(monkeypatch):
+def test_rag_retrieval_node_populates_compatibility_rag_contexts(monkeypatch):
     import rob2_pipeline.nodes.rag_retrieval as node
-    from rob2_pipeline.rag_queries import DOMAIN_QUERIES
 
-    calls = []
-
-    monkeypatch.setattr(node, "chunk_docling_doc", lambda conv_result: [{"text": "chunk", "section": "Methods", "idx": 0}])
-    monkeypatch.setattr(node, "build_index", lambda chunks: ("index", chunks))
-
-    def fake_retrieve(index, chunks, queries):
-        calls.append((index, tuple(queries)))
-        return "retrieved " + queries[0]
-
-    monkeypatch.setattr(node, "retrieve", fake_retrieve)
-    monkeypatch.setattr(node, "extract_censoring_context", lambda full_text, outcome: "415 events observed")
-
-    result = node.rag_retrieval_node(
-        {
-            "docling_doc": object(),
-            "evidence": _evidence(),
-            "full_text": "At final analysis, 415 events were observed.",
-            "outcome": "Overall Survival",
-        }
+    chunks = [_make_doc(f"Chunk {i} about randomization.") for i in range(10)]
+    monkeypatch.setattr(node, "build_index", lambda _: MagicMock())
+    monkeypatch.setattr(node, "build_filtered_index", lambda chunks, keywords: None)
+    monkeypatch.setattr(
+        node,
+        "retrieve_adaptive",
+        lambda index, filtered, queries: (
+            "Retrieved text.",
+            [ChunkMeta(text="Retrieved text.", section="Methods", page_numbers=[2], score=0.9)],
+        ),
     )
 
-    assert set(result["rag_contexts"]) == set(DOMAIN_QUERIES)
-    assert len(calls) == len(DOMAIN_QUERIES)
-    assert "415 events observed" in result["rag_contexts"]["d3"]
+    result = node.rag_retrieval_node(_base_state(chunks))
+
+    assert set(result["rag_contexts"]) >= {
+        "d1",
+        "d2_blinding",
+        "d2_deviations",
+        "d2_analysis",
+        "d3",
+        "d4_measurement",
+        "d4_assessor",
+        "d5",
+    }
+    assert all(isinstance(text, str) for text in result["rag_contexts"].values())
+
+
+def test_rag_retrieval_node_populates_rag_chunk_metadata(monkeypatch):
+    import rob2_pipeline.nodes.rag_retrieval as node
+
+    chunks = [_make_doc(f"Chunk {i}.") for i in range(10)]
+    monkeypatch.setattr(node, "build_index", lambda _: MagicMock())
+    monkeypatch.setattr(node, "build_filtered_index", lambda chunks, keywords: None)
+    monkeypatch.setattr(
+        node,
+        "retrieve_adaptive",
+        lambda index, filtered, queries: (
+            "Some text.",
+            [ChunkMeta(text="Some text.", section="Methods", page_numbers=[3], score=0.85)],
+        ),
+    )
+
+    result = node.rag_retrieval_node(_base_state(chunks))
+
+    assert set(result["rag_chunk_metadata"]) == {"d1", "d2", "d3", "d4", "d5"}
+    for metas in result["rag_chunk_metadata"].values():
+        assert isinstance(metas, list)
+        assert len(metas) > 0
+        assert "section" in metas[0]
+        assert "page_numbers" in metas[0]
+        assert "score" in metas[0]
+
+
+def test_rag_retrieval_node_falls_back_when_no_chunks():
+    from rob2_pipeline.nodes.rag_retrieval import rag_retrieval_node
+
+    result = rag_retrieval_node(_base_state([]))
+
+    assert "Randomized centrally" in result["rag_contexts"]["d1"]
+    assert result["rag_chunk_metadata"] == {"d1": [], "d2": [], "d3": [], "d4": [], "d5": []}
 
 
 def test_rag_retrieval_node_falls_back_when_rag_errors(monkeypatch):
     import rob2_pipeline.nodes.rag_retrieval as node
 
-    def boom(_conv_result):
+    def boom(_chunks):
         raise RuntimeError("embedding init failed")
 
-    monkeypatch.setattr(node, "chunk_docling_doc", boom)
+    state = _base_state([_make_doc("Chunk.")])
+    monkeypatch.setattr(node, "build_index", boom)
     monkeypatch.setattr(node, "extract_censoring_context", lambda full_text, outcome: "")
 
-    state = {
-        "docling_doc": object(),
-        "evidence": _evidence(),
-        "full_text": "",
-        "outcome": "Overall Survival",
-    }
     result = node.rag_retrieval_node(state)
 
     assert "Randomized centrally" in result["rag_contexts"]["d1"]
+    assert result["rag_chunk_metadata"] == {"d1": [], "d2": [], "d3": [], "d4": [], "d5": []}
     assert any("RAG retrieval failed" in warning for warning in state["evidence"]["warnings"])

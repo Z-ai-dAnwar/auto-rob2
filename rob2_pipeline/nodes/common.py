@@ -1,4 +1,5 @@
 import time
+from inspect import signature
 from typing import Callable, Optional
 
 from rob2_pipeline.cache import read_cache, write_cache
@@ -27,6 +28,7 @@ def call_node_llm(
     node_name: str,
     parse_fn: Optional[Callable[[str, list[str]], dict[str, dict]]] = None,
     parse_sq_ids: Optional[list[str]] = None,
+    chunk_sources: Optional[list[str]] = None,
 ) -> tuple[str, list[LLMCallLogEntry], Optional[dict[str, dict]]]:
     """Call LLM for a node with optional cache and parser validation."""
 
@@ -48,6 +50,8 @@ def call_node_llm(
             "latency_ms": 0,
             "cache_hit": True,
         }
+        if chunk_sources:
+            log_entry["chunk_sources"] = chunk_sources
         parsed = _parse_and_validate(cached)
         log.append(log_entry)
         return cached, log, parsed
@@ -87,6 +91,8 @@ def call_node_llm(
     }
     if parse_error is not None:
         log_entry["parse_error"] = str(parse_error)
+    if chunk_sources:
+        log_entry["chunk_sources"] = chunk_sources
     log.append(log_entry)
     return response, log, parsed
 
@@ -102,6 +108,38 @@ def set_na(sq_answers: dict[str, dict], *sq_ids: str) -> dict[str, dict]:
     for sq_id in sq_ids:
         updated[sq_id] = dict(NA_ANSWER)
     return updated
+
+
+def format_chunk_sources(state: dict, domain: str, limit: int = 5) -> list[str]:
+    metas = state.get("rag_chunk_metadata", {}).get(domain, [])
+    sources: list[str] = []
+    for meta in metas[:limit]:
+        page_numbers = meta.get("page_numbers") or []
+        page = page_numbers[0] if page_numbers else "?"
+        section = meta.get("section") or "Unknown"
+        sources.append(f"[page {page}, {section}]")
+    return sources
+
+
+def call_node_llm_with_sources(
+    call_fn: Callable,
+    state: dict,
+    prompt: str,
+    node_name: str,
+    parse_fn: Callable[[str, list[str]], dict[str, dict]],
+    parse_sq_ids: list[str],
+    chunk_sources: list[str],
+) -> tuple[str, list[LLMCallLogEntry], Optional[dict[str, dict]]]:
+    if "chunk_sources" in signature(call_fn).parameters:
+        return call_fn(
+            state,
+            prompt,
+            node_name,
+            parse_fn,
+            parse_sq_ids,
+            chunk_sources=chunk_sources,
+        )
+    return call_fn(state, prompt, node_name, parse_fn, parse_sq_ids)
 
 
 def add_domain_judgment(state: dict, domain: str, judgment: str, rationale: str) -> dict:

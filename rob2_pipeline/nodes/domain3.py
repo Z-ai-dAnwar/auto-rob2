@@ -1,6 +1,13 @@
 from rob2_pipeline.judges.domain3 import judge_domain3
 from rob2_pipeline.models import format_evidence
-from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
+from rob2_pipeline.nodes.common import (
+    add_domain_judgment,
+    call_node_llm,
+    call_node_llm_with_sources,
+    format_chunk_sources,
+    merge_sq_answers,
+    set_na,
+)
 from rob2_pipeline.prompts import PROMPT_DOMAIN3
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -21,8 +28,14 @@ def domain3_sq_node(state: RoB2State) -> RoB2State:
         rag_text=rag_contexts.get("d3", ""),
         ctgov_flow=state.get("ctgov_flow", "(No ClinicalTrials.gov participant flow available)"),
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain3_sq", parse_sq_response, ["3.1", "3.2", "3.3", "3.4"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain3_sq",
+        parse_sq_response,
+        ["3.1", "3.2", "3.3", "3.4"],
+        chunk_sources=format_chunk_sources(state, "d3"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
     s31 = sq_answers.get("3.1", {}).get("answer", "NI")

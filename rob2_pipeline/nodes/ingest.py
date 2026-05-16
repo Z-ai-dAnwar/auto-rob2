@@ -5,6 +5,7 @@ from rob2_pipeline.pdf_ingestion import (
     _get_docling_converter,
     allow_remote_evidence_extraction,
     appears_rct_candidate,
+    _build_docling_chunks,
     build_document_repr,
     extract_paper_evidence,
     extract_full_text,
@@ -25,6 +26,7 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
         _configure_docling_runtime()
         converter = _get_docling_converter(use_ocr=False)
         conv_result = converter.convert(pdf_path)
+        docling_chunks = _build_docling_chunks(conv_result)
         doc = conv_result.document
         doc_repr = build_document_repr(doc)
         if not doc_repr.full_text:
@@ -32,17 +34,23 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
         evidence = extract_structural_paper_evidence(doc_repr)
         if not allow_remote_evidence_extraction():
             evidence["warnings"].append("Remote evidence extraction disabled by ROB2_REMOTE_EVIDENCE_EXTRACTION.")
-            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "docling_chunks": docling_chunks}
         if not appears_rct_candidate(doc_repr.to_prompt_repr() or doc_repr.full_text):
             evidence["warnings"].append("Remote evidence extraction skipped for apparent non-RCT document.")
-            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "docling_chunks": docling_chunks}
         try:
             evidence, log = extract_paper_evidence(doc_repr)
-            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "llm_call_log": log}
+            return {
+                "full_text": full_text,
+                "evidence": evidence,
+                "docling_doc": conv_result,
+                "docling_chunks": docling_chunks,
+                "llm_call_log": log,
+            }
         except Exception as error:  # noqa: BLE001
             evidence = extract_structural_paper_evidence(doc_repr)
             evidence["warnings"].append(f"LLM evidence extraction failed: {error}")
-            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result}
+            return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "docling_chunks": docling_chunks}
     except Exception:
         sections = parse_sections(full_text)
         evidence = paper_evidence_from_sections(
@@ -51,7 +59,7 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
             source="keyword_fallback",
             warnings=["Docling structural extraction failed; used text keyword fallback."],
         )
-        return {"full_text": full_text, "evidence": evidence, "docling_doc": None}
+        return {"full_text": full_text, "evidence": evidence, "docling_doc": None, "docling_chunks": []}
 
 
 def rct_screener_node(state: RoB2State) -> RoB2State:

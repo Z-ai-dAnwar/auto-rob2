@@ -1,6 +1,13 @@
 from rob2_pipeline.judges.domain4 import judge_domain4
 from rob2_pipeline.models import format_evidence
-from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
+from rob2_pipeline.nodes.common import (
+    add_domain_judgment,
+    call_node_llm,
+    call_node_llm_with_sources,
+    format_chunk_sources,
+    merge_sq_answers,
+    set_na,
+)
 from rob2_pipeline.prompts import PROMPT_DOMAIN4
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -23,8 +30,14 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
         blinding_text=format_evidence(evidence["d2_blinding"]),
         rag_text=rag_text,
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain4_sq", parse_sq_response, ["4.1", "4.2", "4.3", "4.4", "4.5"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain4_sq",
+        parse_sq_response,
+        ["4.1", "4.2", "4.3", "4.4", "4.5"],
+        chunk_sources=format_chunk_sources(state, "d4"),
     )
     parsed_sqs = parsed or {}
 

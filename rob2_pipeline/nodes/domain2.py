@@ -1,6 +1,13 @@
 from rob2_pipeline.judges.domain2 import judge_domain2
 from rob2_pipeline.models import format_evidence
-from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers, set_na
+from rob2_pipeline.nodes.common import (
+    add_domain_judgment,
+    call_node_llm,
+    call_node_llm_with_sources,
+    format_chunk_sources,
+    merge_sq_answers,
+    set_na,
+)
 from rob2_pipeline.prompts import (
     PROMPT_DOMAIN2_ADHERING_ANALYSIS,
     PROMPT_DOMAIN2_ADHERING_CONDITIONAL,
@@ -24,8 +31,14 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
         rag_text=rag_contexts.get("d2_blinding", ""),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain2_sq12", parse_sq_response, ["2.1", "2.2"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain2_sq12",
+        parse_sq_response,
+        ["2.1", "2.2"],
+        chunk_sources=format_chunk_sources(state, "d2"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
     s21 = sq_answers.get("2.1", {}).get("answer", "NI")
@@ -64,8 +77,14 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
         concomitant_text=format_evidence(evidence["methods"]),
         rag_text=rag_contexts.get("d2_deviations", ""),
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain2_conditional", parse_sq_response, ["2.3", "2.4", "2.5"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain2_conditional",
+        parse_sq_response,
+        ["2.3", "2.4", "2.5"],
+        chunk_sources=format_chunk_sources(state, "d2"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
     if state.get("effect_of_interest", "ITT").lower() == "per-protocol":
@@ -96,8 +115,14 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         results_text=format_evidence(evidence["results"]),
         rag_text=rag_contexts.get("d2_analysis", ""),
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain2_analysis", parse_sq_response, ["2.6", "2.7"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain2_analysis",
+        parse_sq_response,
+        ["2.6", "2.7"],
+        chunk_sources=format_chunk_sources(state, "d2"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
     if state.get("effect_of_interest", "ITT").lower() == "per-protocol" or sq_answers.get("2.6", {}).get("answer", "NI") in ("Y", "PY"):

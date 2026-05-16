@@ -22,6 +22,7 @@ JSON_OUTPUT_KEYS = (
     "registered_analysis",
     "n_randomized",
     "evidence",
+    "rag_sources",
     "sources_consulted",
     "sq_answers",
     "domain_judgments",
@@ -36,7 +37,9 @@ JSON_OUTPUT_KEYS = (
 
 
 def _assessment_json(state: RoB2State) -> dict:
-    return {key: state.get(key) for key in JSON_OUTPUT_KEYS}
+    data = {key: state.get(key) for key in JSON_OUTPUT_KEYS}
+    data["rag_sources"] = state.get("rag_chunk_metadata", {})
+    return data
 
 
 def run_assessment(
