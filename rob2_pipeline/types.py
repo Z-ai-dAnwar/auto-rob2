@@ -51,6 +51,40 @@ class RetrievalGrade(TypedDict):
     retry_recommended: bool
 
 
+class PacketSource(TypedDict, total=False):
+    text: str
+    section: str
+    page_numbers: list[int]
+    score: float
+    matched_terms: list[str]
+
+
+class EvidenceFact(TypedDict, total=False):
+    fact_type: str
+    domain: str
+    sq_ids: list[str]
+    claim: str
+    quote: str
+    source_section: str
+    page_numbers: list[int]
+    confidence: float
+    support_status: str
+    missing_reason: str
+
+
+class EvidencePacket(TypedDict, total=False):
+    sq_id: str
+    domain: str
+    required_evidence: list[str]
+    sources: list[PacketSource]
+    candidate_facts: list[EvidenceFact]
+    text: str
+    retrieval_confidence: float
+    missing_evidence: list[str]
+    negative_flags: list[str]
+    packet_grade: RetrievalGrade
+
+
 class EvidenceValidationFlag(TypedDict):
     sq_id: str
     issue: str

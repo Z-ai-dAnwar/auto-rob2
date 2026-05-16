@@ -87,6 +87,26 @@ def _domain_table(state: RoB2State, domain: str) -> str:
     return "\n".join(rows)
 
 
+def _packet_quality_section(state: RoB2State) -> str:
+    packet_grades = state.get("packet_grades", {}) or {}
+    actions = state.get("verification_actions", []) or []
+    retry_sqs = [sq_id for sq_id, grade in sorted(packet_grades.items()) if grade.get("retry_recommended")]
+    retry_text = ", ".join(retry_sqs) if retry_sqs else "None"
+    action_text = "; ".join(
+        f"{action.get('sq_id', '?')}: {action.get('action', 'review')}" for action in actions[:8]
+    ) or "None"
+    return "\n".join(
+        [
+            "## Verified evidence packets",
+            "",
+            f"- Packets built: {len(packet_grades)}",
+            f"- Packets requiring retry/escalation: {retry_text}",
+            f"- Verification actions: {action_text}",
+            "",
+        ]
+    )
+
+
 def report_formatter_node(state: RoB2State) -> RoB2State:
     high_uncertainty = state.get("high_uncertainty_sqs", [])
     high_uncertainty_text = ", ".join(high_uncertainty) if high_uncertainty else "None"
@@ -111,6 +131,7 @@ def report_formatter_node(state: RoB2State) -> RoB2State:
     ]
     for domain in ["D1", "D2", "D3", "D4", "D5"]:
         parts.append(_domain_table(state, domain))
+    parts.append(_packet_quality_section(state))
     parts.extend(
         [
             "## Overall risk of bias",

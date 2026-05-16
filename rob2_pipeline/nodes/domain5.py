@@ -7,6 +7,7 @@ from rob2_pipeline.nodes.common import (
     format_chunk_sources,
     merge_sq_answers,
 )
+from rob2_pipeline.nodes.evidence_packets import packet_block_for_domain
 from rob2_pipeline.prompts import PROMPT_DOMAIN5
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -15,6 +16,7 @@ from rob2_pipeline.xml_parser import parse_sq_response
 def domain5_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d5")
     errors = list(state.get("errors", []))
     human_review_priority = state.get("human_review_priority", "HIGH")
     if state.get("intervention") == "Not reported":
@@ -35,7 +37,7 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
         registration_text=format_evidence(evidence["d5_registration"]),
         sap_text=format_evidence(evidence["d4_outcome_meas"]),
         results_text=format_evidence(evidence["results"]),
-        rag_text=rag_contexts.get("d5", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d5", "")] if part),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,

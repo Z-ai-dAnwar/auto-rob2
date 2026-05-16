@@ -58,12 +58,59 @@ def verify_sq_evidence(state: RoB2State) -> list[dict]:
         fragile_issue = _fragile_sq_issue(sq_id, answer)
         if fragile_issue:
             flags.append({"sq_id": sq_id, "issue": fragile_issue, "quote": quote})
+    flags.extend(verify_packet_evidence(state))
     return flags
+
+
+def verify_packet_evidence(state: RoB2State) -> list[dict]:
+    flags = []
+    for sq_id, packet in sorted((state.get("evidence_packets") or {}).items()):
+        grade = packet.get("packet_grade") or {}
+        missing = grade.get("missing_evidence") or packet.get("missing_evidence") or []
+        negative_flags = packet.get("negative_flags") or []
+        if grade.get("retry_recommended") or missing or negative_flags:
+            details = []
+            if missing:
+                details.append("missing: " + ", ".join(missing))
+            if negative_flags:
+                details.append("negative_flags: " + ", ".join(negative_flags))
+            flags.append(
+                {
+                    "sq_id": sq_id,
+                    "issue": "packet_verification_failed" + (f" ({'; '.join(details)})" if details else ""),
+                    "quote": "",
+                }
+            )
+    return flags
+
+
+def _verification_actions_from_flags(flags: list[dict]) -> list[dict]:
+    actions = []
+    for flag in flags:
+        issue = flag.get("issue", "")
+        if "packet_verification_failed" in issue:
+            actions.append(
+                {
+                    "sq_id": flag.get("sq_id", ""),
+                    "action": "retry_packet_or_escalate",
+                    "reason": issue,
+                }
+            )
+        elif flag.get("issue") == "quote_not_found_in_source_context":
+            actions.append(
+                {
+                    "sq_id": flag.get("sq_id", ""),
+                    "action": "retry_sq_with_verified_packet",
+                    "reason": issue,
+                }
+            )
+    return actions
 
 
 def quote_verifier_node(state: RoB2State) -> RoB2State:
     flags = verify_sq_evidence(state)
     trace = list(state.get("verifier_trace", []))
+    actions = _verification_actions_from_flags(flags)
     if flags:
         trace.append(
             {
@@ -72,4 +119,4 @@ def quote_verifier_node(state: RoB2State) -> RoB2State:
                 "reason": f"{len(flags)} evidence validation issue(s) found",
             }
         )
-    return {"evidence_validation_flags": flags, "verifier_trace": trace}
+    return {"evidence_validation_flags": flags, "verifier_trace": trace, "verification_actions": actions}
