@@ -121,6 +121,41 @@ def test_build_docling_chunks_handles_no_headings(monkeypatch):
     assert result[0].metadata["section"] == ""
 
 
+def test_build_docling_chunks_configures_tokenizer_for_long_docling_counts(monkeypatch):
+    mock_conv = type("ConversionResult", (), {"document": object()})()
+    mock_chunks = [_make_mock_chunk("Text about randomization.", ["Methods"], [2])]
+    tokenizer_calls = []
+
+    class MockTokenizer:
+        @classmethod
+        def from_pretrained(cls, model_name, **kwargs):
+            tokenizer_calls.append((model_name, kwargs))
+            return "configured-tokenizer"
+
+    class MockChunker:
+        def __init__(self, tokenizer):
+            self.tokenizer = tokenizer
+
+        def chunk(self, document):
+            assert self.tokenizer == "configured-tokenizer"
+            return mock_chunks
+
+    monkeypatch.setattr(pdf_ingestion, "HuggingFaceTokenizer", MockTokenizer, raising=False)
+    monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
+
+    result = _build_docling_chunks(mock_conv)
+
+    assert tokenizer_calls == [
+        (
+            "sentence-transformers/all-MiniLM-L6-v2",
+            {"max_tokens": 256, "model_max_length": 10**9},
+        )
+    ]
+    assert result[0].page_content == "Text about randomization."
+    assert result[0].metadata["section"] == "Methods"
+    assert result[0].metadata["page_numbers"] == [2]
+
+
 def test_parse_sections_detects_expected_sections():
     text = """
     ABSTR ACT

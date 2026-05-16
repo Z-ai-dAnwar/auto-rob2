@@ -2,7 +2,7 @@
 
 Automated draft Cochrane Risk of Bias 2 (RoB 2) assessment for randomized controlled trial PDFs.
 
-The pipeline uses a LangGraph state machine to orchestrate PDF ingestion, per-document local RAG retrieval, LLM signaling-question extraction, deterministic RoB 2 domain judgment algorithms, overall judgment, and Markdown/JSON reporting.
+The pipeline uses a LangGraph state machine to orchestrate Docling-based PDF ingestion, per-document local RAG retrieval, LLM signaling-question extraction, deterministic RoB 2 domain judgment algorithms, overall judgment, and Markdown/JSON reporting.
 
 ## Setup
 
@@ -12,7 +12,7 @@ Install dependencies with `uv`. The project expects Python `>=3.13`.
 uv sync
 ```
 
-The RAG layer uses Docling chunks, local `sentence-transformers` embeddings, and FAISS. The first model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
+PDF extraction and RAG use Docling, LangChain Docling, local `sentence-transformers` embeddings, and FAISS. The first embedding/tokenizer model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
 
 Create a local `.env` file:
 
@@ -23,6 +23,15 @@ OPENROUTER_API_KEY=your_key_here
 # ANTHROPIC_API_KEY=your_key_here
 # OPENAI_API_KEY=your_key_here
 ```
+
+Optional runtime settings:
+
+- `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`: model configuration.
+- `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`: OpenRouter rate limits.
+- `ROB2_EFFECT_OF_INTEREST`: default effect, `ITT` or `per-protocol`.
+- `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
+- `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
+- `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`: skip the ingestion-time LLM evidence refinement and use Docling structural extraction only.
 
 `.env` and generated `outputs/` are ignored by git, except `outputs/benchmark/`.
 
@@ -87,6 +96,8 @@ Generated files:
 - `outputs/<pdf_basename>_rob2_report.md`
 - `outputs/<pdf_basename>_rob2_data.json`
 
+The JSON output includes `rag_sources`, which records retrieved chunk text, section labels, page numbers, and similarity scores by RoB 2 domain when vector retrieval succeeds.
+
 ## Benchmark
 
 Run benchmark comparisons against reference RoB 2 judgments (defaults to `inputs/benchmark/`):
@@ -129,8 +140,9 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 
 ## Architecture
 
-- `rob2_pipeline/pdf_ingestion.py`: PyMuPDF text extraction and section parsing.
-- `rob2_pipeline/rag.py`: local Docling chunking, embedding, and FAISS retrieval.
+- `rob2_pipeline/pdf_ingestion.py`: Docling PDF extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, section fallback parsing, and Docling chunk creation.
+- `rob2_pipeline/docling_utils.py`: compatibility helpers for Docling labels and table export.
+- `rob2_pipeline/rag.py`: local embedding, section-filtered FAISS indexing, and adaptive retrieval over Docling chunks.
 - `rob2_pipeline/rag_queries.py`: domain-specific retrieval query sets; D1 queries are intentionally outcome-agnostic.
 - `rob2_pipeline/methodology/`: canonical RoB 2 rule cards and renderer used by prompt templates.
 - `rob2_pipeline/prompts.py`: prompt templates plus rendered canonical methodology blocks.
@@ -140,7 +152,7 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 - `rob2_pipeline/nodes/`: LangGraph nodes.
 - `rob2_pipeline/judges/`: deterministic RoB 2 decision tables.
 - `rob2_pipeline/graph.py`: sequential LangGraph wiring.
-- `rob2_pipeline/nodes/rag_retrieval.py`: per-document retrieval context builder.
+- `rob2_pipeline/nodes/rag_retrieval.py`: per-document retrieval context builder with evidence fallback and extra D3 censoring context.
 - `rob2_pipeline/pipeline.py`: user-facing entry point and output writing.
 - `rob2_pipeline/benchmark.py`: benchmark runner, comparison, summaries, and report writer.
 - `tests/`: deterministic and mocked graph tests.
@@ -148,5 +160,7 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 ## Important Notes
 
 LLMs answer only signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
+
+Ingestion has two LLM touchpoints: the RCT screener always uses the configured provider after PDF evidence is extracted, and the optional paper-evidence refinement call can be disabled with `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`. If Docling structural extraction or vector retrieval fails, the pipeline falls back to deterministic keyword-mapped evidence sections so the assessment can still proceed.
 
 The generated report is a draft assessment for human verification, not a substitute for independent systematic-review judgment.

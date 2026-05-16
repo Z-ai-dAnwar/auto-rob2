@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from docling.chunking import HybridChunker
+from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
 from langchain_core.documents import Document
 from lxml import etree  # type: ignore[import-untyped]
 
@@ -68,6 +69,8 @@ SECTION_ORDER = list(SECTION_PATTERNS)
 MAX_SECTION_CHARS = 10000
 MIN_EXTRACTED_CHARS = 20
 _EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+_EMBED_MAX_TOKENS = 256
+_TOKENIZER_COUNTING_MAX_LENGTH = 10**9
 _DOCLING_CONVERTERS: dict[bool, object] = {}
 _CENSORING_PATTERNS = [
     re.compile(r"(?i)\bcensor\w*\b.*\d|\d.*\bcensor\w*\b"),
@@ -223,8 +226,17 @@ def _normalize_extracted_text(text: str) -> str:
     return text.strip()
 
 
+def _build_docling_chunker() -> HybridChunker:
+    tokenizer = HuggingFaceTokenizer.from_pretrained(
+        _EMBED_MODEL_ID,
+        max_tokens=_EMBED_MAX_TOKENS,
+        model_max_length=_TOKENIZER_COUNTING_MAX_LENGTH,
+    )
+    return HybridChunker(tokenizer=tokenizer)
+
+
 def _build_docling_chunks(conv_result) -> list[Document]:
-    chunker = HybridChunker(tokenizer=_EMBED_MODEL_ID)
+    chunker = _build_docling_chunker()
     docs: list[Document] = []
     for chunk in chunker.chunk(conv_result.document):
         page_numbers = _chunk_page_numbers(chunk)

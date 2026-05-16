@@ -2,12 +2,12 @@
 
 ## Pipeline Overview
 
-`auto-rob2` runs a LangGraph workflow with local retrieval and deterministic RoB 2 adjudication:
+`auto-rob2` runs a LangGraph workflow with Docling-based ingestion, local retrieval, and deterministic RoB 2 adjudication:
 
-1. PDF ingestion and section parsing
+1. PDF ingestion, OCR retry, section/table parsing, and Docling chunking
 2. RCT screening
 3. Preliminary trial metadata extraction with ClinicalTrials.gov enrichment
-4. Per-document RAG retrieval from Docling chunks
+4. Per-document RAG retrieval from Docling chunks, with section fallback
 5. Parallel domain-level signaling-question fan-out (D1-D5)
 6. Deterministic domain judgments
 7. Deterministic overall judgment
@@ -23,11 +23,21 @@ Outputs per run:
 ## Core Components
 
 - `rob2_pipeline/pdf_ingestion.py`
-  - Extracts full text and section-level snippets.
-  - Includes CONSORT augmentation fallback from results/supplementary text.
+  - Extracts full text with LangChain Docling markdown export.
+  - Retries Docling conversion with OCR enabled when non-OCR extraction fails.
+  - Builds a structured document representation preserving section headings and markdown tables.
+  - Creates domain evidence from Docling structure, optionally refines evidence with an ingestion-time LLM XML extraction, and falls back to deterministic keyword mapping on failure.
+  - Builds LangChain `Document` chunks using Docling `HybridChunker` with a Hugging Face tokenizer configured for `sentence-transformers/all-MiniLM-L6-v2`, 256-token chunks, and long counting windows.
+  - Includes CONSORT augmentation fallback from results/supplementary text and D3 censoring-context extraction.
+
+- `rob2_pipeline/docling_utils.py`
+  - Small Docling compatibility helpers for item label names and markdown table export across Docling versions.
 
 - `rob2_pipeline/rag.py`
-  - Builds local Docling chunks, embeds them with `sentence-transformers/all-MiniLM-L6-v2`, and retrieves with FAISS.
+  - Embeds Docling chunks with `sentence-transformers/all-MiniLM-L6-v2` via `langchain-huggingface`.
+  - Builds FAISS indexes from the current document only.
+  - Builds optional section-filtered indexes per domain and falls back to the full index if filtered recall is too sparse.
+  - Performs adaptive multi-query retrieval within a token budget and returns both context text and chunk metadata.
 
 - `rob2_pipeline/rag_queries.py`
   - Static query sets for D1-D5 retrieval contexts.
@@ -49,8 +59,9 @@ Outputs per run:
 - `rob2_pipeline/nodes/`
   - LangGraph node implementations.
   - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
+  - `nodes/ingest.py` coordinates Docling extraction, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
   - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
-  - `nodes/rag_retrieval.py` builds `rag_contexts` from the per-document Docling result.
+  - `nodes/rag_retrieval.py` builds `rag_contexts` and `rag_chunk_metadata` from Docling chunks, or falls back to structured evidence sections.
 
 - `rob2_pipeline/providers/`
   - Provider abstraction around LangChain chat models.
@@ -78,9 +89,14 @@ Outputs per run:
 ## Execution Flow
 
 1. `pdf_ingest`: markdown extraction + deterministic section parsing
+   - `extract_full_text` uses LangChain Docling markdown export, first without OCR and then with OCR if needed.
+   - A non-OCR Docling conversion is reused to build chunks and a structured document representation.
+   - Structural evidence is always available when Docling succeeds.
+   - Optional LLM evidence refinement runs only when remote extraction is enabled and the document appears to be an RCT candidate.
+   - If Docling structure fails, keyword-based evidence fallback is used.
 2. `rct_screener`: stop early for non-RCT studies
 3. `preliminary_info`: trial metadata extraction
-4. `rag_retrieval`: per-document chunking, embedding, and local retrieval
+4. `rag_retrieval`: per-document embedding, section-filtered retrieval, metadata capture, and D3 censoring-context augmentation
 5. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
 6. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
 7. Domain judge nodes produce deterministic domain judgments
@@ -94,6 +110,7 @@ LangGraph merges parallel node writes via reducers in `RoB2State`:
 - `sq_answers`: dict-merge reducer
 - `domain_judgments`: dict-merge reducer
 - `domain_rationales`: dict-merge reducer
+- `rag_chunk_metadata`: dict-merge reducer
 - `llm_call_log`: list concat reducer
 
 Most nodes return partial updates only (not full state) to avoid concurrent channel update collisions.
@@ -107,6 +124,7 @@ Important fields:
 - `sq_answers`: parsed signaling-question answers
 - `domain_judgments`, `domain_rationales`
 - `docling_doc`, `rag_contexts`
+- `docling_chunks`, `rag_chunk_metadata`
 - `effect_of_interest`: `ITT` or `per-protocol`
 - `registered_endpoint`, `registered_secondary_endpoints`
 - `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`
@@ -126,6 +144,9 @@ Important fields:
   - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`
   - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`
 - Effect of interest: `ROB2_EFFECT_OF_INTEREST` (`ITT` or `per-protocol`)
+- Ingestion evidence refinement: `ROB2_REMOTE_EVIDENCE_EXTRACTION`
+  - default enabled
+  - set to `0`, `false`, or `False` to skip the ingestion-time LLM evidence extraction and use Docling structural evidence only
 - Caches:
   - Prompt cache: `ROB2_USE_CACHE` (`.rob2_cache/`)
   - ClinicalTrials.gov cache: `ROB2_CTGOV_CACHE`
@@ -173,8 +194,10 @@ Typical failure triage:
    - Check model output for malformed tags/code fences
 2. Missing sections
    - Check deterministic section headings and patterns in `rob2_pipeline/pdf_ingestion.py`
+   - Check evidence extraction warnings in the JSON output; Docling structural failures are reported there
 3. RAG retrieval gaps
    - Inspect `rag_contexts` and `rob2_pipeline/rag.py`
+   - Inspect JSON `rag_sources` for chunk text, section labels, page numbers, and similarity scores
 4. Domain logic disagreements
    - Inspect `sq_answers` and judge modules under `rob2_pipeline/judges/`
 
