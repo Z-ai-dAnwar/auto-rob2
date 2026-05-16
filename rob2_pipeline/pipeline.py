@@ -15,6 +15,7 @@ JSON_OUTPUT_KEYS = (
     "comparator",
     "outcome",
     "outcome_type",
+    "outcome_properties",
     "numerical_result",
     "effect_of_interest",
     "registration_number",
@@ -23,7 +24,9 @@ JSON_OUTPUT_KEYS = (
     "n_randomized",
     "evidence",
     "rag_sources",
+    "retrieval_grades",
     "sources_consulted",
+    "trial_facts",
     "sq_answers",
     "domain_judgments",
     "domain_rationales",
@@ -32,6 +35,9 @@ JSON_OUTPUT_KEYS = (
     "ni_count",
     "high_uncertainty_sqs",
     "human_review_priority",
+    "evidence_validation_flags",
+    "verifier_trace",
+    "overall_policy",
     "errors",
 )
 

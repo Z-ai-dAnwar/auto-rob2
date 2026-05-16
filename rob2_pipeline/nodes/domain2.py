@@ -22,11 +22,14 @@ from rob2_pipeline.xml_parser import parse_sq_response
 def domain2_sq12_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    trial_facts = state.get("trial_facts", {})
     prompt = PROMPT_DOMAIN2_SQ12.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        blinding_text=format_evidence(evidence["d2_blinding"]),
+        blinding_text="\n\n".join(
+            part for part in [format_evidence(evidence["d2_blinding"]), trial_facts.get("masking", "")] if part
+        ),
         methods_text=format_evidence(evidence["methods"]),
         rag_text=rag_contexts.get("d2_blinding", ""),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
@@ -61,6 +64,7 @@ def d2_needs_conditional(state: RoB2State) -> str:
 def domain2_conditional_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    trial_facts = state.get("trial_facts", {})
     sq = state["sq_answers"]
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_CONDITIONAL
@@ -73,7 +77,16 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         sq_2_1=sq.get("2.1", {}).get("answer", "NI"),
         sq_2_2=sq.get("2.2", {}).get("answer", "NI"),
-        deviations_text=format_evidence(evidence["d2_blinding"]) + "\n" + format_evidence(evidence["results"]),
+        deviations_text="\n".join(
+            part
+            for part in [
+                format_evidence(evidence["d2_blinding"]),
+                format_evidence(evidence["results"]),
+                trial_facts.get("protocol_deviations", ""),
+                trial_facts.get("protocol_amendments", ""),
+            ]
+            if part
+        ),
         concomitant_text=format_evidence(evidence["methods"]),
         rag_text=rag_contexts.get("d2_deviations", ""),
     )
@@ -101,6 +114,7 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
 def domain2_analysis_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    trial_facts = state.get("trial_facts", {})
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_ANALYSIS
         if state.get("effect_of_interest", "ITT").lower() == "per-protocol"
@@ -112,7 +126,9 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         effect_of_interest=state.get("effect_of_interest", "ITT"),
         analysis_text=format_evidence(evidence["d4_outcome_meas"]),
-        results_text=format_evidence(evidence["results"]),
+        results_text="\n\n".join(
+            part for part in [format_evidence(evidence["results"]), trial_facts.get("analysis_populations", "")] if part
+        ),
         rag_text=rag_contexts.get("d2_analysis", ""),
     )
     response, log, parsed = call_node_llm_with_sources(

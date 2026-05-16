@@ -412,6 +412,11 @@ def test_run_assessment_writes_outputs(tmp_path):
     assert data["evidence"]["extraction_method"] == "docling_llm"
     assert "computer-generated sequence" in data["evidence"]["d1_randomization"]["text"]
     assert "rag_sources" in data
+    assert "outcome_properties" in data
+    assert "trial_facts" in data
+    assert "retrieval_grades" in data
+    assert "evidence_validation_flags" in data
+    assert data["overall_policy"] == "official_rob2"
 
 
 def test_preliminary_node_populates_ctgov_fields(monkeypatch):

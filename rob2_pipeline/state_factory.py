@@ -3,6 +3,18 @@ from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.state import RoB2State
 
 
+DEFAULT_OUTCOME_PROPERTIES = {
+    "objective_event": False,
+    "clinician_judged": True,
+    "patient_reported": False,
+    "composite": False,
+    "time_to_event": False,
+    "safety_harm": False,
+    "lab_or_imaging_threshold": False,
+    "blinded_adjudication": False,
+}
+
+
 def create_initial_state(
     pdf_path: str,
     outcome: str | None = None,
@@ -17,12 +29,14 @@ def create_initial_state(
         "docling_chunks": [],
         "rag_contexts": {},
         "rag_chunk_metadata": {},
+        "retrieval_grades": {},
         "is_rct": False,
         "rct_screen_evidence": "",
         "intervention": NOT_REPORTED,
         "comparator": NOT_REPORTED,
         "outcome": outcome or "",
         "outcome_type": "clinician-composite",
+        "outcome_properties": dict(DEFAULT_OUTCOME_PROPERTIES),
         "numerical_result": NOT_REPORTED,
         "effect_of_interest": effect_of_interest,
         "registration_number": NOT_REPORTED,
@@ -32,6 +46,7 @@ def create_initial_state(
         "ctgov_outcomes": kwargs.get("ctgov_outcomes", "(ClinicalTrials.gov data not yet retrieved)"),
         "n_randomized": NOT_REPORTED,
         "sources_consulted": [],
+        "trial_facts": {},
         "sq_answers": {},
         "domain_judgments": {},
         "domain_rationales": {},
@@ -40,6 +55,9 @@ def create_initial_state(
         "ni_count": 0,
         "high_uncertainty_sqs": [],
         "human_review_priority": "HIGH",
+        "evidence_validation_flags": [],
+        "verifier_trace": [],
+        "overall_policy": kwargs.get("overall_policy", "official_rob2"),
         "markdown_report": "",
         "errors": [],
         "llm_call_log": [],
