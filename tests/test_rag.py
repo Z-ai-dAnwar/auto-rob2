@@ -4,7 +4,7 @@ import pytest
 from langchain_core.documents import Document
 
 import rob2_pipeline.rag as rag
-from rob2_pipeline.rag import build_filtered_index, build_index, retrieve_adaptive
+from rob2_pipeline.rag import build_filtered_index, build_index, grade_retrieved_context, retrieve_adaptive
 
 
 def _make_doc(text: str, section: str = "", pages: list[int] | None = None) -> Document:
@@ -146,3 +146,23 @@ class TestRetrieveAdaptive:
         texts = [meta["text"] for meta in metas]
 
         assert len(texts) == len(set(texts))
+
+
+class TestGradeRetrievedContext:
+    def test_grades_relevant_context_with_coverage(self):
+        metas = [{"section": "Methods"}, {"section": "Results"}]
+        grade = grade_retrieved_context(
+            "d1",
+            "The allocation sequence was random and allocation was concealed.",
+            metas,
+        )
+
+        assert grade["relevance"] == 1.0
+        assert grade["coverage"] == 1.0
+        assert grade["retry_recommended"] is False
+
+    def test_recommends_retry_when_required_terms_missing(self):
+        grade = grade_retrieved_context("d5", "This paragraph discusses adverse events only.", [])
+
+        assert grade["retry_recommended"] is True
+        assert "registr" in grade["missing_evidence"]

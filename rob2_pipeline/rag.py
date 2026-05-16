@@ -23,6 +23,14 @@ DOMAIN_SECTION_FILTERS: dict[str, list[str]] = {
     "d5": ["registr", "protocol", "trial design", "nct"],
 }
 
+DOMAIN_REQUIRED_TERMS: dict[str, list[str]] = {
+    "d1": ["random", "allocat"],
+    "d2": ["blind", "mask", "open-label", "deviation", "adherence", "analysis"],
+    "d3": ["missing", "follow", "withdraw", "censor", "analysis population"],
+    "d4": ["outcome", "measure", "assess", "blind", "adjudicat"],
+    "d5": ["registr", "protocol", "outcome", "analysis"],
+}
+
 
 def build_index(chunks: list[Document]) -> FAISS:
     if not chunks:
@@ -91,6 +99,24 @@ def retrieve_adaptive(
         )
 
     return "\n\n".join(texts), metas
+
+
+def grade_retrieved_context(domain: str, text: str, metas: list[ChunkMeta]) -> dict:
+    lowered = (text or "").lower()
+    required = DOMAIN_REQUIRED_TERMS.get(domain, [])
+    missing = [term for term in required if term not in lowered]
+    if not text.strip():
+        relevance = 0.0
+    else:
+        relevance = (len(required) - len(missing)) / len(required) if required else 1.0
+    unique_sections = {meta.get("section", "") for meta in metas if meta.get("section")}
+    coverage = min(1.0, (len(unique_sections) / 2) if unique_sections else 0.0)
+    return {
+        "relevance": round(relevance, 3),
+        "coverage": round(coverage, 3),
+        "missing_evidence": missing,
+        "retry_recommended": relevance < 0.4 or coverage < 0.5,
+    }
 
 
 def _doc_key(doc: Document) -> str:

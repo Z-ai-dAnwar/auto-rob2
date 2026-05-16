@@ -58,6 +58,9 @@ outputs/*
 # Prompt cache
 .rob2_cache/
 
+# Local git worktrees
+.worktrees/
+
 # Local input PDFs for assessment runs
 inputs/*.pdf
 !inputs/benchmark/*.pdf

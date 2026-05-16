@@ -15,11 +15,24 @@ from rob2_pipeline.xml_parser import parse_sq_response
 def domain1_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    trial_facts = state.get("trial_facts", {})
+    trial_level_text = "\n".join(
+        part
+        for part in [
+            trial_facts.get("randomization", ""),
+            trial_facts.get("allocation_concealment", ""),
+        ]
+        if part
+    )
     prompt = PROMPT_DOMAIN1.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
         outcome=state["outcome"],
-        randomization_text=format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]),
+        randomization_text="\n\n".join(
+            part
+            for part in [format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]), trial_level_text]
+            if part
+        ),
         baseline_text=format_evidence(evidence["baseline_table"]),
         consort_text=format_evidence(evidence["consort_flow"]),
         rag_text=rag_contexts.get("d1", ""),

@@ -12,6 +12,7 @@ from rob2_pipeline.nodes.domain3 import domain3_judge_node
 from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.nodes.domain4 import domain4_judge_node, domain4_sq_node
 from rob2_pipeline.nodes.domain5 import domain5_judge_node
+from rob2_pipeline.nodes.overall import overall_judge_node
 from rob2_pipeline.prompts import PROMPT_DOMAIN2_ADHERING_ANALYSIS, PROMPT_DOMAIN2_ADHERING_CONDITIONAL, PROMPT_DOMAIN5
 
 
@@ -148,6 +149,25 @@ def test_judge_overall(domains, expected, rationale_part):
     judgment, rationale = judge_overall(domains)
     assert judgment == expected
     assert rationale_part in rationale
+
+
+def test_overall_node_exposes_benchmark_reference_policy():
+    result = overall_judge_node(
+        {
+            "domain_judgments": {
+                "D1": "Low",
+                "D2": "Low",
+                "D3": "Low",
+                "D4": "Some concerns",
+                "D5": "Low",
+            },
+            "sq_answers": {},
+            "overall_policy": "benchmark_reference",
+        }
+    )
+
+    assert result["overall_judgment"] == "Low"
+    assert result["overall_policy"] == "benchmark_reference"
 
 
 def test_domain_nodes_do_not_override_algorithm_by_outcome_label():
