@@ -8,7 +8,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from rob2_pipeline.types import ChunkMeta
 
-_EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+_EMBED_MODEL_ID = "BAAI/bge-small-en-v1.5"
 
 _embeddings: HuggingFaceEmbeddings | None = None
 

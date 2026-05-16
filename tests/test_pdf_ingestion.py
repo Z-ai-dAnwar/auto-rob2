@@ -147,7 +147,7 @@ def test_build_docling_chunks_configures_tokenizer_for_long_docling_counts(monke
 
     assert tokenizer_calls == [
         (
-            "sentence-transformers/all-MiniLM-L6-v2",
+            "BAAI/bge-small-en-v1.5",
             {"max_tokens": 256, "model_max_length": 10**9},
         )
     ]

@@ -1,8 +1,8 @@
 # auto-rob2
 
-Automated draft Cochrane Risk of Bias 2 (RoB 2) assessment for randomized controlled trial PDFs.
+Automated first-pass Cochrane Risk of Bias 2 (RoB 2) assessment for randomized controlled trial PDFs.
 
-The pipeline uses a LangGraph state machine to orchestrate Docling-based PDF ingestion, ClinicalTrials.gov enrichment, outcome normalization, per-document local RAG retrieval, SQ-specific evidence packets, LLM signaling-question extraction, deterministic RoB 2 domain judgment algorithms, quote/packet verification, overall judgment, and Markdown/JSON reporting.
+`auto-rob2` runs a LangGraph workflow that extracts trial evidence from PDFs, enriches trial metadata from ClinicalTrials.gov when possible, retrieves domain-specific context with local embeddings and FAISS, asks LLMs to answer RoB 2 signaling questions, and then applies deterministic Python decision tables for domain and overall judgments. Outputs are draft Markdown reports plus JSON diagnostics for human review.
 
 ## Setup
 
@@ -12,26 +12,28 @@ Install dependencies with `uv`. The project expects Python `>=3.13`.
 uv sync
 ```
 
-PDF extraction and RAG use Docling, LangChain Docling, local `sentence-transformers` embeddings, and FAISS. The first embedding/tokenizer model download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
+PDF extraction and retrieval use Docling, LangChain Docling, the local Hugging Face embedding model `BAAI/bge-small-en-v1.5`, and FAISS. The first tokenizer/embedding download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
 
-Create a local `.env` file:
+Create a local `.env` file for provider credentials:
 
 ```text
-ROB2_PROVIDER=openrouter
 OPENROUTER_API_KEY=your_key_here
-# Optional alternatives when ROB2_PROVIDER changes:
+# Optional alternatives when ROB2_PROVIDER is exported as anthropic or openai:
 # ANTHROPIC_API_KEY=your_key_here
 # OPENAI_API_KEY=your_key_here
 ```
 
 Optional runtime settings:
 
+- `ROB2_PROVIDER`: `openrouter` (default), `anthropic`, or `openai`.
 - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`: model configuration.
 - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`: OpenRouter rate limits.
 - `ROB2_EFFECT_OF_INTEREST`: default effect, `ITT` or `per-protocol`.
 - `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
 - `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
 - `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`: skip the ingestion-time LLM evidence refinement and use Docling structural extraction only.
+
+Settings such as `ROB2_PROVIDER`, `ROB2_MODEL`, and rate limits are read from the process environment during import. Export them before running the CLI if you need values other than the defaults; `.env` is still useful for API keys loaded when the provider is built.
 
 `.env` and generated `outputs/` are ignored by git, except `outputs/benchmark/`.
 
@@ -96,6 +98,8 @@ Generated files:
 - `outputs/<pdf_basename>_rob2_report.md`
 - `outputs/<pdf_basename>_rob2_data.json`
 
+For PDFs screened as non-RCTs, the graph stops after screening; JSON is still written, but there may be no Markdown report and the judgment fields remain unset.
+
 The JSON output includes source and quality diagnostics for human review:
 
 - `rag_sources`: retrieved chunk text, section labels, page numbers, and similarity scores by RoB 2 domain when vector retrieval succeeds.
@@ -145,27 +149,21 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 
 ## Architecture
 
-- `rob2_pipeline/pdf_ingestion.py`: Docling PDF extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, section fallback parsing, and Docling chunk creation.
-- `rob2_pipeline/docling_utils.py`: compatibility helpers for Docling labels and table export.
-- `rob2_pipeline/rag.py`: local embedding, section-filtered FAISS indexing, adaptive retrieval over Docling chunks, and domain-level retrieval grading.
-- `rob2_pipeline/rag_queries.py`: SQ-level retrieval query sets aggregated into domain-level RAG queries.
-- `rob2_pipeline/methodology/`: canonical RoB 2 rule cards and renderer used by prompt templates.
-- `rob2_pipeline/prompts.py`: prompt templates plus rendered canonical methodology blocks.
-- `rob2_pipeline/providers/`: provider abstraction (`openrouter`, `anthropic`, `openai`) via LangChain integrations.
-- `rob2_pipeline/config.py`: provider selection/env config and `build_provider()`.
-- `rob2_pipeline/registration_api.py`: ClinicalTrials.gov API v2 fetch/extract/format helpers.
-- `rob2_pipeline/nodes/`: LangGraph nodes, including outcome resolver, trial-fact extraction, evidence-packet building, domain SQ/judge nodes, quote verification, and reporting.
-- `rob2_pipeline/judges/`: deterministic RoB 2 decision tables.
-- `rob2_pipeline/graph.py`: LangGraph wiring with parallel domain fan-out after evidence-packet construction.
-- `rob2_pipeline/nodes/rag_retrieval.py`: per-document retrieval context builder with evidence fallback, retrieval grading, and extra D3 censoring context.
-- `rob2_pipeline/pipeline.py`: user-facing entry point and output writing.
-- `rob2_pipeline/benchmark.py`: benchmark runner, comparison, summaries, and report writer.
-- `tests/`: deterministic and mocked graph tests.
+- `rob2_pipeline/graph.py`: LangGraph wiring from ingestion through reporting, with early stop for non-RCTs and parallel D1-D5 fan-out after evidence packets are built.
+- `rob2_pipeline/pdf_ingestion.py`: Docling markdown extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, fallback section parsing, censoring-context extraction, and Docling `HybridChunker` chunk creation.
+- `rob2_pipeline/rag.py` and `rag_queries.py`: BGE-small embeddings, LangChain FAISS indexes, section-filtered adaptive retrieval, retrieval grading, and SQ-derived domain query sets.
+- `rob2_pipeline/nodes/`: graph nodes for RCT screening, preliminary metadata, outcome normalization, trial facts, retrieval, evidence packets, signaling questions, deterministic judges, quote/packet verification, overall judgment, and report formatting.
+- `rob2_pipeline/methodology/`, `prompts.py`, and `judges/`: canonical RoB 2 guidance, XML prompt templates, and deterministic domain/overall decision tables.
+- `rob2_pipeline/providers/` and `config.py`: LangChain-backed provider abstraction for OpenRouter, Anthropic, and OpenAI.
+- `rob2_pipeline/registration_api.py`: ClinicalTrials.gov API v2 enrichment and optional cache.
+- `rob2_pipeline/pipeline.py`: public Python entry point and Markdown/JSON output writer.
+- `rob2_pipeline/benchmark.py`: benchmark runner, comparison, cohort summaries, and benchmark report writer.
+- `tests/`: mocked unit and graph tests for deterministic behavior.
 
 ## Important Notes
 
-LLMs answer the RCT screen, preliminary extraction, and signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
+LLMs answer the RCT screen, preliminary extraction, optional ingestion evidence refinement, and signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
 
-Ingestion has two LLM touchpoints: the RCT screener always uses the configured provider after PDF evidence is extracted, and the optional paper-evidence refinement call can be disabled with `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`. If Docling structural extraction or vector retrieval fails, the pipeline falls back to deterministic keyword-mapped evidence sections so the assessment can still proceed.
+If Docling structural extraction or vector retrieval fails after text extraction, the pipeline falls back to deterministic keyword-mapped evidence sections so the assessment can still proceed. If the RCT screener determines the paper is not an RCT, downstream RoB 2 assessment nodes do not run.
 
 Evidence-packet and quote verification are quality gates for review triage; they flag unsupported quotes, missing required evidence, fragile D3/D5 reasoning, and packets that should be retried or escalated. The generated report remains a draft assessment for human verification, not a substitute for independent systematic-review judgment.
