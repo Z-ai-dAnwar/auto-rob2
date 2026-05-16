@@ -25,6 +25,9 @@ JSON_OUTPUT_KEYS = (
     "evidence",
     "rag_sources",
     "retrieval_grades",
+    "evidence_packets",
+    "packet_grades",
+    "evidence_facts",
     "sources_consulted",
     "trial_facts",
     "sq_answers",
@@ -37,6 +40,7 @@ JSON_OUTPUT_KEYS = (
     "human_review_priority",
     "evidence_validation_flags",
     "verifier_trace",
+    "verification_actions",
     "overall_policy",
     "errors",
 )

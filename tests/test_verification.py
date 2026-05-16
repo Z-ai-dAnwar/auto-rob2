@@ -1,5 +1,5 @@
 from rob2_pipeline.models import empty_paper_evidence
-from rob2_pipeline.nodes.verification import quote_is_supported, verify_sq_evidence
+from rob2_pipeline.nodes.verification import quote_is_supported, quote_verifier_node, verify_sq_evidence
 
 
 def test_quote_support_accepts_exact_source_quote():
@@ -55,3 +55,32 @@ def test_verify_sq_evidence_flags_unsupported_selective_reporting_quote():
 
     assert any(flag["issue"] == "quote_not_found_in_source_context" for flag in flags)
     assert any("multiple eligible" in flag["issue"] for flag in flags)
+
+
+def test_quote_verifier_surfaces_packet_retry_actions():
+    state = {
+        "full_text": "Progression-free survival improved.",
+        "evidence": empty_paper_evidence(),
+        "rag_contexts": {},
+        "sq_answers": {},
+        "evidence_packets": {
+            "5.1": {
+                "sq_id": "5.1",
+                "packet_grade": {
+                    "relevance": 0.1,
+                    "coverage": 0.0,
+                    "missing_evidence": ["protocol_or_registration"],
+                    "retry_recommended": True,
+                },
+                "negative_flags": ["results_without_prespecification"],
+            }
+        },
+        "verifier_trace": [],
+    }
+
+    result = quote_verifier_node(state)
+
+    assert result["verification_actions"]
+    assert result["verification_actions"][0]["sq_id"] == "5.1"
+    assert result["verification_actions"][0]["action"] == "retry_packet_or_escalate"
+    assert any(flag["sq_id"] == "5.1" and "packet" in flag["issue"] for flag in result["evidence_validation_flags"])

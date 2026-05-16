@@ -8,6 +8,7 @@ from rob2_pipeline.nodes.common import (
     merge_sq_answers,
     set_na,
 )
+from rob2_pipeline.nodes.evidence_packets import packet_block_for_domain
 from rob2_pipeline.prompts import (
     PROMPT_DOMAIN2_ADHERING_ANALYSIS,
     PROMPT_DOMAIN2_ADHERING_CONDITIONAL,
@@ -23,6 +24,7 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
     trial_facts = state.get("trial_facts", {})
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d2")
     prompt = PROMPT_DOMAIN2_SQ12.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
@@ -31,7 +33,7 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
             part for part in [format_evidence(evidence["d2_blinding"]), trial_facts.get("masking", "")] if part
         ),
         methods_text=format_evidence(evidence["methods"]),
-        rag_text=rag_contexts.get("d2_blinding", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_blinding", "")] if part),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm_with_sources(
@@ -65,6 +67,7 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
     trial_facts = state.get("trial_facts", {})
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d2")
     sq = state["sq_answers"]
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_CONDITIONAL
@@ -88,7 +91,7 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
             if part
         ),
         concomitant_text=format_evidence(evidence["methods"]),
-        rag_text=rag_contexts.get("d2_deviations", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_deviations", "")] if part),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,
@@ -115,6 +118,7 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
     trial_facts = state.get("trial_facts", {})
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d2")
     prompt_template = (
         PROMPT_DOMAIN2_ADHERING_ANALYSIS
         if state.get("effect_of_interest", "ITT").lower() == "per-protocol"
@@ -129,7 +133,7 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         results_text="\n\n".join(
             part for part in [format_evidence(evidence["results"]), trial_facts.get("analysis_populations", "")] if part
         ),
-        rag_text=rag_contexts.get("d2_analysis", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_analysis", "")] if part),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,

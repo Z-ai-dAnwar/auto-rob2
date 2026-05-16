@@ -303,7 +303,11 @@ def test_graph_happy_path_with_mocked_llm(tmp_path):
 
     assert state["overall_judgment"] == "Low"
     assert state["domain_judgments"] == {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}
+    assert "1.1" in state["evidence_packets"]
+    assert "1.1" in state["packet_grades"]
+    assert "1.1" in state["evidence_facts"]
     assert "# RoB 2 Assessment" in state["markdown_report"]
+    assert "## Verified evidence packets" in state["markdown_report"]
     assert len(state["llm_call_log"]) == 9
     assert provider.complete.call_count == 9
 
@@ -414,6 +418,9 @@ def test_run_assessment_writes_outputs(tmp_path):
     assert "rag_sources" in data
     assert "outcome_properties" in data
     assert "trial_facts" in data
+    assert "evidence_packets" in data
+    assert "packet_grades" in data
+    assert "evidence_facts" in data
     assert "retrieval_grades" in data
     assert "evidence_validation_flags" in data
     assert data["overall_policy"] == "official_rob2"

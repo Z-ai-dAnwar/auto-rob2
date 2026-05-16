@@ -7,6 +7,7 @@ from rob2_pipeline.nodes.common import (
     format_chunk_sources,
     merge_sq_answers,
 )
+from rob2_pipeline.nodes.evidence_packets import packet_block_for_domain
 from rob2_pipeline.prompts import PROMPT_DOMAIN1
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -24,6 +25,7 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         ]
         if part
     )
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d1")
     prompt = PROMPT_DOMAIN1.format(
         intervention=state["intervention"],
         comparator=state["comparator"],
@@ -35,7 +37,7 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         ),
         baseline_text=format_evidence(evidence["baseline_table"]),
         consort_text=format_evidence(evidence["consort_flow"]),
-        rag_text=rag_contexts.get("d1", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d1", "")] if part),
         ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
     )
     response, log, parsed = call_node_llm_with_sources(

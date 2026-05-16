@@ -8,6 +8,7 @@ from rob2_pipeline.nodes.common import (
     merge_sq_answers,
     set_na,
 )
+from rob2_pipeline.nodes.evidence_packets import packet_block_for_domain
 from rob2_pipeline.prompts import PROMPT_DOMAIN3
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -16,6 +17,7 @@ from rob2_pipeline.xml_parser import parse_sq_response
 def domain3_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d3")
     missing_data_text = format_evidence(evidence["d3_missing_data"]) or format_evidence(evidence["results"])
     prompt = PROMPT_DOMAIN3.format(
         intervention=state["intervention"],
@@ -25,7 +27,7 @@ def domain3_sq_node(state: RoB2State) -> RoB2State:
         consort_text=format_evidence(evidence["consort_flow"]),
         missing_data_text=missing_data_text,
         sensitivity_text=format_evidence(evidence["d4_outcome_meas"]),
-        rag_text=rag_contexts.get("d3", ""),
+        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d3", "")] if part),
         ctgov_flow=state.get("ctgov_flow", "(No ClinicalTrials.gov participant flow available)"),
     )
     response, log, parsed = call_node_llm_with_sources(

@@ -2,16 +2,19 @@
 
 ## Pipeline Overview
 
-`auto-rob2` runs a LangGraph workflow with Docling-based ingestion, local retrieval, and deterministic RoB 2 adjudication:
+`auto-rob2` runs a LangGraph workflow with Docling-based ingestion, local retrieval, SQ-specific evidence packets, verification, and deterministic RoB 2 adjudication:
 
 1. PDF ingestion, OCR retry, section/table parsing, and Docling chunking
 2. RCT screening
 3. Preliminary trial metadata extraction with ClinicalTrials.gov enrichment
-4. Per-document RAG retrieval from Docling chunks, with section fallback
-5. Parallel domain-level signaling-question fan-out (D1-D5)
-6. Deterministic domain judgments
-7. Deterministic overall judgment
-8. Report generation (Markdown + JSON)
+4. Outcome-property normalization and trial-fact extraction
+5. Per-document RAG retrieval from Docling chunks, with section fallback and retrieval grading
+6. SQ-specific evidence packet construction
+7. Parallel domain-level signaling-question fan-out (D1-D5)
+8. Deterministic domain judgments
+9. Quote and packet verification
+10. Deterministic overall judgment
+11. Report generation (Markdown + JSON)
 
 Main graph wiring is in `rob2_pipeline/graph.py`.
 
@@ -38,10 +41,11 @@ Outputs per run:
   - Builds FAISS indexes from the current document only.
   - Builds optional section-filtered indexes per domain and falls back to the full index if filtered recall is too sparse.
   - Performs adaptive multi-query retrieval within a token budget and returns both context text and chunk metadata.
+  - Grades retrieved context by domain for relevance, coverage, missing evidence, and retry recommendation.
 
 - `rob2_pipeline/rag_queries.py`
-  - Static query sets for D1-D5 retrieval contexts.
-  - D1 queries are trial-level and intentionally outcome-agnostic.
+  - Static query sets for each signaling question.
+  - `domain_queries()` aggregates SQ queries into D1-D5 retrieval contexts.
 
 - `rob2_pipeline/methodology/`
   - Canonical RoB 2 methodology guidance used by prompts.
@@ -61,7 +65,12 @@ Outputs per run:
   - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
   - `nodes/ingest.py` coordinates Docling extraction, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
   - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
-  - `nodes/rag_retrieval.py` builds `rag_contexts` and `rag_chunk_metadata` from Docling chunks, or falls back to structured evidence sections.
+  - `nodes/outcome_resolver.py` normalizes outcome type from inferred properties such as time-to-event, safety, objective event, and blinded adjudication.
+  - `nodes/trial_facts.py` extracts reusable deterministic snippets for randomization, concealment, masking, deviations, amendments, and analysis populations.
+  - `nodes/rag_retrieval.py` builds `rag_contexts`, `rag_chunk_metadata`, and `retrieval_grades` from Docling chunks, or falls back to structured evidence sections.
+  - `nodes/evidence_packets.py` builds SQ-level evidence packets from retrieved chunks plus deterministic fallback sections.
+  - `nodes/verification.py` verifies SQ quotes and packet quality, then emits validation flags and recommended retry/escalation actions.
+  - `nodes/reporter.py` writes the Markdown report, including verified-packet and quality-flag summaries.
 
 - `rob2_pipeline/providers/`
   - Provider abstraction around LangChain chat models.
@@ -78,6 +87,9 @@ Outputs per run:
 
 - `rob2_pipeline/cache.py`
   - Optional disk prompt cache utilities.
+
+- `rob2_pipeline/types.py`
+  - Shared typed structures for LLM call logs, retrieval metadata, outcome properties, trial facts, evidence packets/facts, retrieval grades, and verifier traces.
 
 - `rob2_pipeline/xml_parser.py`
   - Strict XML extraction/parsing for SQ answers and metadata.
@@ -96,12 +108,19 @@ Outputs per run:
    - If Docling structure fails, keyword-based evidence fallback is used.
 2. `rct_screener`: stop early for non-RCT studies
 3. `preliminary_info`: trial metadata extraction
-4. `rag_retrieval`: per-document embedding, section-filtered retrieval, metadata capture, and D3 censoring-context augmentation
-5. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
-6. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
-7. Domain judge nodes produce deterministic domain judgments
-8. `overall_judge`: overall risk + review priority
-9. `report_formatter`: markdown report payload
+   - Uses paper evidence, then fetches ClinicalTrials.gov API v2 data when an NCT number is available.
+   - Can auto-select a registered secondary endpoint that matches the assessed outcome.
+   - Auto-sets the effect of interest to `per-protocol` for detected safety endpoints when `ROB2_EFFECT_OF_INTEREST` is at its `ITT` default.
+4. `outcome_resolver`: normalizes `outcome_type` from `outcome_properties`
+5. `trial_facts`: extracts reusable trial-level snippets for prompt grounding
+6. `rag_retrieval`: per-document embedding, section-filtered retrieval, metadata capture, retrieval grading, and D3 censoring-context augmentation
+7. `evidence_packet_builder`: builds SQ-specific packets with required-evidence contracts, candidate facts, negative flags, and packet grades
+8. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
+9. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
+10. Domain judge nodes produce deterministic domain judgments
+11. `quote_verifier`: checks quote support and packet quality, and records validation flags/actions
+12. `overall_judge`: overall risk + review priority
+13. `report_formatter`: markdown report payload
 
 ## Concurrency Model
 
@@ -111,9 +130,13 @@ LangGraph merges parallel node writes via reducers in `RoB2State`:
 - `domain_judgments`: dict-merge reducer
 - `domain_rationales`: dict-merge reducer
 - `rag_chunk_metadata`: dict-merge reducer
+- `retrieval_grades`: dict-merge reducer
+- `evidence_packets`: dict-merge reducer
+- `evidence_facts`: dict-merge reducer
+- `packet_grades`: dict-merge reducer
 - `llm_call_log`: list concat reducer
 
-Most nodes return partial updates only (not full state) to avoid concurrent channel update collisions.
+Most nodes return partial updates only (not full state) to avoid concurrent channel update collisions. Sequential nodes use latest-value reducers for scalar and list outputs such as `verification_actions`.
 
 ## State Model
 
@@ -125,9 +148,15 @@ Important fields:
 - `domain_judgments`, `domain_rationales`
 - `docling_doc`, `rag_contexts`
 - `docling_chunks`, `rag_chunk_metadata`
+- `retrieval_grades`
+- `evidence_packets`, `evidence_facts`, `packet_grades`
 - `effect_of_interest`: `ITT` or `per-protocol`
+- `outcome_properties`
 - `registered_endpoint`, `registered_secondary_endpoints`
 - `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`
+- `sources_consulted`, `trial_facts`
+- `evidence_validation_flags`, `verifier_trace`, `verification_actions`
+- `overall_policy`
 - `llm_call_log`, `errors`
 
 ## Runtime and Configuration
@@ -144,6 +173,7 @@ Important fields:
   - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`
   - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`
 - Effect of interest: `ROB2_EFFECT_OF_INTEREST` (`ITT` or `per-protocol`)
+  - The preliminary node may auto-switch safety endpoints to `per-protocol` when this environment setting is at its `ITT` default.
 - Ingestion evidence refinement: `ROB2_REMOTE_EVIDENCE_EXTRACTION`
   - default enabled
   - set to `0`, `false`, or `False` to skip the ingestion-time LLM evidence extraction and use Docling structural evidence only
@@ -198,7 +228,11 @@ Typical failure triage:
 3. RAG retrieval gaps
    - Inspect `rag_contexts` and `rob2_pipeline/rag.py`
    - Inspect JSON `rag_sources` for chunk text, section labels, page numbers, and similarity scores
-4. Domain logic disagreements
+   - Inspect `retrieval_grades` for missing domain terms and retry recommendations
+4. Evidence packet or quote verification flags
+   - Inspect `evidence_packets`, `packet_grades`, and `evidence_validation_flags`
+   - `verification_actions` indicates whether to retry an SQ with a verified packet or escalate packet retrieval
+5. Domain logic disagreements
    - Inspect `sq_answers` and judge modules under `rob2_pipeline/judges/`
 
 ## Extending the System
@@ -207,10 +241,11 @@ Add a new domain:
 
 1. Add methodology rule cards under `rob2_pipeline/methodology/`
 2. Add prompt template that renders the relevant methodology block
-3. Add SQ node + judge node
-4. Wire graph edges
-5. Add state keys/reducers if parallel writers are introduced
-6. Add tests for methodology rendering, parsing, and deterministic judge logic
+3. Add SQ retrieval queries and evidence-packet contracts
+4. Add SQ node + judge node
+5. Wire graph edges, including quote verification before overall judgment
+6. Add state keys/reducers if parallel writers are introduced
+7. Add tests for retrieval grading, packet construction, methodology rendering, parsing, and deterministic judge logic
 
 Add a new cached LLM node:
 

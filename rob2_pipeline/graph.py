@@ -11,6 +11,7 @@ from rob2_pipeline.nodes.domain2 import (
 from rob2_pipeline.nodes.domain3 import domain3_judge_node, domain3_sq_node
 from rob2_pipeline.nodes.domain4 import domain4_judge_node, domain4_sq_node
 from rob2_pipeline.nodes.domain5 import domain5_judge_node, domain5_sq_node
+from rob2_pipeline.nodes.evidence_packets import evidence_packet_builder_node
 from rob2_pipeline.nodes.ingest import pdf_ingest_node, rct_screener_node
 from rob2_pipeline.nodes.overall import overall_judge_node
 from rob2_pipeline.nodes.outcome_resolver import outcome_resolver_node
@@ -35,6 +36,7 @@ def build_rob2_graph():
     g.add_node("outcome_resolver", outcome_resolver_node)
     g.add_node("trial_facts", trial_facts_node)
     g.add_node("rag_retrieval", rag_retrieval_node)
+    g.add_node("evidence_packet_builder", evidence_packet_builder_node)
 
     g.add_node("domain1_sq", domain1_sq_node)
     g.add_node("domain1_judge", domain1_judge_node)
@@ -67,8 +69,9 @@ def build_rob2_graph():
     g.add_edge("preliminary_info", "outcome_resolver")
     g.add_edge("outcome_resolver", "trial_facts")
     g.add_edge("trial_facts", "rag_retrieval")
+    g.add_edge("rag_retrieval", "evidence_packet_builder")
     for domain_start in DOMAIN_START_NODES:
-        g.add_edge("rag_retrieval", domain_start)
+        g.add_edge("evidence_packet_builder", domain_start)
 
     g.add_edge("domain1_sq", "domain1_judge")
     g.add_edge("domain1_judge", "quote_verifier")

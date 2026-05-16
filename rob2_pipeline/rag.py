@@ -10,10 +10,17 @@ from rob2_pipeline.types import ChunkMeta
 
 _EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 
-_embeddings = HuggingFaceEmbeddings(
-    model_name=_EMBED_MODEL_ID,
-    encode_kwargs={"normalize_embeddings": True},
-)
+_embeddings: HuggingFaceEmbeddings | None = None
+
+
+def _get_embeddings() -> HuggingFaceEmbeddings:
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = HuggingFaceEmbeddings(
+            model_name=_EMBED_MODEL_ID,
+            encode_kwargs={"normalize_embeddings": True},
+        )
+    return _embeddings
 
 DOMAIN_SECTION_FILTERS: dict[str, list[str]] = {
     "d1": ["method", "random", "allocat", "participant", "baseline", "consort", "enrol"],
@@ -35,7 +42,7 @@ DOMAIN_REQUIRED_TERMS: dict[str, list[str]] = {
 def build_index(chunks: list[Document]) -> FAISS:
     if not chunks:
         raise ValueError("Cannot build index from empty chunk list")
-    return FAISS.from_documents(chunks, _embeddings)
+    return FAISS.from_documents(chunks, _get_embeddings())
 
 
 def build_filtered_index(chunks: list[Document], keywords: list[str]) -> FAISS | None:
@@ -47,7 +54,7 @@ def build_filtered_index(chunks: list[Document], keywords: list[str]) -> FAISS |
     ]
     if len(filtered) < 3:
         return None
-    return FAISS.from_documents(filtered, _embeddings)
+    return FAISS.from_documents(filtered, _get_embeddings())
 
 
 def retrieve_adaptive(

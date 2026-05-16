@@ -8,6 +8,7 @@ from rob2_pipeline.nodes.common import (
     merge_sq_answers,
     set_na,
 )
+from rob2_pipeline.nodes.evidence_packets import packet_block_for_domain
 from rob2_pipeline.prompts import PROMPT_DOMAIN4
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -17,8 +18,9 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
     evidence = state["evidence"]
     rag_contexts = state.get("rag_contexts", {})
     sq21 = state.get("sq_answers", {}).get("2.1", {}).get("answer", "NI")
+    packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d4")
     rag_text = "\n\n".join(
-        text for text in [rag_contexts.get("d4_measurement", ""), rag_contexts.get("d4_assessor", "")] if text
+        text for text in [packet_text, rag_contexts.get("d4_measurement", ""), rag_contexts.get("d4_assessor", "")] if text
     )
     prompt = PROMPT_DOMAIN4.format(
         intervention=state["intervention"],

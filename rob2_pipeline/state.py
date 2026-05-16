@@ -2,7 +2,7 @@ import operator
 from typing import Annotated, Any, TypedDict
 
 from rob2_pipeline.models import PaperEvidence
-from rob2_pipeline.types import EvidenceValidationFlag, LLMCallLogEntry, OutcomeProperties, RetrievalGrade, TrialFacts, VerifierTraceEntry
+from rob2_pipeline.types import EvidenceFact, EvidencePacket, EvidenceValidationFlag, LLMCallLogEntry, OutcomeProperties, RetrievalGrade, TrialFacts, VerifierTraceEntry
 
 
 def merge_dicts(left: dict, right: dict) -> dict:
@@ -25,6 +25,10 @@ class RoB2State(TypedDict, total=False):
     rag_contexts: Annotated[dict[str, str], take_latest]
     rag_chunk_metadata: Annotated[dict, merge_dicts]
     retrieval_grades: Annotated[dict[str, RetrievalGrade], merge_dicts]
+    evidence_packets: Annotated[dict[str, EvidencePacket], merge_dicts]
+    evidence_facts: Annotated[dict[str, list[EvidenceFact]], merge_dicts]
+    packet_grades: Annotated[dict[str, RetrievalGrade], merge_dicts]
+    verification_actions: Annotated[list[dict], take_latest]
 
     # === PRELIMINARY INFO ===
     is_rct: Annotated[bool, take_latest]
