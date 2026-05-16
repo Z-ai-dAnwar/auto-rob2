@@ -2,8 +2,6 @@ from pathlib import Path
 import json
 from unittest.mock import Mock, patch
 
-import fitz
-
 from rob2_pipeline.graph import build_rob2_graph
 from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.pdf_ingestion import DocumentRepr
@@ -12,30 +10,7 @@ from rob2_pipeline.providers.base import LLMResponse
 
 
 def _make_pdf(path: Path):
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text(
-        (72, 72),
-        "\n".join(
-            [
-                "Abstract",
-                "This randomized controlled trial compared Drug A with placebo.",
-                "Methods",
-                "Participants were randomly assigned using a computer-generated sequence.",
-                "Allocation was concealed centrally. The trial used intention-to-treat analysis.",
-                "Blinding",
-                "Participants and investigators were blinded.",
-                "Outcomes",
-                "The primary outcome was mortality.",
-                "Results",
-                "100 participants were randomized and all had outcome data.",
-                "Trial registration",
-                "ClinicalTrials.gov NCT00000000.",
-            ]
-        ),
-    )
-    doc.save(path)
-    doc.close()
+    path.write_bytes(b"%PDF-1.7\n% test fixture\n")
 
 
 def _pdf_text() -> str:
@@ -304,9 +279,13 @@ class _FakeConverter:
 
 
 def _patch_ingest_dependencies():
-    return patch("rob2_pipeline.nodes.ingest._get_docling_converter", return_value=_FakeConverter()), patch(
-        "rob2_pipeline.nodes.ingest.build_document_repr",
-        return_value=DocumentRepr(blocks=[], full_text=_pdf_text()),
+    return (
+        patch("rob2_pipeline.nodes.ingest._get_docling_converter", return_value=_FakeConverter()),
+        patch(
+            "rob2_pipeline.nodes.ingest.build_document_repr",
+            return_value=DocumentRepr(blocks=[], full_text=_pdf_text()),
+        ),
+        patch("rob2_pipeline.nodes.ingest._build_docling_chunks", return_value=[]),
     )
 
 
@@ -319,7 +298,7 @@ def test_graph_happy_path_with_mocked_llm(tmp_path):
         "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
     ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
         "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
-    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1], _patch_ingest_dependencies()[2]:
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert state["overall_judgment"] == "Low"
@@ -351,7 +330,7 @@ def test_graph_pfs_composite_endpoint_d4_some_concerns_d5_low(tmp_path):
         "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
     ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=fake_reg_data), patch(
         "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
-    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1], _patch_ingest_dependencies()[2]:
         result = build_rob2_graph().invoke(state)
 
     assert result["registered_endpoint"] == "Progression-Free Survival"
@@ -381,7 +360,7 @@ def test_graph_stops_for_non_rct(tmp_path):
         "rob2_pipeline.pdf_ingestion.build_provider", return_value=_FakeProvider()
     ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
         "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
-    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1], _patch_ingest_dependencies()[2]:
         state = build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert state["is_rct"] is False
@@ -406,7 +385,7 @@ def test_rct_screener_prompt_includes_randomization_context(tmp_path):
         "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
     ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
         "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
-    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1], _patch_ingest_dependencies()[2]:
         build_rob2_graph().invoke(_initial_state(str(pdf_path)))
 
     assert "randomized controlled trial" in captured["rct_screener"]
@@ -423,7 +402,7 @@ def test_run_assessment_writes_outputs(tmp_path):
         "rob2_pipeline.pdf_ingestion.build_provider", return_value=provider
     ), patch("rob2_pipeline.registration_api.fetch_registration", return_value=None), patch(
         "rob2_pipeline.nodes.ingest.extract_full_text", return_value=_pdf_text()
-    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1]:
+    ), _patch_ingest_dependencies()[0], _patch_ingest_dependencies()[1], _patch_ingest_dependencies()[2]:
         state = run_assessment(str(pdf_path), output_dir=str(output_dir))
 
     assert state["overall_judgment"] == "Low"
@@ -432,6 +411,7 @@ def test_run_assessment_writes_outputs(tmp_path):
     data = json.loads((output_dir / "trial_rob2_data.json").read_text(encoding="utf-8"))
     assert data["evidence"]["extraction_method"] == "docling_llm"
     assert "computer-generated sequence" in data["evidence"]["d1_randomization"]["text"]
+    assert "rag_sources" in data
 
 
 def test_preliminary_node_populates_ctgov_fields(monkeypatch):

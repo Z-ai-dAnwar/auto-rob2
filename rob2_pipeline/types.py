@@ -13,3 +13,11 @@ class LLMCallLogEntry(TypedDict):
     cached: NotRequired[bool]
     parse_error: NotRequired[str]
     suspected_parse_failures: NotRequired[list[str]]
+    chunk_sources: NotRequired[list[str]]
+
+
+class ChunkMeta(TypedDict, total=False):
+    text: str
+    section: str
+    page_numbers: list[int]
+    score: float

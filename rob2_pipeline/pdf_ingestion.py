@@ -5,7 +5,8 @@ import time
 from dataclasses import dataclass
 from typing import cast
 
-import pymupdf4llm
+from docling.chunking import HybridChunker
+from langchain_core.documents import Document
 from lxml import etree  # type: ignore[import-untyped]
 
 from rob2_pipeline.config import build_provider
@@ -66,6 +67,7 @@ SECTION_PATTERNS = {
 SECTION_ORDER = list(SECTION_PATTERNS)
 MAX_SECTION_CHARS = 10000
 MIN_EXTRACTED_CHARS = 20
+_EMBED_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 _DOCLING_CONVERTERS: dict[bool, object] = {}
 _CENSORING_PATTERNS = [
     re.compile(r"(?i)\bcensor\w*\b.*\d|\d.*\bcensor\w*\b"),
@@ -152,13 +154,10 @@ def extract_full_text(pdf_path: str) -> str:
     try:
         return _normalize_extracted_text(_extract_with_docling(pdf_path))
     except Exception as docling_error:
-        try:
-            return _normalize_extracted_text(_extract_with_pymupdf4llm(pdf_path))
-        except Exception as fallback_error:
-            raise RuntimeError(
-                f"PDF text extraction failed with Docling and PyMuPDF4LLM for {pdf_path!r}. "
-                f"Docling error: {docling_error}. PyMuPDF4LLM error: {fallback_error}."
-            ) from fallback_error
+        raise RuntimeError(
+            f"PDF text extraction failed with Docling for {pdf_path!r}. "
+            f"Docling error: {docling_error}."
+        ) from docling_error
 
 
 def _extract_with_docling(pdf_path: str) -> str:
@@ -216,19 +215,43 @@ def _configure_docling_runtime() -> None:
     logging.getLogger("rapidocr").setLevel(logging.WARNING)
 
 
-def _extract_with_pymupdf4llm(pdf_path: str) -> str:
-    markdown = pymupdf4llm.to_markdown(pdf_path)
-    if len(markdown.strip()) < MIN_EXTRACTED_CHARS:
-        raise RuntimeError("PyMuPDF4LLM returned too little text to use")
-    return markdown
-
-
 def _normalize_extracted_text(text: str) -> str:
     text = text.replace("\x00", "").replace("\xa0", " ")
     text = re.sub(r"(?<=\w)-\n(?=\w)", "", text)
     text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{4,}", "\n\n\n", text)
     return text.strip()
+
+
+def _build_docling_chunks(conv_result) -> list[Document]:
+    chunker = HybridChunker(tokenizer=_EMBED_MODEL_ID)
+    docs: list[Document] = []
+    for chunk in chunker.chunk(conv_result.document):
+        page_numbers = _chunk_page_numbers(chunk)
+        docs.append(
+            Document(
+                page_content=chunk.text,
+                metadata={
+                    "section": chunk.meta.headings[0] if chunk.meta.headings else "",
+                    "page_numbers": page_numbers,
+                    "dl_meta": chunk.meta.export_json_dict(),
+                },
+            )
+        )
+    return docs
+
+
+def _chunk_page_numbers(chunk) -> list[int]:
+    direct_pages = getattr(chunk.meta, "page_numbers", None)
+    if direct_pages is not None:
+        return list(direct_pages)
+    pages = set()
+    for item in getattr(chunk.meta, "doc_items", []) or []:
+        for prov in getattr(item, "prov", []) or []:
+            page_no = getattr(prov, "page_no", None)
+            if page_no:
+                pages.add(int(page_no))
+    return sorted(pages)
 
 
 def _page_no(item) -> int:

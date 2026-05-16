@@ -1,6 +1,12 @@
 from rob2_pipeline.judges.domain5 import judge_domain5
 from rob2_pipeline.models import format_evidence
-from rob2_pipeline.nodes.common import add_domain_judgment, call_node_llm, merge_sq_answers
+from rob2_pipeline.nodes.common import (
+    add_domain_judgment,
+    call_node_llm,
+    call_node_llm_with_sources,
+    format_chunk_sources,
+    merge_sq_answers,
+)
 from rob2_pipeline.prompts import PROMPT_DOMAIN5
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import parse_sq_response
@@ -31,8 +37,14 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
         results_text=format_evidence(evidence["results"]),
         rag_text=rag_contexts.get("d5", ""),
     )
-    response, log, parsed = call_node_llm(
-        state, prompt, "domain5_sq", parse_sq_response, ["5.1", "5.2", "5.3"]
+    response, log, parsed = call_node_llm_with_sources(
+        call_node_llm,
+        state,
+        prompt,
+        "domain5_sq",
+        parse_sq_response,
+        ["5.1", "5.2", "5.3"],
+        chunk_sources=format_chunk_sources(state, "d5"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
     return {

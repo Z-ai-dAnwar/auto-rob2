@@ -1,8 +1,10 @@
 from rob2_pipeline.models import PaperEvidence, format_evidence
 from rob2_pipeline.pdf_ingestion import extract_censoring_context
-from rob2_pipeline.rag import build_index, chunk_docling_doc, retrieve
-from rob2_pipeline.rag_queries import DOMAIN_QUERIES
+from rob2_pipeline.rag import DOMAIN_SECTION_FILTERS, build_filtered_index, build_index, retrieve_adaptive
+from rob2_pipeline.rag_queries import domain_queries
 from rob2_pipeline.state import RoB2State
+
+_DOMAINS = ["d1", "d2", "d3", "d4", "d5"]
 
 
 def _sections_fallback(evidence: PaperEvidence) -> dict[str, str]:
@@ -42,18 +44,39 @@ def _sections_fallback(evidence: PaperEvidence) -> dict[str, str]:
     }
 
 
+def _empty_metadata() -> dict[str, list[dict]]:
+    return {domain: [] for domain in _DOMAINS}
+
+
+def _compat_contexts(domain_contexts: dict[str, str]) -> dict[str, str]:
+    return {
+        "d1": domain_contexts.get("d1", ""),
+        "d2_blinding": domain_contexts.get("d2", ""),
+        "d2_deviations": domain_contexts.get("d2", ""),
+        "d2_analysis": domain_contexts.get("d2", ""),
+        "d3": domain_contexts.get("d3", ""),
+        "d4_measurement": domain_contexts.get("d4", ""),
+        "d4_assessor": domain_contexts.get("d4", ""),
+        "d5": domain_contexts.get("d5", ""),
+    }
+
+
 def rag_retrieval_node(state: RoB2State) -> dict:
-    conv_result = state.get("docling_doc")
-    if conv_result is None:
+    chunks = state.get("docling_chunks") or []
+    rag_chunk_metadata = _empty_metadata()
+
+    if not chunks:
         rag_contexts = _sections_fallback(state["evidence"])
     else:
         try:
-            chunks = chunk_docling_doc(conv_result)
-            index, chunks = build_index(chunks)
-            rag_contexts = {
-                key: retrieve(index, chunks, queries)
-                for key, queries in DOMAIN_QUERIES.items()
-            }
+            index = build_index(chunks)
+            domain_contexts: dict[str, str] = {}
+            for domain in _DOMAINS:
+                filtered_index = build_filtered_index(chunks, DOMAIN_SECTION_FILTERS.get(domain, []))
+                text, metas = retrieve_adaptive(index, filtered_index, domain_queries(domain))
+                domain_contexts[domain] = text
+                rag_chunk_metadata[domain] = [dict(meta) for meta in metas]
+            rag_contexts = _compat_contexts(domain_contexts)
         except Exception as error:  # noqa: BLE001
             rag_contexts = _sections_fallback(state["evidence"])
             state["evidence"]["warnings"].append(f"RAG retrieval failed: {error}")
@@ -61,4 +84,4 @@ def rag_retrieval_node(state: RoB2State) -> dict:
     censoring = extract_censoring_context(state.get("full_text", ""), state.get("outcome", ""))
     if censoring:
         rag_contexts["d3"] = (rag_contexts.get("d3", "") + "\n\n" + censoring).strip()
-    return {"rag_contexts": rag_contexts}
+    return {"rag_contexts": rag_contexts, "rag_chunk_metadata": rag_chunk_metadata}

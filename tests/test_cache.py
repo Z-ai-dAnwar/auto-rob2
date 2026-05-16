@@ -30,6 +30,16 @@ def test_cache_miss_and_write(tmp_path, monkeypatch):
     assert read_cache(node, prompt) == "response"
 
 
+def test_call_node_llm_logs_chunk_sources(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ROB2_USE_CACHE", "1")
+
+    with patch("rob2_pipeline.nodes.common.build_provider", return_value=_FakeProvider("response")):
+        _, log, _ = call_node_llm({}, "Prompt text", "node_with_sources", chunk_sources=["[page 1, Methods]"])
+
+    assert log[0]["chunk_sources"] == ["[page 1, Methods]"]
+
+
 def test_cache_hit_uses_stored_response(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ROB2_USE_CACHE", "1")

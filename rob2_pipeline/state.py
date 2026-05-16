@@ -21,7 +21,9 @@ class RoB2State(TypedDict, total=False):
     full_text: Annotated[str, take_latest]
     evidence: Annotated[PaperEvidence, take_latest]
     docling_doc: Annotated[Any, take_latest]
+    docling_chunks: Annotated[list, take_latest]
     rag_contexts: Annotated[dict[str, str], take_latest]
+    rag_chunk_metadata: Annotated[dict, merge_dicts]
 
     # === PRELIMINARY INFO ===
     is_rct: Annotated[bool, take_latest]

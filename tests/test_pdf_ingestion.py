@@ -1,9 +1,8 @@
-import fitz
-
 import rob2_pipeline.pdf_ingestion as pdf_ingestion
 from rob2_pipeline.models import empty_paper_evidence, format_evidence
 from rob2_pipeline.nodes.ingest import pdf_ingest_node
 from rob2_pipeline.pdf_ingestion import (
+    _build_docling_chunks,
     build_document_repr,
     cap_section,
     extract_censoring_context,
@@ -15,38 +14,14 @@ from rob2_pipeline.pdf_ingestion import (
 from rob2_pipeline.providers.base import LLMResponse
 
 
-def test_extract_full_text_from_synthetic_pdf_via_fallback(tmp_path, monkeypatch):
-    pdf_path = tmp_path / "synthetic_trial.pdf"
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text((72, 72), "Abstract\nThis was a randomized trial.\nMethods\nPatients were allocated.")
-    doc.save(pdf_path)
-    doc.close()
-
-    monkeypatch.setattr(
-        pdf_ingestion,
-        "_extract_with_docling",
-        lambda pdf_path: (_ for _ in ()).throw(RuntimeError("docling unavailable")),
-    )
-
-    text = extract_full_text(str(pdf_path))
-
-    assert "Abstract" in text
-    assert "randomized trial" in text
-
-
-def test_extract_full_text_uses_docling_before_fallback(monkeypatch):
+def test_extract_full_text_uses_docling(monkeypatch):
     calls = []
 
     def fake_docling(pdf_path):
         calls.append(("docling", pdf_path))
         return "Docling text\xa0with hyphen-\nbreaks"
 
-    def fake_fallback(pdf_path):
-        raise AssertionError("fallback should not be called")
-
     monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_fallback)
 
     text = extract_full_text("trial.pdf")
 
@@ -54,24 +29,96 @@ def test_extract_full_text_uses_docling_before_fallback(monkeypatch):
     assert text == "Docling text with hyphenbreaks"
 
 
-def test_extract_full_text_falls_back_to_pymupdf4llm(monkeypatch):
-    calls = []
-
+def test_extract_full_text_raises_when_docling_fails(monkeypatch):
     def fake_docling(pdf_path):
-        calls.append(("docling", pdf_path))
         raise RuntimeError("docling failed")
 
-    def fake_fallback(pdf_path):
-        calls.append(("fallback", pdf_path))
-        return "Fallback extracted randomized trial text."
-
     monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_fallback)
 
-    text = extract_full_text("trial.pdf")
+    try:
+        extract_full_text("trial.pdf")
+    except RuntimeError as error:
+        assert "PDF text extraction failed with Docling" in str(error)
+    else:
+        raise AssertionError("extract_full_text should raise when Docling fails")
 
-    assert calls == [("docling", "trial.pdf"), ("fallback", "trial.pdf")]
-    assert text == "Fallback extracted randomized trial text."
+
+def _make_mock_chunk(text: str, headings: list[str], pages: list[int]):
+    class MockMeta:
+        def __init__(self):
+            self.headings = headings
+            self.page_numbers = pages
+
+        def export_json_dict(self):
+            return {"headings": headings, "page_numbers": pages}
+
+    class MockChunk:
+        def __init__(self):
+            self.text = text
+            self.meta = MockMeta()
+
+    return MockChunk()
+
+
+def test_build_docling_chunks_returns_langchain_documents(monkeypatch):
+    mock_conv = type("ConversionResult", (), {"document": object()})()
+    mock_chunks = [
+        _make_mock_chunk("Patients were randomly allocated.", ["Methods"], [2]),
+        _make_mock_chunk("Allocation was concealed.", ["Methods"], [2]),
+        _make_mock_chunk("Baseline characteristics.", ["Baseline"], [3]),
+    ]
+
+    class MockChunker:
+        def __init__(self, tokenizer):
+            self.tokenizer = tokenizer
+
+        def chunk(self, document):
+            return mock_chunks
+
+    monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
+
+    result = _build_docling_chunks(mock_conv)
+
+    assert len(result) == 3
+    assert all(doc.page_content for doc in result)
+
+
+def test_build_docling_chunks_preserves_metadata(monkeypatch):
+    mock_conv = type("ConversionResult", (), {"document": object()})()
+    mock_chunks = [_make_mock_chunk("Text about randomization.", ["Methods"], [2])]
+
+    class MockChunker:
+        def __init__(self, tokenizer):
+            self.tokenizer = tokenizer
+
+        def chunk(self, document):
+            return mock_chunks
+
+    monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
+
+    result = _build_docling_chunks(mock_conv)
+
+    assert result[0].metadata["section"] == "Methods"
+    assert result[0].metadata["page_numbers"] == [2]
+    assert result[0].metadata["dl_meta"] == {"headings": ["Methods"], "page_numbers": [2]}
+
+
+def test_build_docling_chunks_handles_no_headings(monkeypatch):
+    mock_conv = type("ConversionResult", (), {"document": object()})()
+    mock_chunks = [_make_mock_chunk("Plain text.", [], [1])]
+
+    class MockChunker:
+        def __init__(self, tokenizer):
+            self.tokenizer = tokenizer
+
+        def chunk(self, document):
+            return mock_chunks
+
+    monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
+
+    result = _build_docling_chunks(mock_conv)
+
+    assert result[0].metadata["section"] == ""
 
 
 def test_parse_sections_detects_expected_sections():
@@ -372,6 +419,7 @@ def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monke
     assert "evidence" in result
     assert result["evidence"]["extraction_method"] == "fallback"
     assert result["docling_doc"] is None
+    assert result["docling_chunks"] == []
     assert "randomly assigned" in result["evidence"]["methods"]["text"]
     assert "randomly assigned" in result["evidence"]["d1_randomization"]["text"]
 
@@ -397,10 +445,12 @@ def test_ingest_node_stores_docling_conversion_result(monkeypatch):
         "rob2_pipeline.nodes.ingest.extract_paper_evidence",
         lambda doc_repr: (empty_paper_evidence("docling_llm"), []),
     )
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
 
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
     assert result["docling_doc"] is converter.conversion_result
+    assert result["docling_chunks"] == ["chunk"]
 
 
 def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
@@ -421,6 +471,7 @@ def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
         lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
     )
     monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: False)
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
 
     def fail_if_called(_doc_repr):
         raise AssertionError("remote extraction should be skipped when disabled")
@@ -430,6 +481,7 @@ def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
     assert result["evidence"]["extraction_method"] == "docling_struct"
+    assert result["docling_chunks"] == ["chunk"]
 
 
 def test_ingest_node_skips_remote_extraction_for_apparent_non_rct(monkeypatch):
@@ -450,6 +502,7 @@ def test_ingest_node_skips_remote_extraction_for_apparent_non_rct(monkeypatch):
         lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
     )
     monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: True)
+    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
 
     def fail_if_called(_doc_repr):
         raise AssertionError("remote extraction should be skipped for apparent non-RCT text")
@@ -459,3 +512,4 @@ def test_ingest_node_skips_remote_extraction_for_apparent_non_rct(monkeypatch):
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
     assert result["evidence"]["extraction_method"] == "docling_struct"
+    assert result["docling_chunks"] == ["chunk"]
