@@ -56,7 +56,13 @@ def build_provider():
             **common,
         )
     elif PROVIDER_NAME == "anthropic":
-        return get_provider("anthropic", api_key=os.environ["ANTHROPIC_API_KEY"], **common)
+        return get_provider(
+            "anthropic",
+            api_key=os.environ["ANTHROPIC_API_KEY"],
+            rpm_limit=int(os.getenv("ANTHROPIC_RPM_LIMIT", "40")),
+            tpm_limit=int(os.getenv("ANTHROPIC_TPM_LIMIT", "30000")),
+            **common,
+        )
     elif PROVIDER_NAME == "openai":
         return get_provider("openai", api_key=os.environ["OPENAI_API_KEY"], **common)
     raise ValueError(f"Unknown ROB2_PROVIDER: {PROVIDER_NAME!r}")
