@@ -55,9 +55,10 @@ class AnthropicProvider(LLMProvider):
         r = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
         usage = (r.response_metadata or {}).get("usage", {})
         return LLMResponse(
-            r.content,
-            self._model,
-            usage.get("input_tokens", 0),
-            usage.get("output_tokens", 0),
-            (time.time() - start) * 1000,
+            content=r.content,
+            model=self._model,
+            input_tokens=usage.get("input_tokens", 0),
+            output_tokens=usage.get("output_tokens", 0),
+            latency_ms=(time.time() - start) * 1000,
+            reasoning_content=r.additional_kwargs.get("reasoning_content"),
         )

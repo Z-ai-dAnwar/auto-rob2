@@ -127,6 +127,7 @@ def test_openrouter_uses_shared_rate_limiter(monkeypatch):
         def __init__(self, content):
             self.content = content
             self.usage_metadata = {"input_tokens": 10, "output_tokens": 5}
+            self.additional_kwargs = {}
 
     class FakeClient:
         def invoke(self, messages):
@@ -151,6 +152,7 @@ def test_anthropic_provider_estimates_and_waits(monkeypatch):
         def __init__(self):
             self.content = "ok"
             self.response_metadata = {"usage": {"input_tokens": 12, "output_tokens": 7}}
+            self.additional_kwargs = {}
 
     class FakeClient:
         def __init__(self):

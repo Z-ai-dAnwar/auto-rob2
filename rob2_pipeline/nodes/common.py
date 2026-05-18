@@ -55,6 +55,8 @@ def call_node_llm(
             log_entry["chunk_sources"] = chunk_sources
         parsed = _parse_and_validate(cached)
         log.append(log_entry)
+        # Cache hit: we stored only the content, so reasoning_content is not
+        # available on replay. Leave it as None.
         append_llm_call(
             node=node_name,
             system_prompt=SYSTEM_MESSAGE,
@@ -68,6 +70,7 @@ def call_node_llm(
             cache_hit=True,
             parse_error=None,
             parsed_answers=parsed,
+            reasoning_content=None,
         )
         return cached, log, parsed
 
@@ -97,6 +100,7 @@ def call_node_llm(
                 parse_error=str(exc),
                 parsed_answers=None,
                 is_repair=False,
+                reasoning_content=response_obj.reasoning_content,
             )
             repair_prompt = (
                 f"Your previous response for {node_name} was invalid: {exc}. "
@@ -122,6 +126,7 @@ def call_node_llm(
                 parse_error=None,
                 parsed_answers=parsed,
                 is_repair=True,
+                reasoning_content=response_obj.reasoning_content,
             )
             trace_appended = True
 
@@ -140,6 +145,7 @@ def call_node_llm(
             parse_error=None,
             parsed_answers=parsed,
             is_repair=False,
+            reasoning_content=response_obj.reasoning_content,
         )
 
     latency_ms = int((time.perf_counter() - first_start) * 1000)

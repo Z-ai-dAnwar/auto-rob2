@@ -139,6 +139,7 @@ def test_call_node_llm_appends_to_trace_on_live_call(monkeypatch):
         input_tokens = 12
         output_tokens = 4
         cached = False
+        reasoning_content = None
 
     class FakeProvider:
         def complete(self, system, user):
@@ -180,6 +181,7 @@ def test_call_node_llm_traces_both_responses_on_parse_retry(monkeypatch):
             self.input_tokens = in_tok
             self.output_tokens = out_tok
             self.cached = False
+            self.reasoning_content = None
 
     class FakeProvider:
         def complete(self, system, user):

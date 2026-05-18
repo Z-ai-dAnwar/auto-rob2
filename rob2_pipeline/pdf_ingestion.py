@@ -429,6 +429,7 @@ def extract_paper_evidence(doc_repr: DocumentRepr) -> tuple[PaperEvidence, list[
         cached=response_obj.cached,
         latency_ms=latency_ms,
         cache_hit=False,
+        reasoning_content=response_obj.reasoning_content,
     )
     return evidence, log
 

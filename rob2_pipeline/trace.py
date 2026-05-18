@@ -33,6 +33,10 @@ class LlmNodeTrace:
     parse_error: str | None
     parsed_answers: dict[str, Any] | None
     is_repair: bool = False
+    # Chain-of-thought from providers that emit it (e.g. gpt-oss via OpenRouter).
+    # Used at categorization time to tell whether the model reasoned over the
+    # retrieved chunks or ignored them. None when the provider does not emit one.
+    reasoning_content: str | None = None
 
 
 @dataclass
@@ -97,6 +101,7 @@ def append_llm_call(
     parse_error: str | None = None,
     parsed_answers: dict[str, Any] | None = None,
     is_repair: bool = False,
+    reasoning_content: str | None = None,
 ) -> None:
     if _CURRENT_TRACE is None:
         return
@@ -115,5 +120,6 @@ def append_llm_call(
             parse_error=parse_error,
             parsed_answers=parsed_answers,
             is_repair=is_repair,
+            reasoning_content=reasoning_content,
         )
     )

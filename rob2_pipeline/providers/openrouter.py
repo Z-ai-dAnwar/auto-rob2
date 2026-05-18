@@ -51,4 +51,5 @@ class OpenRouterProvider(LLMProvider):
             input_tokens=usage.get("input_tokens", 0),
             output_tokens=usage.get("output_tokens", 0),
             latency_ms=latency_ms,
+            reasoning_content=response.additional_kwargs.get("reasoning_content"),
         )
