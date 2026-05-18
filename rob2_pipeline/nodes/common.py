@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 from rob2_pipeline.cache import read_cache, write_cache
 from rob2_pipeline.config import build_provider
+from rob2_pipeline.trace import append_llm_call
 from rob2_pipeline.types import LLMCallLogEntry
 from rob2_pipeline.xml_parser import validate_sq_answers
 
@@ -54,6 +55,20 @@ def call_node_llm(
             log_entry["chunk_sources"] = chunk_sources
         parsed = _parse_and_validate(cached)
         log.append(log_entry)
+        append_llm_call(
+            node=node_name,
+            system_prompt=SYSTEM_MESSAGE,
+            user_prompt=prompt,
+            response=cached,
+            model=None,
+            input_tokens=None,
+            output_tokens=None,
+            cached=True,
+            latency_ms=0,
+            cache_hit=True,
+            parse_error=None,
+            parsed_answers=parsed,
+        )
         return cached, log, parsed
 
     provider = build_provider()
@@ -94,6 +109,20 @@ def call_node_llm(
     if chunk_sources:
         log_entry["chunk_sources"] = chunk_sources
     log.append(log_entry)
+    append_llm_call(
+        node=node_name,
+        system_prompt=SYSTEM_MESSAGE,
+        user_prompt=prompt,
+        response=response,
+        model=response_obj.model,
+        input_tokens=response_obj.input_tokens,
+        output_tokens=response_obj.output_tokens,
+        cached=response_obj.cached,
+        latency_ms=latency_ms,
+        cache_hit=False,
+        parse_error=str(parse_error) if parse_error else None,
+        parsed_answers=parsed,
+    )
     return response, log, parsed
 
 
