@@ -6,6 +6,7 @@ from analysis.categorize_failures import (
     categorize_run,
     chunks_for_domain,
     heuristic_classify,
+    l2_squared_to_cosine,
     llm_calls_for_domain,
     load_reference_csv,
     looks_ungrounded,
@@ -64,7 +65,8 @@ def test_llm_calls_for_domain_filters_by_node_prefix():
 
 
 def test_heuristic_classify_rag_miss_on_low_similarity():
-    chunks = [_make_chunk("irrelevant", 0.15)]
+    # FAISS returns L2 squared distance: score=1.7 -> cos = 1 - 1.7/2 = 0.15
+    chunks = [_make_chunk("irrelevant", 1.7)]
     calls = [_make_llm_call("domain3_sq31", "confident answer")]
     cls, evidence = heuristic_classify(chunks, calls)
     assert cls == "rag_likely_miss"
@@ -110,10 +112,37 @@ def test_heuristic_classify_llm_miss_flags_ungrounded_response():
 
 
 def test_heuristic_classify_ambiguous_mid_range():
-    chunks = [_make_chunk("text", 0.4)]
+    # L2 squared = 1.2 -> cos = 0.4 (>= 0.3 so not rag_miss, < 0.5 so not llm_miss)
+    chunks = [_make_chunk("text", 1.2)]
     calls = [_make_llm_call("domain1_sq11", "some answer")]
     cls, _ = heuristic_classify(chunks, calls)
     assert cls == "ambiguous"
+
+
+def test_l2_squared_to_cosine_inverts_distance_correctly():
+    # For normalized embeddings: cos = 1 - L2squared/2; range [0, 1] clamped
+    assert l2_squared_to_cosine(0.0) == 1.0  # identical vectors
+    assert l2_squared_to_cosine(1.0) == 0.5  # midway
+    assert l2_squared_to_cosine(2.0) == 0.0  # orthogonal
+    assert l2_squared_to_cosine(3.0) == 0.0  # anti-aligned, clamped
+    assert l2_squared_to_cosine(0.65) == 0.675  # representative live value
+
+
+def test_heuristic_classify_does_not_invert_when_chunks_are_close():
+    # Critical regression test for the L2 vs cosine bug. With L2 squared scoring,
+    # low scores indicate STRONG retrieval, not weak. Pre-fix code would have
+    # called this rag_likely_miss (score < 0.3); post-fix should be llm_likely_miss
+    # because the cosine similarity is very high (~0.85+).
+    chunks = [
+        _make_chunk("chunk text " * 10, 0.25),
+        _make_chunk("chunk text " * 10, 0.3),
+        _make_chunk("chunk text " * 10, 0.35),
+    ]
+    calls = [_make_llm_call("domain1_sq11", "model said something not in chunks at all")]
+    cls, evidence = heuristic_classify(chunks, calls)
+    assert cls == "llm_likely_miss"
+    assert evidence["max_similarity_score"] >= 0.8
+    assert evidence["looks_ungrounded"] is True
 
 
 def test_heuristic_classify_no_data():

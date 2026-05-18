@@ -32,6 +32,7 @@ class LlmNodeTrace:
     cache_hit: bool
     parse_error: str | None
     parsed_answers: dict[str, Any] | None
+    is_repair: bool = False
 
 
 @dataclass
@@ -95,6 +96,7 @@ def append_llm_call(
     cache_hit: bool,
     parse_error: str | None = None,
     parsed_answers: dict[str, Any] | None = None,
+    is_repair: bool = False,
 ) -> None:
     if _CURRENT_TRACE is None:
         return
@@ -112,5 +114,6 @@ def append_llm_call(
             cache_hit=cache_hit,
             parse_error=parse_error,
             parsed_answers=parsed_answers,
+            is_repair=is_repair,
         )
     )

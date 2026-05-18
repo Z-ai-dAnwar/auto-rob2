@@ -159,3 +159,68 @@ def test_call_node_llm_appends_to_trace_on_live_call(monkeypatch):
     assert call.input_tokens == 12
     assert call.output_tokens == 4
     assert call.cache_hit is False
+    assert call.is_repair is False
+
+
+def test_call_node_llm_traces_both_responses_on_parse_retry(monkeypatch):
+    from rob2_pipeline.nodes import common as common_module
+
+    monkeypatch.setattr(common_module, "read_cache", lambda node, prompt: None)
+    monkeypatch.setattr(common_module, "write_cache", lambda node, prompt, response: None)
+
+    responses = iter([
+        ("<malformed>broken xml without closing tag", "model-v1", 100, 50),
+        ("<sq_1_1><answer>Y</answer><quote>q</quote><justification>j</justification></sq_1_1>", "model-v2", 80, 40),
+    ])
+
+    class FakeResponse:
+        def __init__(self, content, model, in_tok, out_tok):
+            self.content = content
+            self.model = model
+            self.input_tokens = in_tok
+            self.output_tokens = out_tok
+            self.cached = False
+
+    class FakeProvider:
+        def complete(self, system, user):
+            content, model, in_tok, out_tok = next(responses)
+            return FakeResponse(content, model, in_tok, out_tok)
+
+    monkeypatch.setattr(common_module, "build_provider", lambda: FakeProvider())
+
+    parse_calls = []
+
+    def fake_parse_fn(text, sq_ids):
+        parse_calls.append(text)
+        if "<malformed>" in text:
+            raise ValueError("synthetic parse failure")
+        return {"1.1": {"answer": "Y", "quote": "q", "justification": "j", "uncertainty_flag": "NORMAL"}}
+
+    start_trace(trial="T", outcome="OS")
+    response, log, parsed = common_module.call_node_llm(
+        state={},
+        prompt="domain prompt",
+        node_name="domain1_sq11",
+        parse_fn=fake_parse_fn,
+        parse_sq_ids=["1.1"],
+    )
+
+    assert parsed is not None
+    assert "<sq_1_1>" in response
+
+    trace = get_current_trace()
+    assert len(trace.llm_calls) == 2, "both malformed-first and repair-success should be traced"
+
+    first, second = trace.llm_calls
+    assert first.is_repair is False
+    assert first.response == "<malformed>broken xml without closing tag"
+    assert first.parse_error == "synthetic parse failure"
+    assert first.parsed_answers is None
+    assert first.model == "model-v1"
+
+    assert second.is_repair is True
+    assert "<sq_1_1>" in second.response
+    assert second.parse_error is None
+    assert second.parsed_answers == {"1.1": {"answer": "Y", "quote": "q", "justification": "j", "uncertainty_flag": "NORMAL"}}
+    assert second.model == "model-v2"
+    assert "previous response for domain1_sq11 was invalid" in second.user_prompt

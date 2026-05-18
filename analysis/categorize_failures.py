@@ -11,11 +11,21 @@ Outputs:
 - diagnostic_summary.csv: one row per (trial, outcome, domain)
 - diagnostic_report.md: per-failure detail with classification reasoning
 
+Score semantics: LangChain FAISS `similarity_search_with_score` returns
+L2-squared distance (lower = closer). For normalized embeddings (Ali's
+pipeline uses BAAI/bge-small-en-v1.5 with normalize_embeddings=True) the
+identity L2 squared = 2 - 2*cosine lets us recover cosine in [0, 1]
+as `cos = max(0, 1 - score/2)`. The categorizer applies this conversion
+when reading chunks from rag_sources, so heuristic thresholds (0.3,
+0.5) apply to cosine similarity in the conventional direction
+(higher = more similar). The CSV column is named max_similarity_score
+to reflect the post-conversion value.
+
 Heuristic:
-- rag_likely_miss: max chunk similarity < 0.3 OR LLM signaled "no
+- rag_likely_miss: max cosine similarity < 0.3 OR LLM signaled "no
   evidence / not reported / cannot determine" pattern
-- llm_likely_miss: top-3 average similarity >= 0.5 AND LLM did not
-  signal no-evidence (chunks were available, model misjudged)
+- llm_likely_miss: top-3 average cosine >= 0.5 AND LLM did not signal
+  no-evidence (chunks were available, model misjudged)
 - ambiguous: everything in between
 - match: pipeline matched reference (no failure to classify)
 - no_data: empty trace + empty chunks
@@ -62,6 +72,15 @@ NO_EVIDENCE_PATTERNS = [
 ]
 
 UNGROUNDED_MIN_OVERLAP_CHARS = 20
+
+
+def l2_squared_to_cosine(score: float) -> float:
+    """Convert L2-squared distance to cosine similarity for normalized embeddings.
+
+    For unit vectors: L2 squared = 2 - 2*cosine -> cosine = 1 - L2 squared / 2.
+    Clamp to [0, 1]: distances above 2 (anti-aligned vectors) map to 0.
+    """
+    return max(0.0, 1.0 - float(score) / 2.0)
 
 
 def _normalize_judgment(value: Any) -> str:
@@ -166,9 +185,9 @@ def heuristic_classify(chunks: list[dict], llm_calls: list[dict]) -> tuple[str, 
     if not chunks and not llm_calls:
         return "no_data", {"reason": "no RAG retrieval and no LLM calls for this domain"}
 
-    scores = [c.get("score", 0.0) for c in chunks]
-    max_score = max(scores) if scores else 0.0
-    avg_top3 = sum(sorted(scores, reverse=True)[:3]) / max(1, min(3, len(scores)))
+    similarities = [l2_squared_to_cosine(c.get("score", 2.0)) for c in chunks]
+    max_score = max(similarities) if similarities else 0.0
+    avg_top3 = sum(sorted(similarities, reverse=True)[:3]) / max(1, min(3, len(similarities)))
 
     responses_text = " ".join((c.get("response") or "") for c in llm_calls).casefold()
     has_no_evidence_signal = any(re.search(p, responses_text) for p in NO_EVIDENCE_PATTERNS)

@@ -72,26 +72,77 @@ def call_node_llm(
         return cached, log, parsed
 
     provider = build_provider()
-    start = time.perf_counter()
+    first_start = time.perf_counter()
     response_obj = provider.complete(system=SYSTEM_MESSAGE, user=prompt)
     response = response_obj.content
+    first_latency_ms = int((time.perf_counter() - first_start) * 1000)
+
     parsed = None
-    parse_error = None
+    trace_appended = False
     if parse_fn and parse_sq_ids:
         try:
             parsed = _parse_and_validate(response)
         except Exception as exc:  # noqa: BLE001
-            parse_error = exc
+            append_llm_call(
+                node=node_name,
+                system_prompt=SYSTEM_MESSAGE,
+                user_prompt=prompt,
+                response=response,
+                model=response_obj.model,
+                input_tokens=response_obj.input_tokens,
+                output_tokens=response_obj.output_tokens,
+                cached=response_obj.cached,
+                latency_ms=first_latency_ms,
+                cache_hit=False,
+                parse_error=str(exc),
+                parsed_answers=None,
+                is_repair=False,
+            )
             repair_prompt = (
                 f"Your previous response for {node_name} was invalid: {exc}. "
                 "Return only well-formed XML in exactly the requested schema.\n\n"
                 f"Original prompt:\n{prompt}"
             )
+            repair_start = time.perf_counter()
             response_obj = provider.complete(system=SYSTEM_MESSAGE, user=repair_prompt)
             response = response_obj.content
+            repair_latency_ms = int((time.perf_counter() - repair_start) * 1000)
             parsed = _parse_and_validate(response)
-            parse_error = None
-    latency_ms = int((time.perf_counter() - start) * 1000)
+            append_llm_call(
+                node=node_name,
+                system_prompt=SYSTEM_MESSAGE,
+                user_prompt=repair_prompt,
+                response=response,
+                model=response_obj.model,
+                input_tokens=response_obj.input_tokens,
+                output_tokens=response_obj.output_tokens,
+                cached=response_obj.cached,
+                latency_ms=repair_latency_ms,
+                cache_hit=False,
+                parse_error=None,
+                parsed_answers=parsed,
+                is_repair=True,
+            )
+            trace_appended = True
+
+    if not trace_appended:
+        append_llm_call(
+            node=node_name,
+            system_prompt=SYSTEM_MESSAGE,
+            user_prompt=prompt,
+            response=response,
+            model=response_obj.model,
+            input_tokens=response_obj.input_tokens,
+            output_tokens=response_obj.output_tokens,
+            cached=response_obj.cached,
+            latency_ms=first_latency_ms,
+            cache_hit=False,
+            parse_error=None,
+            parsed_answers=parsed,
+            is_repair=False,
+        )
+
+    latency_ms = int((time.perf_counter() - first_start) * 1000)
     write_cache(node_name, prompt, response)
     log_entry = {
         "node": node_name,
@@ -104,25 +155,9 @@ def call_node_llm(
         "output_tokens": response_obj.output_tokens,
         "cached": response_obj.cached,
     }
-    if parse_error is not None:
-        log_entry["parse_error"] = str(parse_error)
     if chunk_sources:
         log_entry["chunk_sources"] = chunk_sources
     log.append(log_entry)
-    append_llm_call(
-        node=node_name,
-        system_prompt=SYSTEM_MESSAGE,
-        user_prompt=prompt,
-        response=response,
-        model=response_obj.model,
-        input_tokens=response_obj.input_tokens,
-        output_tokens=response_obj.output_tokens,
-        cached=response_obj.cached,
-        latency_ms=latency_ms,
-        cache_hit=False,
-        parse_error=str(parse_error) if parse_error else None,
-        parsed_answers=parsed,
-    )
     return response, log, parsed
 
 
