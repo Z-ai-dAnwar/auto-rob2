@@ -177,7 +177,11 @@ def _build_packet_for_contract(state: RoB2State, contract: EvidenceContract) -> 
 
 def _candidate_sources(state: RoB2State, contract: EvidenceContract) -> list[PacketSource]:
     raw_sources = list((state.get("rag_chunk_metadata") or {}).get(contract.domain, []))
-    raw_sources.extend(_fallback_sources(state, contract))
+    # Only add section-text fallbacks when RAG returned nothing for this domain.
+    # Section-text sources have empty page_numbers and a high hardcoded score that
+    # outranks real RAG hits, so they should never compete with real chunks.
+    if not raw_sources:
+        raw_sources.extend(_fallback_sources(state, contract))
     terms = _contract_terms(contract)
     sources: list[PacketSource] = []
     for raw in raw_sources:
