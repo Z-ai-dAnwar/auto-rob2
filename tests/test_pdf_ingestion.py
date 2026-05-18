@@ -440,9 +440,10 @@ def test_extract_censoring_context_returns_empty_for_no_matches():
     assert extract_censoring_context(full_text, "Overall Survival") == ""
 
 
-def test_ingest_node_raises_when_docling_converter_fails(monkeypatch):
-    """Single-path docling: if the docling converter fails, the exception
-    propagates and the run halts. No silent fallback to text-keyword parsing."""
+def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monkeypatch):
+    """If the docling converter fails, fall back to a text keyword parse of the
+    already-extracted full text. extract_full_text itself still raises on
+    failure (no pymupdf fallback)."""
     known_text = "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
     monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
 
@@ -453,12 +454,14 @@ def test_ingest_node_raises_when_docling_converter_fails(monkeypatch):
     monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: BrokenConverter())
 
     state = {"pdf_path": "trial.pdf"}
-    try:
-        pdf_ingest_node(state)
-    except RuntimeError as error:
-        assert "docling structured parse failed" in str(error)
-    else:
-        raise AssertionError("pdf_ingest_node should raise when docling converter fails")
+    result = pdf_ingest_node(state)
+
+    assert "evidence" in result
+    assert result["evidence"]["extraction_method"] == "fallback"
+    assert result["docling_doc"] is None
+    assert result["docling_chunks"] == []
+    assert "randomly assigned" in result["evidence"]["methods"]["text"]
+    assert "randomly assigned" in result["evidence"]["d1_randomization"]["text"]
 
 
 def test_ingest_node_stores_docling_conversion_result(monkeypatch):
