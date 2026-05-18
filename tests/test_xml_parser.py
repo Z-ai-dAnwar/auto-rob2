@@ -1,6 +1,6 @@
 import pytest
 
-from rob2_pipeline.xml_parser import extract_tag, parse_sq_response, validate_sq_answers
+from rob2_pipeline.xml_parser import _sanitize_stray_lt, extract_tag, parse_sq_response, validate_sq_answers
 
 
 def test_extract_tag_well_formed_fragment():
@@ -101,3 +101,51 @@ def test_validate_sq_answers_flags_suspected_parse_failures():
     }
     suspected = validate_sq_answers(parsed, ["1.1", "1.2"])
     assert suspected == ["1.1"]
+
+
+def test_sanitize_stray_lt_escapes_age_threshold():
+    assert _sanitize_stray_lt("age <70 years") == "age &lt;70 years"
+
+
+def test_sanitize_stray_lt_escapes_p_value():
+    assert _sanitize_stray_lt("P<0.05") == "P&lt;0.05"
+
+
+def test_sanitize_stray_lt_preserves_valid_tags():
+    xml = "<quote>text</quote><justification>more</justification>"
+    assert _sanitize_stray_lt(xml) == xml
+
+
+def test_sanitize_stray_lt_preserves_closing_tags_and_comments():
+    xml = "<a>text</a><!-- comment --><?pi data?>"
+    assert _sanitize_stray_lt(xml) == xml
+
+
+def test_parse_sq_response_handles_stray_lt_in_quote():
+    xml = """
+    <domain1>
+      <sq_1_1>
+        <answer>Y</answer>
+        <quote>"Eligible if age <70 years" (Methods)</quote>
+        <justification>Age threshold reported.</justification>
+      </sq_1_1>
+    </domain1>
+    """
+    parsed = parse_sq_response(xml, ["1.1"])
+    assert parsed["1.1"]["answer"] == "Y"
+    assert "<70 years" in parsed["1.1"]["quote"]
+
+
+def test_parse_sq_response_handles_p_value_in_justification():
+    xml = """
+    <domain1>
+      <sq_1_3>
+        <answer>N</answer>
+        <quote>"Baseline characteristics balanced" (Table 1)</quote>
+        <justification>No imbalance; all P<0.05 thresholds met for stratification.</justification>
+      </sq_1_3>
+    </domain1>
+    """
+    parsed = parse_sq_response(xml, ["1.3"])
+    assert parsed["1.3"]["answer"] == "N"
+    assert "P<0.05" in parsed["1.3"]["justification"]

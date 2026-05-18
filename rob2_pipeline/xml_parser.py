@@ -39,6 +39,17 @@ def _safe_text(value: Optional[str], default: str = "") -> str:
     return value.strip() if value and value.strip() else default
 
 
+def _sanitize_stray_lt(xml_string: str) -> str:
+    """Escape `<` that isn't part of a tag/comment/declaration.
+
+    LLM outputs often include text like `"<70 years"` or `"P<0.05"` inside
+    `<quote>...</quote>`. A raw `<` followed by a digit, space, or other
+    non-tag-start character makes lxml raise `StartTag: invalid element
+    name`. Escaping those to `&lt;` lets the parser treat them as text.
+    """
+    return re.sub(r"<(?![a-zA-Z_/!?])", "&lt;", xml_string)
+
+
 def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
     """
     Parse a multi-SQ XML response into a dict keyed by SQ ID.
@@ -48,6 +59,7 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
     """
     result = {}
     cleaned_xml = re.sub(r"```xml\s*|\s*```", "", xml_string).strip()
+    cleaned_xml = _sanitize_stray_lt(cleaned_xml)
     root = etree.fromstring(f"<root>{cleaned_xml}</root>".encode())
 
     for sq_id in sq_ids:
