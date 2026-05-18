@@ -29,18 +29,76 @@ def test_extract_full_text_uses_docling(monkeypatch):
     assert text == "Docling text with hyphenbreaks"
 
 
-def test_extract_full_text_raises_when_docling_fails(monkeypatch):
+def test_extract_full_text_falls_back_to_pymupdf4llm_when_docling_fails(monkeypatch):
     def fake_docling(pdf_path):
         raise RuntimeError("docling failed")
 
+    def fake_pymupdf(pdf_path):
+        return "PyMuPDF\xa0fallback text long enough to pass the minimum"
+
     monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
+
+    text = extract_full_text("trial.pdf")
+    assert text == "PyMuPDF fallback text long enough to pass the minimum"
+
+
+def test_extract_full_text_raises_when_both_extractors_fail(monkeypatch):
+    def fake_docling(pdf_path):
+        raise RuntimeError("docling failed")
+
+    def fake_pymupdf(pdf_path):
+        raise RuntimeError("pymupdf failed too")
+
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
+
+    try:
+        extract_full_text("trial.pdf")
+    except RuntimeError as error:
+        assert "Docling error: docling failed" in str(error)
+        assert "PyMuPDF4LLM error: pymupdf failed too" in str(error)
+    else:
+        raise AssertionError("extract_full_text should raise when both extractors fail")
+
+
+def test_extract_full_text_skips_docling_when_env_var_set(monkeypatch):
+    calls = []
+
+    def fake_docling(pdf_path):
+        calls.append("docling")
+        return "should not be called"
+
+    def fake_pymupdf(pdf_path):
+        calls.append("pymupdf")
+        return "PyMuPDF direct path long enough to pass minimum"
+
+    monkeypatch.setenv("ROB2_SKIP_DOCLING", "1")
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
+
+    text = extract_full_text("trial.pdf")
+    assert calls == ["pymupdf"]
+    assert text == "PyMuPDF direct path long enough to pass minimum"
+
+
+def test_extract_full_text_force_docling_disables_fallback(monkeypatch):
+    def fake_docling(pdf_path):
+        raise RuntimeError("docling failed")
+
+    def fake_pymupdf(pdf_path):
+        raise AssertionError("pymupdf should not be called when ROB2_FORCE_DOCLING_FULLTEXT=1")
+
+    monkeypatch.setenv("ROB2_FORCE_DOCLING_FULLTEXT", "1")
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
 
     try:
         extract_full_text("trial.pdf")
     except RuntimeError as error:
         assert "PDF text extraction failed with Docling" in str(error)
     else:
-        raise AssertionError("extract_full_text should raise when Docling fails")
+        raise AssertionError("extract_full_text should raise when FORCE_DOCLING and Docling fails")
 
 
 def _make_mock_chunk(text: str, headings: list[str], pages: list[int]):
