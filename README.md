@@ -28,6 +28,9 @@ Optional runtime settings:
 - `ROB2_PROVIDER`: `openrouter` (default), `anthropic`, or `openai`.
 - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`: model configuration.
 - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`: OpenRouter rate limits.
+- `ANTHROPIC_RPM_LIMIT`, `ANTHROPIC_TPM_LIMIT`: Anthropic rate limits (defaults 40 RPM / 30K input tokens per minute, sized under the Tier 1 50K TPM cap).
+- `ROB2_SKIP_DOCLING=1`: skip Docling entirely and use PyMuPDF4LLM for full-text extraction. Useful on machines without the 10GB of Docling model weights or on environments where Docling under LangGraph crashes. The pipeline degrades gracefully to keyword-section evidence extraction since chunk-based RAG also requires Docling.
+- `ROB2_FORCE_DOCLING_FULLTEXT=1`: disable the PyMuPDF4LLM fallback in `extract_full_text` so Docling failures raise instead of being masked. Intended for CI to catch Docling regressions; do not combine with `ROB2_SKIP_DOCLING=1` (SKIP wins and the call raises immediately).
 - `ROB2_EFFECT_OF_INTEREST`: default effect, `ITT` or `per-protocol`.
 - `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
 - `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
@@ -97,6 +100,7 @@ Generated files:
 
 - `outputs/<pdf_basename>_rob2_report.md`
 - `outputs/<pdf_basename>_rob2_data.json`
+- `outputs/<pdf_basename>_trace.json`: per-call LLM input/output capture (full system + user prompts, raw responses, model metadata, parse-retry sequences). Consumed by the diagnostic categorizer; chunk metadata lives in `_rob2_data.json` under `rag_sources` to avoid duplication. The trace is written in a `finally` block so a pipeline crash still flushes the partial trace.
 
 For PDFs screened as non-RCTs, the graph stops after screening; JSON is still written, but there may be no Markdown report and the judgment fields remain unset.
 
@@ -146,6 +150,18 @@ uv run python benchmark.py \
 ```
 
 Benchmark outputs are written to the requested output directory as `benchmark_report.md`, `benchmark_results.json`, and per-trial assessment subdirectories such as `<TRIAL>_<outcome_code>/`.
+
+## Diagnostic categorizer
+
+After a benchmark run, `analysis/categorize_failures.py` reads each per-trial `_trace.json` + `_rob2_data.json` and classifies every mismatched domain judgment as `rag_likely_miss`, `llm_likely_miss`, `ambiguous`, `no_data`, or `match`. Each `llm_likely_miss` row is also flagged with `looks_ungrounded` when the LLM response has no >=20-character verbatim overlap with any retrieved chunk (a signal that the model fell back on training data rather than the evidence in front of it).
+
+```bash
+uv run python analysis/categorize_failures.py \
+  --benchmark-dir outputs/benchmark/<run> \
+  --output-dir outputs/diagnostic/<run>
+```
+
+Outputs `diagnostic_summary.csv` (one row per trial/domain) and `diagnostic_report.md` (per-failure detail with chunks, LLM calls, and classification reasoning). See `docs/DIAGNOSTIC.md` for the full runbook.
 
 ## Architecture
 

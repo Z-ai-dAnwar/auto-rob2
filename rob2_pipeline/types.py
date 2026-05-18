@@ -11,7 +11,6 @@ class LLMCallLogEntry(TypedDict):
     input_tokens: NotRequired[int]
     output_tokens: NotRequired[int]
     cached: NotRequired[bool]
-    parse_error: NotRequired[str]
     suspected_parse_failures: NotRequired[list[str]]
     chunk_sources: NotRequired[list[str]]
 

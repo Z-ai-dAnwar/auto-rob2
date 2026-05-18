@@ -15,7 +15,7 @@ from rob2_pipeline.docling_utils import export_table_markdown, label_name
 from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
 from rob2_pipeline.trace import append_llm_call
 from rob2_pipeline.types import LLMCallLogEntry
-from rob2_pipeline.xml_parser import _sanitize_stray_lt
+from rob2_pipeline.xml_parser import sanitize_stray_lt
 
 
 SECTION_PATTERNS = {
@@ -380,7 +380,7 @@ def _tables_from_xml(parent) -> list[str]:
 
 def _parse_paper_evidence_response(response: str) -> PaperEvidence:
     cleaned = re.sub(r"```xml\s*|\s*```", "", response).strip()
-    cleaned = _sanitize_stray_lt(cleaned)
+    cleaned = sanitize_stray_lt(cleaned)
     parser = etree.XMLParser(recover=True)
     root = etree.fromstring(f"<root>{cleaned}</root>".encode(), parser=parser)
     evidence = empty_paper_evidence("docling_llm")

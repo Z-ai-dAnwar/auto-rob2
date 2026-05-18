@@ -1,6 +1,6 @@
 import pytest
 
-from rob2_pipeline.xml_parser import _sanitize_stray_lt, extract_tag, parse_sq_response, validate_sq_answers
+from rob2_pipeline.xml_parser import sanitize_stray_lt, extract_tag, parse_sq_response, validate_sq_answers
 
 
 def test_extract_tag_well_formed_fragment():
@@ -103,22 +103,22 @@ def test_validate_sq_answers_flags_suspected_parse_failures():
     assert suspected == ["1.1"]
 
 
-def test_sanitize_stray_lt_escapes_age_threshold():
-    assert _sanitize_stray_lt("age <70 years") == "age &lt;70 years"
+def testsanitize_stray_lt_escapes_age_threshold():
+    assert sanitize_stray_lt("age <70 years") == "age &lt;70 years"
 
 
-def test_sanitize_stray_lt_escapes_p_value():
-    assert _sanitize_stray_lt("P<0.05") == "P&lt;0.05"
+def testsanitize_stray_lt_escapes_p_value():
+    assert sanitize_stray_lt("P<0.05") == "P&lt;0.05"
 
 
-def test_sanitize_stray_lt_preserves_valid_tags():
+def testsanitize_stray_lt_preserves_valid_tags():
     xml = "<quote>text</quote><justification>more</justification>"
-    assert _sanitize_stray_lt(xml) == xml
+    assert sanitize_stray_lt(xml) == xml
 
 
-def test_sanitize_stray_lt_preserves_closing_tags_and_comments():
+def testsanitize_stray_lt_preserves_closing_tags_and_comments():
     xml = "<a>text</a><!-- comment --><?pi data?>"
-    assert _sanitize_stray_lt(xml) == xml
+    assert sanitize_stray_lt(xml) == xml
 
 
 def test_parse_sq_response_handles_stray_lt_in_quote():

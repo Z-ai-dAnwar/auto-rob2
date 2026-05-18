@@ -1,11 +1,12 @@
 """Diagnostic categorizer for RoB 2 pipeline failures.
 
 Reads per-trial `_trace.json` (LLM I/O from rob2_pipeline.trace) and
-`_rob2_data.json` (with rag_sources for retrieved chunks, from Ali's
-io.py rename of rag_chunk_metadata) from a benchmark output dir, plus
-reference CSVs from data/references/. For each per-domain mismatch,
-classifies the failure as RAG-miss vs LLM-miss vs ambiguous and dumps
-the supporting context (retrieved chunks, LLM prompts/responses).
+`_rob2_data.json` (with rag_sources for retrieved chunks, the rename
+of rag_chunk_metadata applied in pipeline.py:52) from a benchmark
+output dir, plus reference CSVs from data/references/. For each
+per-domain mismatch, classifies the failure as RAG-miss vs LLM-miss
+vs ambiguous and dumps the supporting context (retrieved chunks, LLM
+prompts/responses).
 
 Outputs:
 - diagnostic_summary.csv: one row per (trial, outcome, domain)

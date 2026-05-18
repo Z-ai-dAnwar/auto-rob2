@@ -19,7 +19,7 @@ ANSWER_MAPPING = {
 
 def extract_tag(xml_string: str, tag: str) -> Optional[str]:
     """Extract a single tag value from model XML fragments."""
-    sanitized = _sanitize_stray_lt(xml_string)
+    sanitized = sanitize_stray_lt(xml_string)
     wrapped = f"<root>{sanitized}</root>"
     parser = etree.XMLParser(recover=True)
     root = etree.fromstring(wrapped.encode(), parser=parser)
@@ -40,7 +40,7 @@ def _safe_text(value: Optional[str], default: str = "") -> str:
     return value.strip() if value and value.strip() else default
 
 
-def _sanitize_stray_lt(xml_string: str) -> str:
+def sanitize_stray_lt(xml_string: str) -> str:
     """Escape `<` that isn't part of a tag/comment/declaration.
 
     LLM outputs often include text like `"<70 years"` or `"P<0.05"` inside
@@ -60,7 +60,7 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
     """
     result = {}
     cleaned_xml = re.sub(r"```xml\s*|\s*```", "", xml_string).strip()
-    cleaned_xml = _sanitize_stray_lt(cleaned_xml)
+    cleaned_xml = sanitize_stray_lt(cleaned_xml)
     root = etree.fromstring(f"<root>{cleaned_xml}</root>".encode())
 
     for sq_id in sq_ids:

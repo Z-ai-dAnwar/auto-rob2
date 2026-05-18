@@ -6,12 +6,12 @@ from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, format_evidence
 from rob2_pipeline.nodes.common import call_node_llm
 from rob2_pipeline.prompts import PROMPT_PRELIMINARY_INFO
 from rob2_pipeline.state import RoB2State
-from rob2_pipeline.xml_parser import _sanitize_stray_lt, extract_tag
+from rob2_pipeline.xml_parser import sanitize_stray_lt, extract_tag
 
 
 def _nested_text(xml_string: str, parent: str, child: str, default: str = "Not reported") -> str:
     try:
-        sanitized = _sanitize_stray_lt(xml_string)
+        sanitized = sanitize_stray_lt(xml_string)
         parser = etree.XMLParser(recover=True)
         root = etree.fromstring(f"<root>{sanitized}</root>".encode(), parser=parser)
         value = root.findtext(f".//{parent}/{child}")
