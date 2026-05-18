@@ -155,46 +155,8 @@ class DocumentRepr:
         return "\n\n".join(parts) if parts else self.full_text
 
 
-def _docling_disabled() -> bool:
-    return os.getenv("ROB2_SKIP_DOCLING", "0").strip() in {"1", "true", "True"}
-
-
-def _force_docling_fulltext() -> bool:
-    return os.getenv("ROB2_FORCE_DOCLING_FULLTEXT", "0").strip() in {"1", "true", "True"}
-
-
 def extract_full_text(pdf_path: str) -> str:
-    if _docling_disabled() and _force_docling_fulltext():
-        raise RuntimeError(
-            "Conflicting env vars: ROB2_SKIP_DOCLING=1 and ROB2_FORCE_DOCLING_FULLTEXT=1. "
-            "SKIP wins (cannot also FORCE docling for full-text); unset one of the two."
-        )
-    if _docling_disabled():
-        return _normalize_extracted_text(_extract_with_pymupdf4llm(pdf_path))
-    try:
-        return _normalize_extracted_text(_extract_with_docling(pdf_path))
-    except Exception as docling_error:
-        if _force_docling_fulltext():
-            raise RuntimeError(
-                f"PDF text extraction failed with Docling for {pdf_path!r}. "
-                f"Docling error: {docling_error}."
-            ) from docling_error
-        try:
-            return _normalize_extracted_text(_extract_with_pymupdf4llm(pdf_path))
-        except Exception as pymupdf_error:
-            raise RuntimeError(
-                f"PDF text extraction failed for {pdf_path!r}. "
-                f"Docling error: {docling_error}. PyMuPDF4LLM error: {pymupdf_error}."
-            ) from pymupdf_error
-
-
-def _extract_with_pymupdf4llm(pdf_path: str) -> str:
-    import pymupdf4llm
-
-    markdown = pymupdf4llm.to_markdown(pdf_path)
-    if len(markdown.strip()) < MIN_EXTRACTED_CHARS:
-        raise RuntimeError(f"pymupdf4llm returned too little text for {pdf_path!r}")
-    return markdown
+    return _normalize_extracted_text(_extract_with_docling(pdf_path))
 
 
 def _extract_with_docling(pdf_path: str) -> str:
@@ -226,8 +188,6 @@ def _extract_with_docling_loader(pdf_path: str, use_ocr: bool) -> str:
 
 
 def _get_docling_converter(use_ocr: bool):
-    if _docling_disabled():
-        raise RuntimeError("Docling skipped via ROB2_SKIP_DOCLING=1")
     converter = _DOCLING_CONVERTERS.get(use_ocr)
     if converter is not None:
         return converter

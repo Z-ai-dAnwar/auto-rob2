@@ -29,99 +29,20 @@ def test_extract_full_text_uses_docling(monkeypatch):
     assert text == "Docling text with hyphenbreaks"
 
 
-def test_extract_full_text_falls_back_to_pymupdf4llm_when_docling_fails(monkeypatch):
+def test_extract_full_text_raises_when_docling_fails(monkeypatch):
+    """Single-path docling: if docling fails, the exception propagates up. No
+    silent fallback to a different parser."""
     def fake_docling(pdf_path):
-        raise RuntimeError("docling failed")
-
-    def fake_pymupdf(pdf_path):
-        return "PyMuPDF\xa0fallback text long enough to pass the minimum"
+        raise RuntimeError("docling exploded")
 
     monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
-
-    text = extract_full_text("trial.pdf")
-    assert text == "PyMuPDF fallback text long enough to pass the minimum"
-
-
-def test_extract_full_text_raises_when_both_extractors_fail(monkeypatch):
-    def fake_docling(pdf_path):
-        raise RuntimeError("docling failed")
-
-    def fake_pymupdf(pdf_path):
-        raise RuntimeError("pymupdf failed too")
-
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
 
     try:
         extract_full_text("trial.pdf")
     except RuntimeError as error:
-        assert "Docling error: docling failed" in str(error)
-        assert "PyMuPDF4LLM error: pymupdf failed too" in str(error)
+        assert "docling exploded" in str(error)
     else:
-        raise AssertionError("extract_full_text should raise when both extractors fail")
-
-
-def test_extract_full_text_skips_docling_when_env_var_set(monkeypatch):
-    calls = []
-
-    def fake_docling(pdf_path):
-        calls.append("docling")
-        return "should not be called"
-
-    def fake_pymupdf(pdf_path):
-        calls.append("pymupdf")
-        return "PyMuPDF direct path long enough to pass minimum"
-
-    monkeypatch.setenv("ROB2_SKIP_DOCLING", "1")
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
-
-    text = extract_full_text("trial.pdf")
-    assert calls == ["pymupdf"]
-    assert text == "PyMuPDF direct path long enough to pass minimum"
-
-
-def test_extract_full_text_force_docling_disables_fallback(monkeypatch):
-    def fake_docling(pdf_path):
-        raise RuntimeError("docling failed")
-
-    def fake_pymupdf(pdf_path):
-        raise AssertionError("pymupdf should not be called when ROB2_FORCE_DOCLING_FULLTEXT=1")
-
-    monkeypatch.setenv("ROB2_FORCE_DOCLING_FULLTEXT", "1")
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
-
-    try:
-        extract_full_text("trial.pdf")
-    except RuntimeError as error:
-        assert "PDF text extraction failed with Docling" in str(error)
-    else:
-        raise AssertionError("extract_full_text should raise when FORCE_DOCLING and Docling fails")
-
-
-def test_extract_full_text_skip_wins_when_both_env_vars_set(monkeypatch):
-    def fake_docling(pdf_path):
-        raise AssertionError("docling should not be called when SKIP and FORCE conflict")
-
-    def fake_pymupdf(pdf_path):
-        raise AssertionError("pymupdf should not be called when SKIP and FORCE conflict")
-
-    monkeypatch.setenv("ROB2_SKIP_DOCLING", "1")
-    monkeypatch.setenv("ROB2_FORCE_DOCLING_FULLTEXT", "1")
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
-    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
-
-    try:
-        extract_full_text("trial.pdf")
-    except RuntimeError as error:
-        message = str(error)
-        assert "ROB2_SKIP_DOCLING=1" in message
-        assert "ROB2_FORCE_DOCLING_FULLTEXT=1" in message
-        assert "SKIP wins" in message
-    else:
-        raise AssertionError("extract_full_text should raise when SKIP and FORCE conflict")
+        raise AssertionError("extract_full_text should raise when docling fails")
 
 
 def _make_mock_chunk(text: str, headings: list[str], pages: list[int]):
@@ -519,7 +440,9 @@ def test_extract_censoring_context_returns_empty_for_no_matches():
     assert extract_censoring_context(full_text, "Overall Survival") == ""
 
 
-def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monkeypatch):
+def test_ingest_node_raises_when_docling_converter_fails(monkeypatch):
+    """Single-path docling: if the docling converter fails, the exception
+    propagates and the run halts. No silent fallback to text-keyword parsing."""
     known_text = "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
     monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
 
@@ -530,14 +453,12 @@ def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monke
     monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: BrokenConverter())
 
     state = {"pdf_path": "trial.pdf"}
-    result = pdf_ingest_node(state)
-
-    assert "evidence" in result
-    assert result["evidence"]["extraction_method"] == "fallback"
-    assert result["docling_doc"] is None
-    assert result["docling_chunks"] == []
-    assert "randomly assigned" in result["evidence"]["methods"]["text"]
-    assert "randomly assigned" in result["evidence"]["d1_randomization"]["text"]
+    try:
+        pdf_ingest_node(state)
+    except RuntimeError as error:
+        assert "docling structured parse failed" in str(error)
+    else:
+        raise AssertionError("pdf_ingest_node should raise when docling converter fails")
 
 
 def test_ingest_node_stores_docling_conversion_result(monkeypatch):

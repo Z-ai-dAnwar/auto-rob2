@@ -16,7 +16,6 @@ dependencies = [
     "langgraph>=1.1.10",
     "lxml>=6.1.0",
     "pydantic>=2.13.3",
-    "pymupdf4llm>=0.0.17",
     "pytest>=9.0.3",
     "python-dotenv>=1.2.2",
     "sentence-transformers>=3.0",
