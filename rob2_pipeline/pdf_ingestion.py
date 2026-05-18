@@ -14,6 +14,7 @@ from rob2_pipeline.config import build_provider
 from rob2_pipeline.docling_utils import export_table_markdown, label_name
 from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
 from rob2_pipeline.types import LLMCallLogEntry
+from rob2_pipeline.xml_parser import _sanitize_stray_lt
 
 
 SECTION_PATTERNS = {
@@ -162,7 +163,12 @@ def _force_docling_fulltext() -> bool:
 
 
 def extract_full_text(pdf_path: str) -> str:
-    if _docling_disabled() and not _force_docling_fulltext():
+    if _docling_disabled() and _force_docling_fulltext():
+        raise RuntimeError(
+            "Conflicting env vars: ROB2_SKIP_DOCLING=1 and ROB2_FORCE_DOCLING_FULLTEXT=1. "
+            "SKIP wins (cannot also FORCE docling for full-text); unset one of the two."
+        )
+    if _docling_disabled():
         return _normalize_extracted_text(_extract_with_pymupdf4llm(pdf_path))
     try:
         return _normalize_extracted_text(_extract_with_docling(pdf_path))
@@ -373,6 +379,7 @@ def _tables_from_xml(parent) -> list[str]:
 
 def _parse_paper_evidence_response(response: str) -> PaperEvidence:
     cleaned = re.sub(r"```xml\s*|\s*```", "", response).strip()
+    cleaned = _sanitize_stray_lt(cleaned)
     parser = etree.XMLParser(recover=True)
     root = etree.fromstring(f"<root>{cleaned}</root>".encode(), parser=parser)
     evidence = empty_paper_evidence("docling_llm")

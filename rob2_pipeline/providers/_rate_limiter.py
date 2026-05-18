@@ -10,9 +10,12 @@ Pass tpm_limit when constructing for Anthropic; leave None for OpenRouter
 (which only enforces request counts).
 """
 
+import logging
 import threading
 import time
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 
 class SlidingWindowRateLimiter:
@@ -41,7 +44,7 @@ class SlidingWindowRateLimiter:
 
             if self.rpd_limit is not None and len(self._day_requests) >= self.rpd_limit:
                 sleep_time = 86400 - (now - self._day_requests[0]) + 1
-                print(f"Daily request limit approached. Sleeping {sleep_time:.0f}s", flush=True)
+                logger.warning("Daily request limit approached. Sleeping %.0fs", sleep_time)
                 time.sleep(sleep_time)
                 now = time.time()
                 self._prune(now)

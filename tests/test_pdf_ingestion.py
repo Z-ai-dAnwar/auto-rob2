@@ -101,6 +101,29 @@ def test_extract_full_text_force_docling_disables_fallback(monkeypatch):
         raise AssertionError("extract_full_text should raise when FORCE_DOCLING and Docling fails")
 
 
+def test_extract_full_text_skip_wins_when_both_env_vars_set(monkeypatch):
+    def fake_docling(pdf_path):
+        raise AssertionError("docling should not be called when SKIP and FORCE conflict")
+
+    def fake_pymupdf(pdf_path):
+        raise AssertionError("pymupdf should not be called when SKIP and FORCE conflict")
+
+    monkeypatch.setenv("ROB2_SKIP_DOCLING", "1")
+    monkeypatch.setenv("ROB2_FORCE_DOCLING_FULLTEXT", "1")
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
+    monkeypatch.setattr(pdf_ingestion, "_extract_with_pymupdf4llm", fake_pymupdf)
+
+    try:
+        extract_full_text("trial.pdf")
+    except RuntimeError as error:
+        message = str(error)
+        assert "ROB2_SKIP_DOCLING=1" in message
+        assert "ROB2_FORCE_DOCLING_FULLTEXT=1" in message
+        assert "SKIP wins" in message
+    else:
+        raise AssertionError("extract_full_text should raise when SKIP and FORCE conflict")
+
+
 def _make_mock_chunk(text: str, headings: list[str], pages: list[int]):
     class MockMeta:
         def __init__(self):

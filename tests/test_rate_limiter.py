@@ -24,6 +24,26 @@ def test_wait_for_slot_records_rpm_under_threshold():
     assert len(limiter._minute_requests) == 5
 
 
+def test_rpd_limit_uses_logging_warning_not_print(monkeypatch, caplog):
+    limiter = SlidingWindowRateLimiter(rpd_limit=1)
+    base = 3_000_000.0
+    fake_now = {"t": base}
+
+    def fake_time():
+        return fake_now["t"]
+
+    def fake_sleep(seconds):
+        fake_now["t"] += seconds
+
+    monkeypatch.setattr("rob2_pipeline.providers._rate_limiter.time.time", fake_time)
+    monkeypatch.setattr("rob2_pipeline.providers._rate_limiter.time.sleep", fake_sleep)
+
+    limiter.wait_for_slot()
+    with caplog.at_level("WARNING", logger="rob2_pipeline.providers._rate_limiter"):
+        limiter.wait_for_slot()
+    assert any("Daily request limit approached" in rec.message for rec in caplog.records)
+
+
 def test_wait_for_slot_blocks_when_rpm_exceeded(monkeypatch):
     limiter = SlidingWindowRateLimiter(rpm_limit=2)
     base = 1_000_000.0

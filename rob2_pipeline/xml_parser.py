@@ -19,7 +19,8 @@ ANSWER_MAPPING = {
 
 def extract_tag(xml_string: str, tag: str) -> Optional[str]:
     """Extract a single tag value from model XML fragments."""
-    wrapped = f"<root>{xml_string}</root>"
+    sanitized = _sanitize_stray_lt(xml_string)
+    wrapped = f"<root>{sanitized}</root>"
     parser = etree.XMLParser(recover=True)
     root = etree.fromstring(wrapped.encode(), parser=parser)
     el = root.find(f".//{tag}")
