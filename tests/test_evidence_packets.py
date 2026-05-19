@@ -5,6 +5,14 @@ from rob2_pipeline.nodes.evidence_packets import (
 )
 
 
+def test_evidence_packets_module_keeps_stable_public_api():
+    from rob2_pipeline.nodes import evidence_packets
+
+    assert callable(evidence_packets.evidence_packet_builder_node)
+    assert callable(evidence_packets.build_evidence_packets)
+    assert callable(evidence_packets.packet_block_for_domain)
+
+
 def _state_with_chunks(
     domain: str, chunks: list[dict], outcome: str = "Progression-Free Survival"
 ) -> dict:
