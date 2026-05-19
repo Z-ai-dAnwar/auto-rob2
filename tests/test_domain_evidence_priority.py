@@ -29,7 +29,9 @@ def test_domain1_keeps_structured_evidence_when_rag_context_exists(monkeypatch):
         }
         return "", [], parsed
 
-    monkeypatch.setattr("rob2_pipeline.nodes.domain1.call_node_llm", fake_call_node_llm)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.domain_helpers.call_node_llm", fake_call_node_llm
+    )
     evidence = empty_paper_evidence()
     evidence["d1_randomization"]["text"] = (
         "Allocation managed by the ECOG-ACRIN Statistical Center."
@@ -44,6 +46,15 @@ def test_domain1_keeps_structured_evidence_when_rag_context_exists(monkeypatch):
         "rag_contexts": {
             "d1": "Patients were assigned to ADT alone or ADT plus docetaxel."
         },
+        "evidence_packets": {
+            "1.1": {
+                "domain": "d1",
+                "required_evidence": ["sequence_generation"],
+                "missing_evidence": [],
+                "negative_flags": [],
+                "sources": [],
+            }
+        },
         "sq_answers": {},
     }
 
@@ -54,3 +65,7 @@ def test_domain1_keeps_structured_evidence_when_rag_context_exists(monkeypatch):
     )
     assert "Baseline characteristics were well balanced" in captured["prompt"]
     assert "Patients were assigned to ADT alone" in captured["prompt"]
+    assert (
+        "SQ 1.1" not in captured["prompt"]
+        or "verified evidence packet" in captured["prompt"]
+    )

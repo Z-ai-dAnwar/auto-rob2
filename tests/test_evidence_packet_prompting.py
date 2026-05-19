@@ -62,7 +62,7 @@ def test_domain_prompt_includes_verified_evidence_packet(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "rob2_pipeline.nodes.domain1.call_node_llm_with_sources", fake_call
+        "rob2_pipeline.nodes.domain_helpers.call_node_llm_with_sources", fake_call
     )
 
     domain1_sq_node(state)
