@@ -1,7 +1,5 @@
 import time
 
-import pytest
-
 from rob2_pipeline.providers._rate_limiter import SlidingWindowRateLimiter
 
 

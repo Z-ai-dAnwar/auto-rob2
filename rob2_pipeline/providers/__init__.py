@@ -1,4 +1,4 @@
-from .base import LLMProvider, LLMResponse
+from .base import LLMProvider, LLMResponse as LLMResponse
 
 
 def get_provider(provider_name: str, **kwargs) -> LLMProvider:
@@ -6,11 +6,11 @@ def get_provider(provider_name: str, **kwargs) -> LLMProvider:
         from .openrouter import OpenRouterProvider
 
         return OpenRouterProvider(**kwargs)
-    elif provider_name == "anthropic":
+    if provider_name == "anthropic":
         from .anthropic import AnthropicProvider
 
         return AnthropicProvider(**kwargs)
-    elif provider_name == "openai":
+    if provider_name == "openai":
         from .openai import OpenAIProvider
 
         return OpenAIProvider(**kwargs)
