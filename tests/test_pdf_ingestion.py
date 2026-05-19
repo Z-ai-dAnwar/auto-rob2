@@ -14,6 +14,33 @@ from rob2_pipeline.pdf_ingestion import (
 from rob2_pipeline.providers.base import LLMResponse
 
 
+def test_pdf_ingestion_facade_reexports_core_ingestion_api():
+    assert callable(pdf_ingestion.extract_full_text)
+    assert callable(pdf_ingestion.extract_paper_evidence)
+    assert callable(pdf_ingestion.extract_structural_paper_evidence)
+    assert callable(pdf_ingestion.parse_sections)
+    assert callable(pdf_ingestion.extract_censoring_context)
+
+
+def test_docling_chunker_can_still_be_monkeypatched_via_facade(monkeypatch):
+    mock_conv = type("ConversionResult", (), {"document": object()})()
+    mock_chunks = [_make_mock_chunk("Facade chunk.", ["Methods"], [5])]
+
+    class MockChunker:
+        def __init__(self, tokenizer):
+            self.tokenizer = tokenizer
+
+        def chunk(self, document):
+            return mock_chunks
+
+    monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
+
+    result = pdf_ingestion._build_docling_chunks(mock_conv)
+
+    assert result[0].page_content == "Facade chunk."
+    assert result[0].metadata["page_numbers"] == [5]
+
+
 def test_extract_full_text_uses_docling(monkeypatch):
     calls = []
 
