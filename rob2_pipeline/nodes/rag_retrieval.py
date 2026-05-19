@@ -1,6 +1,12 @@
 from rob2_pipeline.models import PaperEvidence, format_evidence
 from rob2_pipeline.pdf_ingestion import extract_censoring_context
-from rob2_pipeline.rag import DOMAIN_SECTION_FILTERS, build_filtered_index, build_index, grade_retrieved_context, retrieve_adaptive
+from rob2_pipeline.rag import (
+    DOMAIN_SECTION_FILTERS,
+    build_filtered_index,
+    build_index,
+    grade_retrieved_context,
+    retrieve_adaptive,
+)
 from rob2_pipeline.rag_queries import domain_queries
 from rob2_pipeline.state import RoB2State
 
@@ -21,24 +27,36 @@ def _sections_fallback(evidence: PaperEvidence) -> dict[str, str]:
         "d2_blinding": format_evidence(evidence["d2_blinding"]),
         "d2_deviations": "\n\n".join(
             part
-            for part in [format_evidence(evidence["d2_blinding"]), format_evidence(evidence["methods"])]
+            for part in [
+                format_evidence(evidence["d2_blinding"]),
+                format_evidence(evidence["methods"]),
+            ]
             if part
         ),
         "d2_analysis": "\n\n".join(
             part
-            for part in [format_evidence(evidence["d4_outcome_meas"]), format_evidence(evidence["results"])]
+            for part in [
+                format_evidence(evidence["d4_outcome_meas"]),
+                format_evidence(evidence["results"]),
+            ]
             if part
         ),
         "d3": "\n\n".join(
             part
-            for part in [format_evidence(evidence["d3_missing_data"]), format_evidence(evidence["consort_flow"])]
+            for part in [
+                format_evidence(evidence["d3_missing_data"]),
+                format_evidence(evidence["consort_flow"]),
+            ]
             if part
         ),
         "d4_measurement": format_evidence(evidence["d4_outcome_meas"]),
         "d4_assessor": format_evidence(evidence["d2_blinding"]),
         "d5": "\n\n".join(
             part
-            for part in [format_evidence(evidence["d5_registration"]), format_evidence(evidence["results"])]
+            for part in [
+                format_evidence(evidence["d5_registration"]),
+                format_evidence(evidence["results"]),
+            ]
             if part
         ),
     }
@@ -77,21 +95,35 @@ def rag_retrieval_node(state: RoB2State) -> dict:
             index = build_index(chunks)
             domain_contexts: dict[str, str] = {}
             for domain in _DOMAINS:
-                filtered_index = build_filtered_index(chunks, DOMAIN_SECTION_FILTERS.get(domain, []))
-                text, metas = retrieve_adaptive(index, filtered_index, domain_queries(domain))
+                filtered_index = build_filtered_index(
+                    chunks, DOMAIN_SECTION_FILTERS.get(domain, [])
+                )
+                text, metas = retrieve_adaptive(
+                    index, filtered_index, domain_queries(domain)
+                )
                 domain_contexts[domain] = text
                 rag_chunk_metadata[domain] = [dict(meta) for meta in metas]
-                retrieval_grades[domain] = grade_retrieved_context(domain, text, rag_chunk_metadata[domain])
+                retrieval_grades[domain] = grade_retrieved_context(
+                    domain, text, rag_chunk_metadata[domain]
+                )
             rag_contexts = _compat_contexts(domain_contexts)
         except Exception as error:  # noqa: BLE001
             rag_contexts = _sections_fallback(state["evidence"])
             retrieval_grades = {
-                domain: grade_retrieved_context(domain, rag_contexts.get(domain, ""), [])
+                domain: grade_retrieved_context(
+                    domain, rag_contexts.get(domain, ""), []
+                )
                 for domain in _DOMAINS
             }
             state["evidence"]["warnings"].append(f"RAG retrieval failed: {error}")
 
-    censoring = extract_censoring_context(state.get("full_text", ""), state.get("outcome", ""))
+    censoring = extract_censoring_context(
+        state.get("full_text", ""), state.get("outcome", "")
+    )
     if censoring:
         rag_contexts["d3"] = (rag_contexts.get("d3", "") + "\n\n" + censoring).strip()
-    return {"rag_contexts": rag_contexts, "rag_chunk_metadata": rag_chunk_metadata, "retrieval_grades": retrieval_grades}
+    return {
+        "rag_contexts": rag_contexts,
+        "rag_chunk_metadata": rag_chunk_metadata,
+        "retrieval_grades": retrieval_grades,
+    }

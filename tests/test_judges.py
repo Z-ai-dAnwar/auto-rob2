@@ -13,7 +13,11 @@ from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.nodes.domain4 import domain4_judge_node, domain4_sq_node
 from rob2_pipeline.nodes.domain5 import domain5_judge_node
 from rob2_pipeline.nodes.overall import overall_judge_node
-from rob2_pipeline.prompts import PROMPT_DOMAIN2_ADHERING_ANALYSIS, PROMPT_DOMAIN2_ADHERING_CONDITIONAL, PROMPT_DOMAIN5
+from rob2_pipeline.prompts import (
+    PROMPT_DOMAIN2_ADHERING_ANALYSIS,
+    PROMPT_DOMAIN2_ADHERING_CONDITIONAL,
+    PROMPT_DOMAIN5,
+)
 
 
 def sq(**answers):
@@ -43,16 +47,91 @@ def test_judge_domain1(answers, expected):
         (sq(**{"2.1": "Y", "2.2": "N", "2.6": "Y"}), "Some concerns"),
         (sq(**{"2.1": "Y", "2.2": "NI", "2.6": "Y"}), "Some concerns"),
         (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "N", "2.6": "Y"}), "Low"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "Y", "2.5": "PY", "2.6": "Y"}), "Some concerns"),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "Y",
+                    "2.4": "Y",
+                    "2.5": "PY",
+                    "2.6": "Y",
+                }
+            ),
+            "Some concerns",
+        ),
         (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "NI", "2.6": "Y"}), "Some concerns"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "Y", "2.5": "Y", "2.6": "Y"}), "Some concerns"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "Y", "2.5": "N", "2.6": "N", "2.7": "Y"}), "High"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "N", "2.5": "N", "2.6": "Y"}), "Some concerns"),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "Y",
+                    "2.4": "Y",
+                    "2.5": "Y",
+                    "2.6": "Y",
+                }
+            ),
+            "Some concerns",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "Y",
+                    "2.4": "Y",
+                    "2.5": "N",
+                    "2.6": "N",
+                    "2.7": "Y",
+                }
+            ),
+            "High",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "Y",
+                    "2.4": "N",
+                    "2.5": "N",
+                    "2.6": "Y",
+                }
+            ),
+            "Some concerns",
+        ),
         (sq(**{"2.1": "N", "2.2": "N", "2.6": "N", "2.7": "N"}), "Some concerns"),
         (sq(**{"2.1": "N", "2.2": "N", "2.6": "N", "2.7": "Y"}), "High"),
-        (sq(**{"2.1": "NI", "2.2": "NI", "2.3": "NI", "2.4": "NI", "2.5": "NI", "2.6": "NI", "2.7": "NI"}), "High"),
+        (
+            sq(
+                **{
+                    "2.1": "NI",
+                    "2.2": "NI",
+                    "2.3": "NI",
+                    "2.4": "NI",
+                    "2.5": "NI",
+                    "2.6": "NI",
+                    "2.7": "NI",
+                }
+            ),
+            "High",
+        ),
         ({}, "Some concerns"),
-        (sq(**{"2.1": "NA", "2.2": "NA", "2.3": "NA", "2.4": "NA", "2.5": "NA", "2.6": "NA", "2.7": "NA"}), "Some concerns"),
+        (
+            sq(
+                **{
+                    "2.1": "NA",
+                    "2.2": "NA",
+                    "2.3": "NA",
+                    "2.4": "NA",
+                    "2.5": "NA",
+                    "2.6": "NA",
+                    "2.7": "NA",
+                }
+            ),
+            "Some concerns",
+        ),
     ],
 )
 def test_judge_domain2(answers, expected):
@@ -62,12 +141,84 @@ def test_judge_domain2(answers, expected):
 @pytest.mark.parametrize(
     ("answers", "expected"),
     [
-        (sq(**{"2.1": "N", "2.2": "N", "2.3": "NA", "2.4": "N", "2.5": "N", "2.6": "NA"}), "Low"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "Y", "2.4": "N", "2.5": "N", "2.6": "NA"}), "Low"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "N", "2.4": "N", "2.5": "N", "2.6": "Y"}), "Some concerns"),
-        (sq(**{"2.1": "N", "2.2": "N", "2.3": "NA", "2.4": "Y", "2.5": "N", "2.6": "Y"}), "Some concerns"),
-        (sq(**{"2.1": "N", "2.2": "N", "2.3": "NA", "2.4": "N", "2.5": "Y", "2.6": "N"}), "High"),
-        (sq(**{"2.1": "Y", "2.2": "Y", "2.3": "NI", "2.4": "N", "2.5": "N", "2.6": "NI"}), "High"),
+        (
+            sq(
+                **{
+                    "2.1": "N",
+                    "2.2": "N",
+                    "2.3": "NA",
+                    "2.4": "N",
+                    "2.5": "N",
+                    "2.6": "NA",
+                }
+            ),
+            "Low",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "Y",
+                    "2.4": "N",
+                    "2.5": "N",
+                    "2.6": "NA",
+                }
+            ),
+            "Low",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "N",
+                    "2.4": "N",
+                    "2.5": "N",
+                    "2.6": "Y",
+                }
+            ),
+            "Some concerns",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "N",
+                    "2.2": "N",
+                    "2.3": "NA",
+                    "2.4": "Y",
+                    "2.5": "N",
+                    "2.6": "Y",
+                }
+            ),
+            "Some concerns",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "N",
+                    "2.2": "N",
+                    "2.3": "NA",
+                    "2.4": "N",
+                    "2.5": "Y",
+                    "2.6": "N",
+                }
+            ),
+            "High",
+        ),
+        (
+            sq(
+                **{
+                    "2.1": "Y",
+                    "2.2": "Y",
+                    "2.3": "NI",
+                    "2.4": "N",
+                    "2.5": "N",
+                    "2.6": "NI",
+                }
+            ),
+            "High",
+        ),
     ],
 )
 def test_judge_domain2_per_protocol(answers, expected):
@@ -97,20 +248,38 @@ def test_judge_domain3(answers, expected):
         (sq(**{"4.1": "N", "4.2": "N", "4.3": "N"}), "Low"),
         (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "N"}), "Low"),
         (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "N", "4.5": "NA"}), "Low"),
-        (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "Y", "4.5": "N"}), "Some concerns"),
-        (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "PY", "4.5": "N"}), "Some concerns"),
-        (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "PY", "4.5": "PN"}), "Some concerns"),
+        (
+            sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "Y", "4.5": "N"}),
+            "Some concerns",
+        ),
+        (
+            sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "PY", "4.5": "N"}),
+            "Some concerns",
+        ),
+        (
+            sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "PY", "4.5": "PN"}),
+            "Some concerns",
+        ),
         (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "PY", "4.5": "NI"}), "High"),
         (sq(**{"4.1": "N", "4.2": "N", "4.3": "Y", "4.4": "Y", "4.5": "Y"}), "High"),
         (sq(**{"4.1": "N", "4.2": "NI", "4.3": "N"}), "Some concerns"),
         (sq(**{"4.1": "N", "4.2": "NI", "4.3": "Y", "4.4": "N"}), "Some concerns"),
-        (sq(**{"4.1": "N", "4.2": "NI", "4.3": "Y", "4.4": "Y", "4.5": "N"}), "Some concerns"),
+        (
+            sq(**{"4.1": "N", "4.2": "NI", "4.3": "Y", "4.4": "Y", "4.5": "N"}),
+            "Some concerns",
+        ),
         (sq(**{"4.1": "N", "4.2": "NI", "4.3": "Y", "4.4": "Y", "4.5": "Y"}), "High"),
         (sq(**{"4.1": "Y", "4.2": "N"}), "High"),
         (sq(**{"4.1": "N", "4.2": "Y"}), "High"),
-        (sq(**{"4.1": "NI", "4.2": "NI", "4.3": "NI", "4.4": "NI", "4.5": "NI"}), "High"),
+        (
+            sq(**{"4.1": "NI", "4.2": "NI", "4.3": "NI", "4.4": "NI", "4.5": "NI"}),
+            "High",
+        ),
         ({}, "Some concerns"),
-        (sq(**{"4.1": "NA", "4.2": "NA", "4.3": "NA", "4.4": "NA", "4.5": "NA"}), "Some concerns"),
+        (
+            sq(**{"4.1": "NA", "4.2": "NA", "4.3": "NA", "4.4": "NA", "4.5": "NA"}),
+            "Some concerns",
+        ),
     ],
 )
 def test_judge_domain4(answers, expected):
@@ -138,11 +307,43 @@ def test_judge_domain5(answers, expected):
 @pytest.mark.parametrize(
     ("domains", "expected", "rationale_part"),
     [
-        ({"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"}, "Low", "Low in all"),
-        ({"D1": "Low", "D2": "Some concerns", "D3": "Low", "D4": "Low", "D5": "Low"}, "Some concerns", "1 domain"),
-        ({"D1": "Some concerns", "D2": "Some concerns", "D3": "Low", "D4": "Low", "D5": "Low"}, "Some concerns", "2 domains with Some concerns"),
-        ({"D1": "Some concerns", "D2": "Some concerns", "D3": "Some concerns", "D4": "Low", "D5": "Low"}, "Some concerns", "substantially lower confidence"),
-        ({"D1": "Low", "D2": "High", "D3": "Low", "D4": "Low", "D5": "Low"}, "High", "D2"),
+        (
+            {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"},
+            "Low",
+            "Low in all",
+        ),
+        (
+            {"D1": "Low", "D2": "Some concerns", "D3": "Low", "D4": "Low", "D5": "Low"},
+            "Some concerns",
+            "1 domain",
+        ),
+        (
+            {
+                "D1": "Some concerns",
+                "D2": "Some concerns",
+                "D3": "Low",
+                "D4": "Low",
+                "D5": "Low",
+            },
+            "Some concerns",
+            "2 domains with Some concerns",
+        ),
+        (
+            {
+                "D1": "Some concerns",
+                "D2": "Some concerns",
+                "D3": "Some concerns",
+                "D4": "Low",
+                "D5": "Low",
+            },
+            "Some concerns",
+            "substantially lower confidence",
+        ),
+        (
+            {"D1": "Low", "D2": "High", "D3": "Low", "D4": "Low", "D5": "Low"},
+            "High",
+            "D2",
+        ),
     ],
 )
 def test_judge_overall(domains, expected, rationale_part):
@@ -200,11 +401,36 @@ def test_domain_nodes_do_not_override_algorithm_by_outcome_label():
 def test_domain4_autosets_clinician_assessor_awareness_in_open_label_trial(monkeypatch):
     def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
         parsed = {
-            "4.1": {"answer": "N", "quote": "measurement", "justification": "standard", "uncertainty_flag": "NORMAL"},
-            "4.2": {"answer": "N", "quote": "method", "justification": "same", "uncertainty_flag": "NORMAL"},
-            "4.3": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
-            "4.4": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
-            "4.5": {"answer": "NI", "quote": "No relevant text found", "justification": "unclear", "uncertainty_flag": "HIGH"},
+            "4.1": {
+                "answer": "N",
+                "quote": "measurement",
+                "justification": "standard",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.2": {
+                "answer": "N",
+                "quote": "method",
+                "justification": "same",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.3": {
+                "answer": "NI",
+                "quote": "No relevant text found",
+                "justification": "unclear",
+                "uncertainty_flag": "HIGH",
+            },
+            "4.4": {
+                "answer": "NI",
+                "quote": "No relevant text found",
+                "justification": "unclear",
+                "uncertainty_flag": "HIGH",
+            },
+            "4.5": {
+                "answer": "NI",
+                "quote": "No relevant text found",
+                "justification": "unclear",
+                "uncertainty_flag": "HIGH",
+            },
         }
         return "", [], parsed
 
@@ -215,8 +441,14 @@ def test_domain4_autosets_clinician_assessor_awareness_in_open_label_trial(monke
         "outcome": "Progression-free survival",
         "outcome_type": "clinician-graded",
         "evidence": empty_paper_evidence(),
-        "rag_contexts": {"d4_measurement": "RECIST assessment", "d4_assessor": "open-label"},
-        "sq_answers": {"2.1": {"answer": "N"}, "2.2": {"answer": "Y", "quote": "open-label"}},
+        "rag_contexts": {
+            "d4_measurement": "RECIST assessment",
+            "d4_assessor": "open-label",
+        },
+        "sq_answers": {
+            "2.1": {"answer": "N"},
+            "2.2": {"answer": "Y", "quote": "open-label"},
+        },
     }
 
     result = domain4_sq_node(state)
@@ -225,14 +457,41 @@ def test_domain4_autosets_clinician_assessor_awareness_in_open_label_trial(monke
     assert "clinician grading" in result["sq_answers"]["4.3"]["justification"]
 
 
-def test_domain4_autosets_objective_outcome_uninfluenced_when_awareness_unknown(monkeypatch):
+def test_domain4_autosets_objective_outcome_uninfluenced_when_awareness_unknown(
+    monkeypatch,
+):
     def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
         parsed = {
-            "4.1": {"answer": "N", "quote": "vital status", "justification": "appropriate", "uncertainty_flag": "NORMAL"},
-            "4.2": {"answer": "N", "quote": "same method", "justification": "same", "uncertainty_flag": "NORMAL"},
-            "4.3": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
-            "4.4": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
-            "4.5": {"answer": "NI", "quote": "Not reported", "justification": "unknown", "uncertainty_flag": "NORMAL"},
+            "4.1": {
+                "answer": "N",
+                "quote": "vital status",
+                "justification": "appropriate",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.2": {
+                "answer": "N",
+                "quote": "same method",
+                "justification": "same",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.3": {
+                "answer": "NI",
+                "quote": "Not reported",
+                "justification": "unknown",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.4": {
+                "answer": "NI",
+                "quote": "Not reported",
+                "justification": "unknown",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.5": {
+                "answer": "NI",
+                "quote": "Not reported",
+                "justification": "unknown",
+                "uncertainty_flag": "NORMAL",
+            },
         }
         return "", [], parsed
 
@@ -243,7 +502,10 @@ def test_domain4_autosets_objective_outcome_uninfluenced_when_awareness_unknown(
         "outcome": "Overall Survival",
         "outcome_type": "vital-status",
         "evidence": empty_paper_evidence(),
-        "rag_contexts": {"d4_measurement": "overall survival", "d4_assessor": "vital status"},
+        "rag_contexts": {
+            "d4_measurement": "overall survival",
+            "d4_assessor": "vital status",
+        },
         "sq_answers": {"2.1": {"answer": "Y"}, "2.2": {"answer": "Y"}},
     }
 
@@ -257,11 +519,36 @@ def test_domain4_autosets_objective_outcome_uninfluenced_when_awareness_unknown(
 def test_domain4_normalizes_invalid_assessor_na_for_objective_outcome(monkeypatch):
     def fake_call_node_llm(state, prompt, node_name, parse_fn, parse_sq_ids):
         parsed = {
-            "4.1": {"answer": "N", "quote": "vital status", "justification": "appropriate", "uncertainty_flag": "NORMAL"},
-            "4.2": {"answer": "N", "quote": "same method", "justification": "same", "uncertainty_flag": "NORMAL"},
-            "4.3": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
-            "4.4": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
-            "4.5": {"answer": "NA", "quote": "Not applicable", "justification": "invalid skip", "uncertainty_flag": "NORMAL"},
+            "4.1": {
+                "answer": "N",
+                "quote": "vital status",
+                "justification": "appropriate",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.2": {
+                "answer": "N",
+                "quote": "same method",
+                "justification": "same",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.3": {
+                "answer": "NA",
+                "quote": "Not applicable",
+                "justification": "invalid skip",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.4": {
+                "answer": "NA",
+                "quote": "Not applicable",
+                "justification": "invalid skip",
+                "uncertainty_flag": "NORMAL",
+            },
+            "4.5": {
+                "answer": "NA",
+                "quote": "Not applicable",
+                "justification": "invalid skip",
+                "uncertainty_flag": "NORMAL",
+            },
         }
         return "", [], parsed
 
@@ -272,7 +559,10 @@ def test_domain4_normalizes_invalid_assessor_na_for_objective_outcome(monkeypatc
         "outcome": "Overall Survival",
         "outcome_type": "vital-status",
         "evidence": empty_paper_evidence(),
-        "rag_contexts": {"d4_measurement": "overall survival", "d4_assessor": "vital status"},
+        "rag_contexts": {
+            "d4_measurement": "overall survival",
+            "d4_assessor": "vital status",
+        },
         "sq_answers": {},
     }
 

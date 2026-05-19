@@ -41,7 +41,9 @@ def test_rpd_limit_uses_logging_warning_not_print(monkeypatch, caplog):
     limiter.wait_for_slot()
     with caplog.at_level("WARNING", logger="rob2_pipeline.providers._rate_limiter"):
         limiter.wait_for_slot()
-    assert any("Daily request limit approached" in rec.message for rec in caplog.records)
+    assert any(
+        "Daily request limit approached" in rec.message for rec in caplog.records
+    )
 
 
 def test_wait_for_slot_blocks_when_rpm_exceeded(monkeypatch):

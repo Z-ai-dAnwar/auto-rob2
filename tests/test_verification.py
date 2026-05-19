@@ -1,17 +1,25 @@
 from rob2_pipeline.models import empty_paper_evidence
-from rob2_pipeline.nodes.verification import quote_is_supported, quote_verifier_node, verify_sq_evidence
+from rob2_pipeline.nodes.verification import (
+    quote_is_supported,
+    quote_verifier_node,
+    verify_sq_evidence,
+)
 
 
 def test_quote_support_accepts_exact_source_quote():
     source = "Participants were randomly assigned using a central web system."
 
-    assert quote_is_supported('"Participants were randomly assigned"', source.casefold())
+    assert quote_is_supported(
+        '"Participants were randomly assigned"', source.casefold()
+    )
 
 
 def test_quote_support_rejects_hallucinated_quote():
     source = "Participants were randomly assigned using a central web system."
 
-    assert not quote_is_supported("Outcome assessors were blinded by an independent committee.", source.casefold())
+    assert not quote_is_supported(
+        "Outcome assessors were blinded by an independent committee.", source.casefold()
+    )
 
 
 def test_verify_sq_evidence_flags_missing_d3_denominator():
@@ -32,7 +40,9 @@ def test_verify_sq_evidence_flags_missing_d3_denominator():
 
     flags = verify_sq_evidence(state)
 
-    assert any(flag["sq_id"] == "3.1" and "denominator" in flag["issue"] for flag in flags)
+    assert any(
+        flag["sq_id"] == "3.1" and "denominator" in flag["issue"] for flag in flags
+    )
 
 
 def test_verify_sq_evidence_flags_unsupported_selective_reporting_quote():
@@ -83,4 +93,7 @@ def test_quote_verifier_surfaces_packet_retry_actions():
     assert result["verification_actions"]
     assert result["verification_actions"][0]["sq_id"] == "5.1"
     assert result["verification_actions"][0]["action"] == "retry_packet_or_escalate"
-    assert any(flag["sq_id"] == "5.1" and "packet" in flag["issue"] for flag in result["evidence_validation_flags"])
+    assert any(
+        flag["sq_id"] == "5.1" and "packet" in flag["issue"]
+        for flag in result["evidence_validation_flags"]
+    )

@@ -212,9 +212,14 @@ def call_node_llm_with_sources(
     return call_fn(state, prompt, node_name, parse_fn, parse_sq_ids)
 
 
-def add_domain_judgment(state: dict, domain: str, judgment: str, rationale: str) -> dict:
+def add_domain_judgment(
+    state: dict, domain: str, judgment: str, rationale: str
+) -> dict:
     domain_judgments = dict(state.get("domain_judgments", {}))
     domain_rationales = dict(state.get("domain_rationales", {}))
     domain_judgments[domain] = judgment
     domain_rationales[domain] = rationale
-    return {"domain_judgments": domain_judgments, "domain_rationales": domain_rationales}
+    return {
+        "domain_judgments": domain_judgments,
+        "domain_rationales": domain_rationales,
+    }

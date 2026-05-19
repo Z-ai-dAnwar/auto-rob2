@@ -22,9 +22,26 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
         )
     return _embeddings
 
+
 DOMAIN_SECTION_FILTERS: dict[str, list[str]] = {
-    "d1": ["method", "random", "allocat", "participant", "baseline", "consort", "enrol"],
-    "d2": ["method", "blind", "mask", "deviat", "protocol", "intervention", "treatment"],
+    "d1": [
+        "method",
+        "random",
+        "allocat",
+        "participant",
+        "baseline",
+        "consort",
+        "enrol",
+    ],
+    "d2": [
+        "method",
+        "blind",
+        "mask",
+        "deviat",
+        "protocol",
+        "intervention",
+        "treatment",
+    ],
     "d3": ["missing", "censor", "loss", "follow", "withdraw", "dropout", "attrition"],
     "d4": ["outcome", "measur", "assess", "endpoint", "instrument", "adjudicat"],
     "d5": ["registr", "protocol", "trial design", "nct"],
@@ -50,7 +67,10 @@ def build_filtered_index(chunks: list[Document], keywords: list[str]) -> FAISS |
     filtered = [
         chunk
         for chunk in chunks
-        if any(keyword in (chunk.metadata.get("section") or "").lower() for keyword in lowered_keywords)
+        if any(
+            keyword in (chunk.metadata.get("section") or "").lower()
+            for keyword in lowered_keywords
+        )
     ]
     if len(filtered) < 3:
         return None
@@ -69,7 +89,9 @@ def retrieve_adaptive(
 
     def search(search_index: FAISS) -> None:
         for query in queries:
-            for doc, score in search_index.similarity_search_with_score(query, k=candidate_k):
+            for doc, score in search_index.similarity_search_with_score(
+                query, k=candidate_k
+            ):
                 key = _doc_key(doc)
                 if key not in scores or float(score) < scores[key]:
                     scores[key] = float(score)

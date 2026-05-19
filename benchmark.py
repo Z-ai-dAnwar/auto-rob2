@@ -2,7 +2,13 @@ import argparse
 import os
 from pathlib import Path
 
-from rob2_pipeline.benchmark import OUTCOME_LABELS, load_reference, run_benchmark, summarize_benchmark, write_benchmark_report
+from rob2_pipeline.benchmark import (
+    OUTCOME_LABELS,
+    load_reference,
+    run_benchmark,
+    summarize_benchmark,
+    write_benchmark_report,
+)
 
 
 DEFAULT_REFERENCE_OS = "data/references/overall_survival.csv"
@@ -14,19 +20,29 @@ def _parse_outcome_map(values: list[str]) -> list[dict[str, str]]:
     parsed: list[dict[str, str]] = []
     for item in values:
         if ":" not in item:
-            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
+            raise ValueError(
+                f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]"
+            )
         parts = item.split(":")
         if len(parts) not in (2, 3):
-            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
+            raise ValueError(
+                f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]"
+            )
         trial, outcome = parts[0], parts[1]
         cohort = parts[2].strip() if len(parts) == 3 else "unspecified"
         trial = trial.strip()
         outcome = outcome.strip().upper()
         if not trial or not outcome:
-            raise ValueError(f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]")
+            raise ValueError(
+                f"Invalid outcome map item '{item}'. Expected TRIAL:OUTCOME[:COHORT]"
+            )
         if outcome not in OUTCOME_LABELS:
-            raise ValueError(f"Invalid outcome code '{outcome}'. Use one of: {', '.join(OUTCOME_LABELS)}")
-        parsed.append({"trial": trial, "outcome_code": outcome, "cohort": cohort or "unspecified"})
+            raise ValueError(
+                f"Invalid outcome code '{outcome}'. Use one of: {', '.join(OUTCOME_LABELS)}"
+            )
+        parsed.append(
+            {"trial": trial, "outcome_code": outcome, "cohort": cohort or "unspecified"}
+        )
     return parsed
 
 
@@ -50,7 +66,9 @@ def _resolve_pdf(input_dir: Path, trial: str) -> Path | None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run RoB 2 benchmark against reference judgments.")
+    parser = argparse.ArgumentParser(
+        description="Run RoB 2 benchmark against reference judgments."
+    )
     parser.add_argument(
         "--input-dir",
         default="inputs/benchmark/",
@@ -77,10 +95,20 @@ def main():
         required=True,
         help="Trial:outcome mappings, e.g. CHAARTED:OS ARCHES:PFS or CHAARTED:OS:calibration",
     )
-    parser.add_argument("--output-dir", default="outputs/benchmark/", help="Benchmark output directory.")
-    parser.add_argument("--no-cache", action="store_true", help="Bypass prompt cache for this run.")
-    parser.add_argument("--debug", action="store_true", help="Print extra progress details.")
-    parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print planned runs only.")
+    parser.add_argument(
+        "--output-dir", default="outputs/benchmark/", help="Benchmark output directory."
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Bypass prompt cache for this run."
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Print extra progress details."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate inputs and print planned runs only.",
+    )
     args = parser.parse_args()
 
     if args.no_cache:
@@ -113,7 +141,9 @@ def main():
             if pdf is None:
                 status.append("PDF not found")
             details = "; ".join(status) if status else "OK"
-            print(f"- {trial} -> {OUTCOME_LABELS[code]} [{item.get('cohort', 'unspecified')}] ({details})")
+            print(
+                f"- {trial} -> {OUTCOME_LABELS[code]} [{item.get('cohort', 'unspecified')}] ({details})"
+            )
         return
 
     results = run_benchmark(

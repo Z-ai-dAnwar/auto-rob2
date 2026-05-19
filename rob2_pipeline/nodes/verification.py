@@ -8,7 +8,12 @@ _BYPASS_QUOTES = {"", "not applicable", "no relevant text found", "not reported"
 
 
 def _normalize_text(text: str) -> str:
-    text = re.sub(r"\([^)]*(?:section|primary evidence|additional retrieved context|results|methods)[^)]*\)", "", text, flags=re.I)
+    text = re.sub(
+        r"\([^)]*(?:section|primary evidence|additional retrieved context|results|methods)[^)]*\)",
+        "",
+        text,
+        flags=re.I,
+    )
     text = text.strip().strip('"').strip("'")
     text = re.sub(r"\s+", " ", text)
     return text.casefold()
@@ -31,7 +36,9 @@ def quote_is_supported(quote: str, source_text: str) -> bool:
         return True
     if normalized_quote in source_text:
         return True
-    words = [word for word in re.findall(r"[a-z0-9]+", normalized_quote) if len(word) > 3]
+    words = [
+        word for word in re.findall(r"[a-z0-9]+", normalized_quote) if len(word) > 3
+    ]
     if len(words) < 4:
         return False
     hits = sum(1 for word in words if word in source_text)
@@ -41,9 +48,17 @@ def quote_is_supported(quote: str, source_text: str) -> bool:
 def _fragile_sq_issue(sq_id: str, answer: dict) -> str | None:
     value = answer.get("answer", "")
     justification = (answer.get("justification") or "").casefold()
-    if sq_id == "3.1" and value in ("Y", "PY") and not re.search(r"\d+\s*/\s*\d+|\d+(?:\.\d+)?\s*%", justification):
+    if (
+        sq_id == "3.1"
+        and value in ("Y", "PY")
+        and not re.search(r"\d+\s*/\s*\d+|\d+(?:\.\d+)?\s*%", justification)
+    ):
         return "D3 completeness answer lacks a denominator or percentage calculation."
-    if sq_id in ("5.2", "5.3") and value in ("Y", "PY") and "multiple" not in justification:
+    if (
+        sq_id in ("5.2", "5.3")
+        and value in ("Y", "PY")
+        and "multiple" not in justification
+    ):
         return "D5 selective-reporting answer does not identify multiple eligible measurements or analyses."
     return None
 
@@ -54,7 +69,13 @@ def verify_sq_evidence(state: RoB2State) -> list[dict]:
     for sq_id, answer in sorted((state.get("sq_answers") or {}).items()):
         quote = answer.get("quote", "")
         if not quote_is_supported(quote, source):
-            flags.append({"sq_id": sq_id, "issue": "quote_not_found_in_source_context", "quote": quote})
+            flags.append(
+                {
+                    "sq_id": sq_id,
+                    "issue": "quote_not_found_in_source_context",
+                    "quote": quote,
+                }
+            )
         fragile_issue = _fragile_sq_issue(sq_id, answer)
         if fragile_issue:
             flags.append({"sq_id": sq_id, "issue": fragile_issue, "quote": quote})
@@ -77,7 +98,8 @@ def verify_packet_evidence(state: RoB2State) -> list[dict]:
             flags.append(
                 {
                     "sq_id": sq_id,
-                    "issue": "packet_verification_failed" + (f" ({'; '.join(details)})" if details else ""),
+                    "issue": "packet_verification_failed"
+                    + (f" ({'; '.join(details)})" if details else ""),
                     "quote": "",
                 }
             )
@@ -119,4 +141,8 @@ def quote_verifier_node(state: RoB2State) -> RoB2State:
                 "reason": f"{len(flags)} evidence validation issue(s) found",
             }
         )
-    return {"evidence_validation_flags": flags, "verifier_trace": trace, "verification_actions": actions}
+    return {
+        "evidence_validation_flags": flags,
+        "verifier_trace": trace,
+        "verification_actions": actions,
+    }

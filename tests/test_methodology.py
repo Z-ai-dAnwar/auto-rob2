@@ -31,7 +31,12 @@ def test_rule_card_requires_citation_and_response_rules():
 
 def test_render_methodology_includes_sq_ids_options_and_citations():
     from rob2_pipeline.methodology.render import render_methodology
-    from rob2_pipeline.methodology.types import Citation, DomainMethodology, ResponseRule, RuleCard
+    from rob2_pipeline.methodology.types import (
+        Citation,
+        DomainMethodology,
+        ResponseRule,
+        RuleCard,
+    )
 
     methodology = DomainMethodology(
         domain_id="D1",
@@ -41,7 +46,10 @@ def test_render_methodology_includes_sq_ids_options_and_citations():
             "1.1": RuleCard(
                 sq_id="1.1",
                 question="Was the allocation sequence random?",
-                response_rules={"Y": ResponseRule("random component used"), "NI": ResponseRule("insufficient detail")},
+                response_rules={
+                    "Y": ResponseRule("random component used"),
+                    "NI": ResponseRule("insufficient detail"),
+                },
                 citations=[Citation("Sterne 2019 supplement", "p.1")],
             )
         },
@@ -59,7 +67,9 @@ def test_render_methodology_rejects_missing_sq_id():
     from rob2_pipeline.methodology.render import render_methodology
     from rob2_pipeline.methodology.types import DomainMethodology
 
-    methodology = DomainMethodology(domain_id="D1", title="Domain 1", principles=[], rule_cards={})
+    methodology = DomainMethodology(
+        domain_id="D1", title="Domain 1", principles=[], rule_cards={}
+    )
 
     with pytest.raises(KeyError, match="Missing rule card"):
         render_methodology(methodology, ["1.1"])
@@ -85,4 +95,3 @@ def test_all_rule_cards_have_valid_options_and_citations():
             assert card.citations
             assert set(card.response_rules).issubset(valid_options)
             assert card.response_rules
-

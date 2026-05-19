@@ -9,7 +9,9 @@ from rob2_pipeline.types import ChunkMeta
 
 
 def _make_doc(text: str, section: str = "Methods") -> Document:
-    return Document(page_content=text, metadata={"section": section, "page_numbers": [1]})
+    return Document(
+        page_content=text, metadata={"section": section, "page_numbers": [1]}
+    )
 
 
 def _evidence():
@@ -45,7 +47,14 @@ def test_rag_retrieval_node_populates_compatibility_rag_contexts(monkeypatch):
         "retrieve_adaptive",
         lambda index, filtered, queries: (
             "Retrieved text.",
-            [ChunkMeta(text="Retrieved text.", section="Methods", page_numbers=[2], score=0.9)],
+            [
+                ChunkMeta(
+                    text="Retrieved text.",
+                    section="Methods",
+                    page_numbers=[2],
+                    score=0.9,
+                )
+            ],
         ),
     )
 
@@ -75,7 +84,11 @@ def test_rag_retrieval_node_populates_rag_chunk_metadata(monkeypatch):
         "retrieve_adaptive",
         lambda index, filtered, queries: (
             "Some text.",
-            [ChunkMeta(text="Some text.", section="Methods", page_numbers=[3], score=0.85)],
+            [
+                ChunkMeta(
+                    text="Some text.", section="Methods", page_numbers=[3], score=0.85
+                )
+            ],
         ),
     )
 
@@ -96,7 +109,13 @@ def test_rag_retrieval_node_falls_back_when_no_chunks():
     result = rag_retrieval_node(_base_state([]))
 
     assert "Randomized centrally" in result["rag_contexts"]["d1"]
-    assert result["rag_chunk_metadata"] == {"d1": [], "d2": [], "d3": [], "d4": [], "d5": []}
+    assert result["rag_chunk_metadata"] == {
+        "d1": [],
+        "d2": [],
+        "d3": [],
+        "d4": [],
+        "d5": [],
+    }
 
 
 def test_rag_retrieval_node_falls_back_when_rag_errors(monkeypatch):
@@ -107,10 +126,20 @@ def test_rag_retrieval_node_falls_back_when_rag_errors(monkeypatch):
 
     state = _base_state([_make_doc("Chunk.")])
     monkeypatch.setattr(node, "build_index", boom)
-    monkeypatch.setattr(node, "extract_censoring_context", lambda full_text, outcome: "")
+    monkeypatch.setattr(
+        node, "extract_censoring_context", lambda full_text, outcome: ""
+    )
 
     result = node.rag_retrieval_node(state)
 
     assert "Randomized centrally" in result["rag_contexts"]["d1"]
-    assert result["rag_chunk_metadata"] == {"d1": [], "d2": [], "d3": [], "d4": [], "d5": []}
-    assert any("RAG retrieval failed" in warning for warning in state["evidence"]["warnings"])
+    assert result["rag_chunk_metadata"] == {
+        "d1": [],
+        "d2": [],
+        "d3": [],
+        "d4": [],
+        "d5": [],
+    }
+    assert any(
+        "RAG retrieval failed" in warning for warning in state["evidence"]["warnings"]
+    )

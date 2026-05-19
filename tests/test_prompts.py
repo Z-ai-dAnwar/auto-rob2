@@ -36,7 +36,11 @@ def test_prompt_domain2_sq12_accepts_ctgov_design():
 
 
 def test_registry_prompt_guidance_does_not_overclaim_indirect_metadata():
-    from rob2_pipeline.prompts import PROMPT_DOMAIN1, PROMPT_DOMAIN2_SQ12, PROMPT_DOMAIN5
+    from rob2_pipeline.prompts import (
+        PROMPT_DOMAIN1,
+        PROMPT_DOMAIN2_SQ12,
+        PROMPT_DOMAIN5,
+    )
 
     assert "central randomization infrastructure" not in PROMPT_DOMAIN1
     assert "direct evidence that a random method was used" not in PROMPT_DOMAIN1
@@ -139,7 +143,12 @@ def test_domain4_prompt_guides_outcome_specific_q44_reasoning():
 
 
 def test_domain_prompts_include_canonical_methodology_blocks():
-    from rob2_pipeline.prompts import PROMPT_DOMAIN1, PROMPT_DOMAIN2_CONDITIONAL, PROMPT_DOMAIN3, PROMPT_DOMAIN4
+    from rob2_pipeline.prompts import (
+        PROMPT_DOMAIN1,
+        PROMPT_DOMAIN2_CONDITIONAL,
+        PROMPT_DOMAIN3,
+        PROMPT_DOMAIN4,
+    )
 
     assert "CANONICAL RoB 2 METHODOLOGY" in PROMPT_DOMAIN1
     assert "SQ 1.2" in PROMPT_DOMAIN1
@@ -208,4 +217,7 @@ def test_domain5_prompt_includes_methodology_and_preserves_outcome_scope():
 
     assert "CANONICAL RoB 2 METHODOLOGY" in result
     assert "SQ 5.2" in result
-    assert "You are assessing Domain 5 for the specific outcome: Composite Clinical Response" in result
+    assert (
+        "You are assessing Domain 5 for the specific outcome: Composite Clinical Response"
+        in result
+    )

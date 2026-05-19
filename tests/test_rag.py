@@ -4,7 +4,12 @@ import pytest
 from langchain_core.documents import Document
 
 import rob2_pipeline.rag as rag
-from rob2_pipeline.rag import build_filtered_index, build_index, grade_retrieved_context, retrieve_adaptive
+from rob2_pipeline.rag import (
+    build_filtered_index,
+    build_index,
+    grade_retrieved_context,
+    retrieve_adaptive,
+)
 
 
 def _make_doc(text: str, section: str = "", pages: list[int] | None = None) -> Document:
@@ -17,13 +22,31 @@ def _make_doc(text: str, section: str = "", pages: list[int] | None = None) -> D
 @pytest.fixture()
 def sample_docs():
     return [
-        _make_doc("Patients were randomly allocated using computer-generated numbers.", "Methods", [2]),
-        _make_doc("Allocation was concealed using sealed opaque envelopes.", "Methods", [2]),
-        _make_doc("Baseline characteristics were balanced between arms.", "Baseline", [3]),
-        _make_doc("All participants and personnel were blinded to treatment.", "Methods", [4]),
+        _make_doc(
+            "Patients were randomly allocated using computer-generated numbers.",
+            "Methods",
+            [2],
+        ),
+        _make_doc(
+            "Allocation was concealed using sealed opaque envelopes.", "Methods", [2]
+        ),
+        _make_doc(
+            "Baseline characteristics were balanced between arms.", "Baseline", [3]
+        ),
+        _make_doc(
+            "All participants and personnel were blinded to treatment.", "Methods", [4]
+        ),
         _make_doc("Follow-up was complete in 95% of patients.", "Results", [8]),
-        _make_doc("The trial was registered at ClinicalTrials.gov NCT12345.", "Registration", [1]),
-        _make_doc("Missing data were handled using multiple imputation.", "Statistical Analysis", [5]),
+        _make_doc(
+            "The trial was registered at ClinicalTrials.gov NCT12345.",
+            "Registration",
+            [1],
+        ),
+        _make_doc(
+            "Missing data were handled using multiple imputation.",
+            "Statistical Analysis",
+            [5],
+        ),
         _make_doc("The primary outcome was overall survival.", "Methods", [2]),
     ]
 
@@ -34,7 +57,9 @@ def fake_embeddings(monkeypatch):
         def _vector(self, text: str) -> list[float]:
             lowered = text.lower()
             return [
-                float("random" in lowered or "allocat" in lowered or "conceal" in lowered),
+                float(
+                    "random" in lowered or "allocat" in lowered or "conceal" in lowered
+                ),
                 float("blind" in lowered or "mask" in lowered),
                 float("missing" in lowered or "follow" in lowered),
                 float("registr" in lowered or "nct" in lowered),
@@ -98,7 +123,9 @@ class TestBuildFilteredIndex:
 class TestRetrieveAdaptive:
     def test_returns_text_and_metadata(self, sample_docs):
         index = build_index(sample_docs)
-        text, metas = retrieve_adaptive(index, None, ["randomization sequence generation"])
+        text, metas = retrieve_adaptive(
+            index, None, ["randomization sequence generation"]
+        )
 
         assert isinstance(text, str)
         assert len(text) > 0
@@ -162,7 +189,9 @@ class TestGradeRetrievedContext:
         assert grade["retry_recommended"] is False
 
     def test_recommends_retry_when_required_terms_missing(self):
-        grade = grade_retrieved_context("d5", "This paragraph discusses adverse events only.", [])
+        grade = grade_retrieved_context(
+            "d5", "This paragraph discusses adverse events only.", []
+        )
 
         assert grade["retry_recommended"] is True
         assert "registr" in grade["missing_evidence"]

@@ -71,16 +71,21 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
         parsed = {
             "answer": sq_el.findtext("answer") or "NI",
             "quote": sq_el.findtext("quote") or "No relevant text found",
-            "justification": sq_el.findtext("justification") or "No relevant text found",
+            "justification": sq_el.findtext("justification")
+            or "No relevant text found",
             "uncertainty_flag": sq_el.findtext("uncertainty_flag") or "NORMAL",
         }
 
         answer = _normalize_answer(parsed.get("answer", "NI"))
         quote_default = "Not applicable" if answer == "NA" else "No relevant text found"
-        justification_default = "Not applicable" if answer == "NA" else "No relevant text found"
+        justification_default = (
+            "Not applicable" if answer == "NA" else "No relevant text found"
+        )
 
         quote = _safe_text(parsed.get("quote") if parsed else None, quote_default)
-        justification = _safe_text(parsed.get("justification") if parsed else None, justification_default)
+        justification = _safe_text(
+            parsed.get("justification") if parsed else None, justification_default
+        )
         if answer == "NA":
             if quote == "No relevant text found":
                 quote = "Not applicable"
@@ -91,7 +96,9 @@ def parse_sq_response(xml_string: str, sq_ids: list[str]) -> dict[str, dict]:
             "answer": answer,
             "quote": quote,
             "justification": justification,
-            "uncertainty_flag": _safe_text(parsed.get("uncertainty_flag"), "NORMAL").upper(),
+            "uncertainty_flag": _safe_text(
+                parsed.get("uncertainty_flag"), "NORMAL"
+            ).upper(),
         }
 
     return result
@@ -101,6 +108,9 @@ def validate_sq_answers(parsed: dict[str, dict], expected_ids: list[str]) -> lis
     suspected = []
     for sq_id in expected_ids:
         answer = parsed.get(sq_id, {})
-        if answer.get("answer") == "NI" and answer.get("justification") == "No relevant text found":
+        if (
+            answer.get("answer") == "NI"
+            and answer.get("justification") == "No relevant text found"
+        ):
             suspected.append(sq_id)
     return suspected

@@ -32,6 +32,7 @@ def test_extract_full_text_uses_docling(monkeypatch):
 def test_extract_full_text_raises_when_docling_fails(monkeypatch):
     """Single-path docling: if docling fails, the exception propagates up. No
     silent fallback to a different parser."""
+
     def fake_docling(pdf_path):
         raise RuntimeError("docling exploded")
 
@@ -102,7 +103,10 @@ def test_build_docling_chunks_preserves_metadata(monkeypatch):
 
     assert result[0].metadata["section"] == "Methods"
     assert result[0].metadata["page_numbers"] == [2]
-    assert result[0].metadata["dl_meta"] == {"headings": ["Methods"], "page_numbers": [2]}
+    assert result[0].metadata["dl_meta"] == {
+        "headings": ["Methods"],
+        "page_numbers": [2],
+    }
 
 
 def test_build_docling_chunks_handles_no_headings(monkeypatch):
@@ -142,7 +146,9 @@ def test_build_docling_chunks_configures_tokenizer_for_long_docling_counts(monke
             assert self.tokenizer == "configured-tokenizer"
             return mock_chunks
 
-    monkeypatch.setattr(pdf_ingestion, "HuggingFaceTokenizer", MockTokenizer, raising=False)
+    monkeypatch.setattr(
+        pdf_ingestion, "HuggingFaceTokenizer", MockTokenizer, raising=False
+    )
     monkeypatch.setattr(pdf_ingestion, "HybridChunker", MockChunker)
 
     result = _build_docling_chunks(mock_conv)
@@ -266,8 +272,13 @@ def test_cap_section_prefers_keyword_dense_chunks():
 
     assert "[... truncated ...]" in capped
     assert "allocation" in capped.lower()
-    assert "[NOTE: Section truncated at 10000 characters. Critical content may be absent.]" in capped
-    assert len(capped) <= 10000 + len("\n\n[NOTE: Section truncated at 10000 characters. Critical content may be absent.]")
+    assert (
+        "[NOTE: Section truncated at 10000 characters. Critical content may be absent.]"
+        in capped
+    )
+    assert len(capped) <= 10000 + len(
+        "\n\n[NOTE: Section truncated at 10000 characters. Critical content may be absent.]"
+    )
 
 
 def test_parse_sections_from_docling_document_routes_correctly():
@@ -332,9 +343,13 @@ def test_build_document_repr_groups_text_and_tables_by_heading():
             [
                 MockItem("section_header", text="Methods"),
                 MockItem("text", text="Patients were randomized centrally."),
-                MockItem("table", table_md="| baseline characteristics | age |\n|---|---|"),
+                MockItem(
+                    "table", table_md="| baseline characteristics | age |\n|---|---|"
+                ),
                 MockItem("section_header", text="Results"),
-                MockItem("paragraph", text="All randomized participants were analysed."),
+                MockItem(
+                    "paragraph", text="All randomized participants were analysed."
+                ),
             ]
         )
     )
@@ -342,7 +357,9 @@ def test_build_document_repr_groups_text_and_tables_by_heading():
     assert doc_repr.full_text.startswith("# Methods")
     assert doc_repr.blocks[0].heading == "Methods"
     assert "randomized centrally" in doc_repr.blocks[0].text
-    assert doc_repr.blocks[0].tables == ["| baseline characteristics | age |\n|---|---|"]
+    assert doc_repr.blocks[0].tables == [
+        "| baseline characteristics | age |\n|---|---|"
+    ]
     assert doc_repr.blocks[1].heading == "Results"
     assert "All randomized" in doc_repr.to_prompt_repr()
     assert "[TABLE]" in doc_repr.to_prompt_repr()
@@ -412,8 +429,12 @@ def test_structural_paper_evidence_preserves_tables_by_heading():
     evidence = extract_structural_paper_evidence(doc_repr)
 
     assert evidence["extraction_method"] == "docling_struct"
-    assert evidence["baseline_table"]["tables"] == ["| baseline characteristics | age |\n|---|---|"]
-    assert evidence["consort_flow"]["tables"] == ["| randomized | analysed |\n|---|---|"]
+    assert evidence["baseline_table"]["tables"] == [
+        "| baseline characteristics | age |\n|---|---|"
+    ]
+    assert evidence["consort_flow"]["tables"] == [
+        "| randomized | analysed |\n|---|---|"
+    ]
 
 
 def test_extract_censoring_context_finds_event_sentences():
@@ -436,7 +457,9 @@ def test_extract_censoring_context_finds_event_sentences():
 
 
 def test_extract_censoring_context_returns_empty_for_no_matches():
-    full_text = "This study compared two interventions. Outcomes improved with treatment."
+    full_text = (
+        "This study compared two interventions. Outcomes improved with treatment."
+    )
     assert extract_censoring_context(full_text, "Overall Survival") == ""
 
 
@@ -444,14 +467,21 @@ def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monke
     """If the docling converter fails, fall back to a text keyword parse of the
     already-extracted full text. extract_full_text itself still raises on
     failure (no pymupdf fallback)."""
-    known_text = "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+    known_text = (
+        "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
+    )
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text
+    )
 
     class BrokenConverter:
         def convert(self, _):
             raise RuntimeError("docling structured parse failed")
 
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: BrokenConverter())
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._get_docling_converter",
+        lambda use_ocr: BrokenConverter(),
+    )
 
     state = {"pdf_path": "trial.pdf"}
     result = pdf_ingest_node(state)
@@ -466,17 +496,23 @@ def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monke
 
 def test_ingest_node_stores_docling_conversion_result(monkeypatch):
     known_text = "Methods\nParticipants were randomly assigned."
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text
+    )
 
     class MockConverter:
         def __init__(self):
-            self.conversion_result = type("ConversionResult", (), {"document": object()})()
+            self.conversion_result = type(
+                "ConversionResult", (), {"document": object()}
+            )()
 
         def convert(self, _):
             return self.conversion_result
 
     converter = MockConverter()
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter
+    )
     monkeypatch.setattr(
         "rob2_pipeline.nodes.ingest.build_document_repr",
         lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
@@ -485,7 +521,10 @@ def test_ingest_node_stores_docling_conversion_result(monkeypatch):
         "rob2_pipeline.nodes.ingest.extract_paper_evidence",
         lambda doc_repr: (empty_paper_evidence("docling_llm"), []),
     )
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._build_docling_chunks",
+        lambda conv_result: ["chunk"],
+    )
 
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
@@ -495,28 +534,41 @@ def test_ingest_node_stores_docling_conversion_result(monkeypatch):
 
 def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
     known_text = "Methods\nParticipants were randomly assigned."
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text
+    )
 
     class MockConverter:
         def __init__(self):
-            self.conversion_result = type("ConversionResult", (), {"document": object()})()
+            self.conversion_result = type(
+                "ConversionResult", (), {"document": object()}
+            )()
 
         def convert(self, _):
             return self.conversion_result
 
     converter = MockConverter()
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter
+    )
     monkeypatch.setattr(
         "rob2_pipeline.nodes.ingest.build_document_repr",
         lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
     )
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: False)
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: False
+    )
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._build_docling_chunks",
+        lambda conv_result: ["chunk"],
+    )
 
     def fail_if_called(_doc_repr):
         raise AssertionError("remote extraction should be skipped when disabled")
 
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called
+    )
 
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 
@@ -525,29 +577,46 @@ def test_ingest_node_skips_remote_extraction_when_disabled(monkeypatch):
 
 
 def test_ingest_node_skips_remote_extraction_for_apparent_non_rct(monkeypatch):
-    known_text = "Editorial commentary describing mechanism without any trial assignment."
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
+    known_text = (
+        "Editorial commentary describing mechanism without any trial assignment."
+    )
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text
+    )
 
     class MockConverter:
         def __init__(self):
-            self.conversion_result = type("ConversionResult", (), {"document": object()})()
+            self.conversion_result = type(
+                "ConversionResult", (), {"document": object()}
+            )()
 
         def convert(self, _):
             return self.conversion_result
 
     converter = MockConverter()
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._get_docling_converter", lambda use_ocr: converter
+    )
     monkeypatch.setattr(
         "rob2_pipeline.nodes.ingest.build_document_repr",
         lambda doc: pdf_ingestion.DocumentRepr(blocks=[], full_text=known_text),
     )
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: True)
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest._build_docling_chunks", lambda conv_result: ["chunk"])
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.allow_remote_evidence_extraction", lambda: True
+    )
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._build_docling_chunks",
+        lambda conv_result: ["chunk"],
+    )
 
     def fail_if_called(_doc_repr):
-        raise AssertionError("remote extraction should be skipped for apparent non-RCT text")
+        raise AssertionError(
+            "remote extraction should be skipped for apparent non-RCT text"
+        )
 
-    monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_paper_evidence", fail_if_called
+    )
 
     result = pdf_ingest_node({"pdf_path": "trial.pdf"})
 

@@ -90,11 +90,19 @@ def _domain_table(state: RoB2State, domain: str) -> str:
 def _packet_quality_section(state: RoB2State) -> str:
     packet_grades = state.get("packet_grades", {}) or {}
     actions = state.get("verification_actions", []) or []
-    retry_sqs = [sq_id for sq_id, grade in sorted(packet_grades.items()) if grade.get("retry_recommended")]
+    retry_sqs = [
+        sq_id
+        for sq_id, grade in sorted(packet_grades.items())
+        if grade.get("retry_recommended")
+    ]
     retry_text = ", ".join(retry_sqs) if retry_sqs else "None"
-    action_text = "; ".join(
-        f"{action.get('sq_id', '?')}: {action.get('action', 'review')}" for action in actions[:8]
-    ) or "None"
+    action_text = (
+        "; ".join(
+            f"{action.get('sq_id', '?')}: {action.get('action', 'review')}"
+            for action in actions[:8]
+        )
+        or "None"
+    )
     return "\n".join(
         [
             "## Verified evidence packets",

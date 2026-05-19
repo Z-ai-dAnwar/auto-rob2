@@ -28,7 +28,9 @@ def get_llm_config() -> LLMConfig:
 def get_default_effect_of_interest() -> str:
     value = os.getenv("ROB2_EFFECT_OF_INTEREST", DEFAULT_EFFECT_OF_INTEREST)
     if value not in ("ITT", "per-protocol"):
-        raise ValueError("ROB2_EFFECT_OF_INTEREST must be either 'ITT' or 'per-protocol'")
+        raise ValueError(
+            "ROB2_EFFECT_OF_INTEREST must be either 'ITT' or 'per-protocol'"
+        )
     return value
 
 
@@ -46,7 +48,9 @@ def build_provider():
     load_dotenv()
     from rob2_pipeline.providers import get_provider
 
-    common = dict(model=LLM_MODEL, temperature=LLM_TEMPERATURE, max_tokens=LLM_MAX_TOKENS)
+    common = dict(
+        model=LLM_MODEL, temperature=LLM_TEMPERATURE, max_tokens=LLM_MAX_TOKENS
+    )
     if PROVIDER_NAME == "openrouter":
         return get_provider(
             "openrouter",

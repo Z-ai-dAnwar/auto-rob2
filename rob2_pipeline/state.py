@@ -2,7 +2,16 @@ import operator
 from typing import Annotated, Any, TypedDict
 
 from rob2_pipeline.models import PaperEvidence
-from rob2_pipeline.types import EvidenceFact, EvidencePacket, EvidenceValidationFlag, LLMCallLogEntry, OutcomeProperties, RetrievalGrade, TrialFacts, VerifierTraceEntry
+from rob2_pipeline.types import (
+    EvidenceFact,
+    EvidencePacket,
+    EvidenceValidationFlag,
+    LLMCallLogEntry,
+    OutcomeProperties,
+    RetrievalGrade,
+    TrialFacts,
+    VerifierTraceEntry,
+)
 
 
 def merge_dicts(left: dict, right: dict) -> dict:

@@ -41,7 +41,9 @@ def empty_section_evidence(source: str = "") -> SectionEvidence:
 
 
 def empty_paper_evidence(extraction_method: str = "") -> PaperEvidence:
-    evidence: dict[str, object] = {field: empty_section_evidence() for field in EVIDENCE_SECTION_FIELDS}
+    evidence: dict[str, object] = {
+        field: empty_section_evidence() for field in EVIDENCE_SECTION_FIELDS
+    }
     evidence["extraction_method"] = extraction_method
     evidence["warnings"] = []
     return cast(PaperEvidence, evidence)

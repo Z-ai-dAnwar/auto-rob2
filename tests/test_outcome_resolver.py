@@ -1,4 +1,7 @@
-from rob2_pipeline.nodes.outcome_resolver import infer_outcome_properties, outcome_type_from_properties
+from rob2_pipeline.nodes.outcome_resolver import (
+    infer_outcome_properties,
+    outcome_type_from_properties,
+)
 
 
 def test_mortality_endpoint_is_vital_status():

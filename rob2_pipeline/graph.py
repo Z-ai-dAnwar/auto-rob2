@@ -23,7 +23,13 @@ from rob2_pipeline.nodes.verification import quote_verifier_node
 from rob2_pipeline.state import RoB2State
 
 
-DOMAIN_START_NODES = ["domain1_sq", "domain2_sq12", "domain3_sq", "domain4_sq", "domain5_sq"]
+DOMAIN_START_NODES = [
+    "domain1_sq",
+    "domain2_sq12",
+    "domain3_sq",
+    "domain4_sq",
+    "domain5_sq",
+]
 
 
 def build_rob2_graph():

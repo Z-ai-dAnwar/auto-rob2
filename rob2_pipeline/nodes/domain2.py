@@ -30,11 +30,20 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
         comparator=state["comparator"],
         outcome=state["outcome"],
         blinding_text="\n\n".join(
-            part for part in [format_evidence(evidence["d2_blinding"]), trial_facts.get("masking", "")] if part
+            part
+            for part in [
+                format_evidence(evidence["d2_blinding"]),
+                trial_facts.get("masking", ""),
+            ]
+            if part
         ),
         methods_text=format_evidence(evidence["methods"]),
-        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_blinding", "")] if part),
-        ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
+        rag_text="\n\n".join(
+            part for part in [packet_text, rag_contexts.get("d2_blinding", "")] if part
+        ),
+        ctgov_design=state.get(
+            "ctgov_design", "(No ClinicalTrials.gov design metadata available)"
+        ),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,
@@ -48,7 +57,11 @@ def domain2_sq12_node(state: RoB2State) -> RoB2State:
     sq_answers = merge_sq_answers(state, parsed or {})
     s21 = sq_answers.get("2.1", {}).get("answer", "NI")
     s22 = sq_answers.get("2.2", {}).get("answer", "NI")
-    if state.get("effect_of_interest", "ITT").lower() != "per-protocol" and s21 in ("N", "PN") and s22 in ("N", "PN"):
+    if (
+        state.get("effect_of_interest", "ITT").lower() != "per-protocol"
+        and s21 in ("N", "PN")
+        and s22 in ("N", "PN")
+    ):
         sq_answers = set_na(sq_answers, "2.3", "2.4", "2.5")
     return {"sq_answers": sq_answers, "llm_call_log": log}
 
@@ -91,7 +104,11 @@ def domain2_conditional_node(state: RoB2State) -> RoB2State:
             if part
         ),
         concomitant_text=format_evidence(evidence["methods"]),
-        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_deviations", "")] if part),
+        rag_text="\n\n".join(
+            part
+            for part in [packet_text, rag_contexts.get("d2_deviations", "")]
+            if part
+        ),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,
@@ -131,9 +148,16 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         effect_of_interest=state.get("effect_of_interest", "ITT"),
         analysis_text=format_evidence(evidence["d4_outcome_meas"]),
         results_text="\n\n".join(
-            part for part in [format_evidence(evidence["results"]), trial_facts.get("analysis_populations", "")] if part
+            part
+            for part in [
+                format_evidence(evidence["results"]),
+                trial_facts.get("analysis_populations", ""),
+            ]
+            if part
         ),
-        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d2_analysis", "")] if part),
+        rag_text="\n\n".join(
+            part for part in [packet_text, rag_contexts.get("d2_analysis", "")] if part
+        ),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,
@@ -145,11 +169,18 @@ def domain2_analysis_node(state: RoB2State) -> RoB2State:
         chunk_sources=format_chunk_sources(state, "d2"),
     )
     sq_answers = merge_sq_answers(state, parsed or {})
-    if state.get("effect_of_interest", "ITT").lower() == "per-protocol" or sq_answers.get("2.6", {}).get("answer", "NI") in ("Y", "PY"):
+    if state.get(
+        "effect_of_interest", "ITT"
+    ).lower() == "per-protocol" or sq_answers.get("2.6", {}).get("answer", "NI") in (
+        "Y",
+        "PY",
+    ):
         sq_answers = set_na(sq_answers, "2.7")
     return {"sq_answers": sq_answers, "llm_call_log": log}
 
 
 def domain2_judge_node(state: RoB2State) -> RoB2State:
-    judgment, rationale = judge_domain2(state["sq_answers"], state.get("effect_of_interest", "ITT"))
+    judgment, rationale = judge_domain2(
+        state["sq_answers"], state.get("effect_of_interest", "ITT")
+    )
     return add_domain_judgment(state, "D2", judgment, rationale)

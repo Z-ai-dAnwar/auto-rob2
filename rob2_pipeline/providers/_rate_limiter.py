@@ -44,12 +44,17 @@ class SlidingWindowRateLimiter:
 
             if self.rpd_limit is not None and len(self._day_requests) >= self.rpd_limit:
                 sleep_time = 86400 - (now - self._day_requests[0]) + 1
-                logger.warning("Daily request limit approached. Sleeping %.0fs", sleep_time)
+                logger.warning(
+                    "Daily request limit approached. Sleeping %.0fs", sleep_time
+                )
                 time.sleep(sleep_time)
                 now = time.time()
                 self._prune(now)
 
-            if self.rpm_limit is not None and len(self._minute_requests) >= self.rpm_limit:
+            if (
+                self.rpm_limit is not None
+                and len(self._minute_requests) >= self.rpm_limit
+            ):
                 sleep_time = 60 - (now - self._minute_requests[0]) + 1
                 time.sleep(sleep_time)
                 now = time.time()
@@ -57,7 +62,10 @@ class SlidingWindowRateLimiter:
 
             if self.tpm_limit is not None and estimated_tokens > 0:
                 current_tokens = sum(tokens for _, tokens in self._minute_tokens)
-                while current_tokens + estimated_tokens > self.tpm_limit and self._minute_tokens:
+                while (
+                    current_tokens + estimated_tokens > self.tpm_limit
+                    and self._minute_tokens
+                ):
                     oldest_ts, _ = self._minute_tokens[0]
                     sleep_time = 60 - (now - oldest_ts) + 1
                     if sleep_time <= 0:

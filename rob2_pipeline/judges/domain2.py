@@ -26,13 +26,26 @@ def judge_domain2(sq: dict, effect_of_interest: str = "ITT") -> tuple[str, str]:
             and s25 in ("N", "PN", "NA")
         )
         if no_biasing_deviations:
-            return "Low", "Version B Low: no important non-protocol imbalance, implementation failure, or non-adherence affecting the outcome"
+            return (
+                "Low",
+                "Version B Low: no important non-protocol imbalance, implementation failure, or non-adherence affecting the outcome",
+            )
 
-        deviation_concern = non_protocol_unbalanced_or_unknown or implementation_problem or adherence_problem
+        deviation_concern = (
+            non_protocol_unbalanced_or_unknown
+            or implementation_problem
+            or adherence_problem
+        )
         if deviation_concern and s26 in ("Y", "PY"):
-            return "Some concerns", "Version B Some concerns: deviation concern addressed by appropriate adherence-effect analysis"
+            return (
+                "Some concerns",
+                "Version B Some concerns: deviation concern addressed by appropriate adherence-effect analysis",
+            )
         if deviation_concern and s26 in ("N", "PN", "NI"):
-            return "High", "Version B High: deviation concern without appropriate adherence-effect analysis"
+            return (
+                "High",
+                "Version B High: deviation concern without appropriate adherence-effect analysis",
+            )
         return "Some concerns", (
             f"Version B unresolved official-table path: 2.1={s21}, 2.2={s22}, "
             f"2.3={s23}, 2.4={s24}, 2.5={s25}, 2.6={s26}"
@@ -40,31 +53,52 @@ def judge_domain2(sq: dict, effect_of_interest: str = "ITT") -> tuple[str, str]:
 
     def _part1():
         if s21 in ("N", "PN") and s22 in ("N", "PN"):
-            return "Low", "Part1 Low: participants, carers, and intervention deliverers were unaware"
-        if (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI")) and s23 in ("N", "PN"):
-            return "Low", "Part1 Low: awareness present/unclear but no trial-context deviations"
+            return (
+                "Low",
+                "Part1 Low: participants, carers, and intervention deliverers were unaware",
+            )
+        if (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI")) and s23 in (
+            "N",
+            "PN",
+        ):
+            return (
+                "Low",
+                "Part1 Low: awareness present/unclear but no trial-context deviations",
+            )
         if (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI")) and s23 == "NI":
-            return "Some concerns", "Part1 Some concerns: no information on trial-context deviations"
+            return (
+                "Some concerns",
+                "Part1 Some concerns: no information on trial-context deviations",
+            )
         if (
             (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI"))
             and s23 in ("Y", "PY")
             and s24 in ("N", "PN")
         ):
-            return "Some concerns", "Part1 Some concerns: deviations were not likely to affect the outcome"
+            return (
+                "Some concerns",
+                "Part1 Some concerns: deviations were not likely to affect the outcome",
+            )
         if (
             (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI"))
             and s23 in ("Y", "PY")
             and s24 in ("Y", "PY", "NI")
             and s25 in ("Y", "PY")
         ):
-            return "Some concerns", "Part1 Some concerns: outcome-affecting deviations were balanced"
+            return (
+                "Some concerns",
+                "Part1 Some concerns: outcome-affecting deviations were balanced",
+            )
         if (
             (s21 in ("Y", "PY", "NI") or s22 in ("Y", "PY", "NI"))
             and s23 in ("Y", "PY")
             and s24 in ("Y", "PY", "NI")
             and s25 in ("N", "PN", "NI")
         ):
-            return "High", "Part1 High: outcome-affecting deviations were not balanced or balance was unknown"
+            return (
+                "High",
+                "Part1 High: outcome-affecting deviations were not balanced or balance was unknown",
+            )
         return "Some concerns", (
             f"Part1 unresolved official-table path: 2.1={s21}, 2.2={s22}, "
             f"2.3={s23}, 2.4={s24}, 2.5={s25}"
@@ -77,7 +111,10 @@ def judge_domain2(sq: dict, effect_of_interest: str = "ITT") -> tuple[str, str]:
             return "Some concerns", "2.6=N/PN/NI and 2.7=N/PN -> Part2=Some concerns"
         if s26 in ("N", "PN", "NI") and s27 in ("Y", "PY", "NI"):
             return "High", "2.6=N/PN/NI and 2.7=Y/PY/NI -> Part2=High"
-        return "Some concerns", f"Part2 unresolved official-table path: 2.6={s26}, 2.7={s27}"
+        return (
+            "Some concerns",
+            f"Part2 unresolved official-table path: 2.6={s26}, 2.7={s27}",
+        )
 
     p1_j, p1_r = _part1()
     p2_j, p2_r = _part2()

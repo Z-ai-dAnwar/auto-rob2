@@ -20,7 +20,13 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
     sq21 = state.get("sq_answers", {}).get("2.1", {}).get("answer", "NI")
     packet_text = packet_block_for_domain(state.get("evidence_packets", {}), "d4")
     rag_text = "\n\n".join(
-        text for text in [packet_text, rag_contexts.get("d4_measurement", ""), rag_contexts.get("d4_assessor", "")] if text
+        text
+        for text in [
+            packet_text,
+            rag_contexts.get("d4_measurement", ""),
+            rag_contexts.get("d4_assessor", ""),
+        ]
+        if text
     )
     prompt = PROMPT_DOMAIN4.format(
         intervention=state["intervention"],
@@ -28,7 +34,8 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         outcome_type=state.get("outcome_type", "clinician-composite"),
         sq_2_1=sq21,
-        outcome_measurement_text=format_evidence(evidence["d4_outcome_meas"]) or format_evidence(evidence["methods"]),
+        outcome_measurement_text=format_evidence(evidence["d4_outcome_meas"])
+        or format_evidence(evidence["methods"]),
         blinding_text=format_evidence(evidence["d2_blinding"]),
         rag_text=rag_text,
     )
@@ -48,16 +55,26 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
     sq_2_2 = state.get("sq_answers", {}).get("2.2", {}).get("answer", "NI")
     trial_is_open_label = sq_2_1 in ("Y", "PY") or sq_2_2 in ("Y", "PY")
 
-    if trial_is_open_label and outcome_type in ("patient-reported", "clinician-graded", "clinician-composite"):
+    if trial_is_open_label and outcome_type in (
+        "patient-reported",
+        "clinician-graded",
+        "clinician-composite",
+    ):
         existing_quote = parsed_sqs.get("4.3", {}).get("quote") or ""
-        quote = existing_quote if existing_quote and not existing_quote.startswith("Auto-set:") else (
-            state.get("sq_answers", {}).get("2.1", {}).get("quote")
-            or state.get("sq_answers", {}).get("2.2", {}).get("quote")
-            or "No relevant text found"
+        quote = (
+            existing_quote
+            if existing_quote and not existing_quote.startswith("Auto-set:")
+            else (
+                state.get("sq_answers", {}).get("2.1", {}).get("quote")
+                or state.get("sq_answers", {}).get("2.2", {}).get("quote")
+                or "No relevant text found"
+            )
         )
         if outcome_type == "patient-reported":
             answer = "Y"
-            justification = "Participant is the assessor; cannot be blinded to own treatment."
+            justification = (
+                "Participant is the assessor; cannot be blinded to own treatment."
+            )
         else:
             answer = "PY"
             justification = "In an open-label trial, the clinician grading or adjudicating the outcome is likely aware of treatment assignment."
@@ -75,20 +92,33 @@ def domain4_sq_node(state: RoB2State) -> RoB2State:
         if s41 in ("N", "PN", "NI") and s42 in ("N", "PN") and s43 == "NA":
             parsed_sqs["4.3"] = {
                 "answer": "NI",
-                "quote": parsed_sqs.get("4.3", {}).get("quote") or "No relevant text found",
+                "quote": parsed_sqs.get("4.3", {}).get("quote")
+                or "No relevant text found",
                 "justification": "Assessor awareness is not reported; NA is not applicable when 4.1 and 4.2 do not indicate measurement problems.",
                 "uncertainty_flag": "NORMAL",
             }
             s43 = "NI"
-        if s41 in ("N", "PN", "NI") and s42 in ("N", "PN") and s43 in ("Y", "PY", "NI") and s44 in ("NI", "NA"):
+        if (
+            s41 in ("N", "PN", "NI")
+            and s42 in ("N", "PN")
+            and s43 in ("Y", "PY", "NI")
+            and s44 in ("NI", "NA")
+        ):
             parsed_sqs["4.4"] = {
                 "answer": "N",
-                "quote": parsed_sqs.get("4.1", {}).get("quote") or parsed_sqs.get("4.2", {}).get("quote") or "No relevant text found",
+                "quote": parsed_sqs.get("4.1", {}).get("quote")
+                or parsed_sqs.get("4.2", {}).get("quote")
+                or "No relevant text found",
                 "justification": "The outcome is inherently objective, so knowledge of intervention assignment is unlikely to influence assessment.",
                 "uncertainty_flag": "NORMAL",
             }
             s44 = "N"
-        if s41 in ("N", "PN", "NI") and s42 in ("N", "PN") and s43 in ("Y", "PY", "NI") and s44 in ("N", "PN"):
+        if (
+            s41 in ("N", "PN", "NI")
+            and s42 in ("N", "PN")
+            and s43 in ("Y", "PY", "NI")
+            and s44 in ("N", "PN")
+        ):
             parsed_sqs["4.5"] = {
                 "answer": "NA",
                 "quote": "Not applicable",

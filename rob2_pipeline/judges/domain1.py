@@ -16,11 +16,23 @@ def judge_domain1(sq: dict) -> tuple[str, str]:
     if s12 in ("N", "PN"):
         return "High", "Row: Any / N-PN / Any -> High (allocation not concealed)"
     if s12 == "NI" and s13 in ("Y", "PY"):
-        return "High", "Row: Any / NI / Y-PY -> High (no concealment info + baseline imbalance)"
+        return (
+            "High",
+            "Row: Any / NI / Y-PY -> High (no concealment info + baseline imbalance)",
+        )
     if s12 == "NI" and s13 in ("N", "PN", "NI"):
-        return "Some concerns", "Row: Any / NI / N-PN-NI -> Some concerns (concealment unclear)"
+        return (
+            "Some concerns",
+            "Row: Any / NI / N-PN-NI -> Some concerns (concealment unclear)",
+        )
     if s11 in ("Y", "PY", "NI") and s12 in ("Y", "PY") and s13 in ("NI", "N", "PN"):
         return "Low", "Row: Y-PY-NI / Y-PY / NI-N-PN -> Low"
     if s12 in ("Y", "PY") and s13 in ("Y", "PY"):
-        return "Some concerns", "Row: Any / Y-PY / Y-PY -> Some concerns (baseline imbalance)"
-    return "Some concerns", f"No exact row match for 1.1={s11}, 1.2={s12}, 1.3={s13}; defaulting to Some concerns"
+        return (
+            "Some concerns",
+            "Row: Any / Y-PY / Y-PY -> Some concerns (baseline imbalance)",
+        )
+    return (
+        "Some concerns",
+        f"No exact row match for 1.1={s11}, 1.2={s12}, 1.3={s13}; defaulting to Some concerns",
+    )

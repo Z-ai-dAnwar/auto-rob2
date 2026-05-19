@@ -35,7 +35,9 @@ class AnthropicProvider(LLMProvider):
         )
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._rate_limiter = SlidingWindowRateLimiter(rpm_limit=rpm_limit, tpm_limit=tpm_limit)
+        self._rate_limiter = SlidingWindowRateLimiter(
+            rpm_limit=rpm_limit, tpm_limit=tpm_limit
+        )
 
     @property
     def model_id(self):
@@ -52,7 +54,9 @@ class AnthropicProvider(LLMProvider):
         estimated_tokens = SlidingWindowRateLimiter.estimate_input_tokens(system, user)
         self._rate_limiter.wait_for_slot(estimated_tokens=estimated_tokens)
         start = time.time()
-        r = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+        r = self.client.invoke(
+            [SystemMessage(content=system), HumanMessage(content=user)]
+        )
         usage = (r.response_metadata or {}).get("usage", {})
         return LLMResponse(
             content=r.content,

@@ -2,7 +2,12 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-from rob2_pipeline.benchmark import compare_judgments, load_reference, summarize_benchmark, write_benchmark_report
+from rob2_pipeline.benchmark import (
+    compare_judgments,
+    load_reference,
+    summarize_benchmark,
+    write_benchmark_report,
+)
 
 
 def test_load_reference_strips_whitespace():
@@ -62,7 +67,14 @@ def test_summarize_benchmark_agreement_and_confusion_dicts():
             "trial": "A",
             "skipped": False,
             "error": None,
-            "comparison": {"D1": True, "D2": False, "D3": True, "D4": True, "D5": True, "Overall": True},
+            "comparison": {
+                "D1": True,
+                "D2": False,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": True,
+            },
             "reference": {
                 "D1": "Low",
                 "D2": "Some concerns",
@@ -86,7 +98,14 @@ def test_summarize_benchmark_agreement_and_confusion_dicts():
             "trial": "B",
             "skipped": False,
             "error": None,
-            "comparison": {"D1": False, "D2": True, "D3": True, "D4": True, "D5": True, "Overall": False},
+            "comparison": {
+                "D1": False,
+                "D2": True,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": False,
+            },
             "reference": {
                 "D1": "Low",
                 "D2": "Low",
@@ -126,10 +145,30 @@ def test_summarize_benchmark_groups_metrics_by_cohort():
             "cohort": "calibration",
             "skipped": False,
             "error": None,
-            "comparison": {"D1": True, "D2": True, "D3": True, "D4": True, "D5": True, "Overall": True},
-            "reference": {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low", "Overall Risk": "Low"},
+            "comparison": {
+                "D1": True,
+                "D2": True,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": True,
+            },
+            "reference": {
+                "D1": "Low",
+                "D2": "Low",
+                "D3": "Low",
+                "D4": "Low",
+                "D5": "Low",
+                "Overall Risk": "Low",
+            },
             "pipeline": {
-                "domain_judgments": {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"},
+                "domain_judgments": {
+                    "D1": "Low",
+                    "D2": "Low",
+                    "D3": "Low",
+                    "D4": "Low",
+                    "D5": "Low",
+                },
                 "overall_judgment": "Low",
             },
         },
@@ -138,10 +177,30 @@ def test_summarize_benchmark_groups_metrics_by_cohort():
             "cohort": "validation",
             "skipped": False,
             "error": None,
-            "comparison": {"D1": False, "D2": True, "D3": True, "D4": True, "D5": True, "Overall": False},
-            "reference": {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low", "Overall Risk": "Low"},
+            "comparison": {
+                "D1": False,
+                "D2": True,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": False,
+            },
+            "reference": {
+                "D1": "Low",
+                "D2": "Low",
+                "D3": "Low",
+                "D4": "Low",
+                "D5": "Low",
+                "Overall Risk": "Low",
+            },
             "pipeline": {
-                "domain_judgments": {"D1": "High", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"},
+                "domain_judgments": {
+                    "D1": "High",
+                    "D2": "Low",
+                    "D3": "Low",
+                    "D4": "Low",
+                    "D5": "Low",
+                },
                 "overall_judgment": "High",
             },
         },
@@ -150,9 +209,15 @@ def test_summarize_benchmark_groups_metrics_by_cohort():
     summary = summarize_benchmark(results)
 
     assert summary["cohorts"]["calibration"]["evaluated_trials"] == 1
-    assert summary["cohorts"]["calibration"]["agreement_counts"]["Overall"] == {"matches": 1, "total": 1}
+    assert summary["cohorts"]["calibration"]["agreement_counts"]["Overall"] == {
+        "matches": 1,
+        "total": 1,
+    }
     assert summary["cohorts"]["validation"]["evaluated_trials"] == 1
-    assert summary["cohorts"]["validation"]["agreement_counts"]["Overall"] == {"matches": 0, "total": 1}
+    assert summary["cohorts"]["validation"]["agreement_counts"]["Overall"] == {
+        "matches": 0,
+        "total": 1,
+    }
 
 
 def test_write_benchmark_report_hides_unspecified_cohort_when_no_labels(tmp_path):
@@ -165,10 +230,30 @@ def test_write_benchmark_report_hides_unspecified_cohort_when_no_labels(tmp_path
             "skipped": False,
             "error": None,
             "notes": "",
-            "comparison": {"D1": True, "D2": True, "D3": True, "D4": True, "D5": True, "Overall": True},
-            "reference": {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low", "Overall Risk": "Low"},
+            "comparison": {
+                "D1": True,
+                "D2": True,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": True,
+            },
+            "reference": {
+                "D1": "Low",
+                "D2": "Low",
+                "D3": "Low",
+                "D4": "Low",
+                "D5": "Low",
+                "Overall Risk": "Low",
+            },
             "pipeline": {
-                "domain_judgments": {"D1": "Low", "D2": "Low", "D3": "Low", "D4": "Low", "D5": "Low"},
+                "domain_judgments": {
+                    "D1": "Low",
+                    "D2": "Low",
+                    "D3": "Low",
+                    "D4": "Low",
+                    "D5": "Low",
+                },
                 "overall_judgment": "Low",
             },
         }

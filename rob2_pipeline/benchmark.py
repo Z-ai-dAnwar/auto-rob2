@@ -58,7 +58,9 @@ def _iter_outcome_map(outcome_map) -> list[tuple[str, str, str]]:
     pairs = []
     for item in outcome_map:
         if isinstance(item, dict):
-            pairs.append((item["trial"], item["outcome_code"], item.get("cohort", "unspecified")))
+            pairs.append(
+                (item["trial"], item["outcome_code"], item.get("cohort", "unspecified"))
+            )
         else:
             if len(item) == 2:
                 trial, outcome_code = item
@@ -102,7 +104,9 @@ def compare_judgments(pipeline: dict, reference: dict) -> dict[str, bool]:
     return result
 
 
-def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs) -> list[dict]:
+def run_benchmark(
+    pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
+) -> list[dict]:
     pdf_dir_path = Path(pdf_dir)
     output_dir_path = Path(output_dir)
     output_dir_path.mkdir(parents=True, exist_ok=True)
@@ -111,7 +115,8 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
     for outcome_code, csv_path in reference_csvs.items():
         loaded = load_reference(Path(csv_path))
         normalized_refs[outcome_code.upper()] = {
-            _normalize_trial(trial): {"trial": trial, "row": row} for trial, row in loaded.items()
+            _normalize_trial(trial): {"trial": trial, "row": row}
+            for trial, row in loaded.items()
         }
 
     results: list[dict] = []
@@ -133,7 +138,9 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
         if references_for_outcome is None:
             trial_result["skipped"] = True
             trial_result["notes"] = f"Unknown outcome code: {code}"
-            LOGGER.warning("Skipping trial %s: unknown outcome code '%s'", trial_name, code)
+            LOGGER.warning(
+                "Skipping trial %s: unknown outcome code '%s'", trial_name, code
+            )
             results.append(trial_result)
             continue
 
@@ -141,7 +148,9 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
         if reference_row_entry is None:
             trial_result["skipped"] = True
             trial_result["notes"] = "Trial not in reference"
-            LOGGER.warning("Skipping trial %s: not present in %s reference", trial_name, code)
+            LOGGER.warning(
+                "Skipping trial %s: not present in %s reference", trial_name, code
+            )
             results.append(trial_result)
             continue
 
@@ -149,7 +158,9 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
         if pdf_path is None:
             trial_result["skipped"] = True
             trial_result["notes"] = f"PDF not found in {pdf_dir_path}"
-            LOGGER.warning("Skipping trial %s: PDF not found in %s", trial_name, pdf_dir_path)
+            LOGGER.warning(
+                "Skipping trial %s: PDF not found in %s", trial_name, pdf_dir_path
+            )
             results.append(trial_result)
             continue
 
@@ -170,7 +181,9 @@ def run_benchmark(pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
                 "domain_judgments": pipeline_output.get("domain_judgments") or {},
                 "overall_judgment": pipeline_output.get("overall_judgment"),
             }
-            trial_result["comparison"] = compare_judgments(trial_result["pipeline"], reference_row_entry["row"])
+            trial_result["comparison"] = compare_judgments(
+                trial_result["pipeline"], reference_row_entry["row"]
+            )
         except Exception as exc:  # noqa: BLE001
             trial_result["error"] = str(exc)
             trial_result["notes"] = str(exc)
@@ -238,7 +251,10 @@ def summarize_benchmark(results) -> dict:
     for result in results:
         cohort = _strip(result.get("cohort")) or "unspecified"
         cohorts.setdefault(cohort, []).append(result)
-    summary["cohorts"] = {cohort: _summarize_results_subset(items) for cohort, items in sorted(cohorts.items())}
+    summary["cohorts"] = {
+        cohort: _summarize_results_subset(items)
+        for cohort, items in sorted(cohorts.items())
+    }
     return summary
 
 
@@ -249,12 +265,17 @@ def write_benchmark_report(results, summary, output_path):
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     json_path.write_text(
-        json.dumps({"results": results, "summary": summary}, indent=2, ensure_ascii=False),
+        json.dumps(
+            {"results": results, "summary": summary}, indent=2, ensure_ascii=False
+        ),
         encoding="utf-8",
     )
 
     fields = [*DOMAINS, "Overall"]
-    has_meaningful_cohort = any((_strip(result.get("cohort")) or "unspecified") != "unspecified" for result in results)
+    has_meaningful_cohort = any(
+        (_strip(result.get("cohort")) or "unspecified") != "unspecified"
+        for result in results
+    )
     lines = [
         "# Benchmark Report",
         "",
@@ -266,17 +287,33 @@ def write_benchmark_report(results, summary, output_path):
         "| --- | ---: |",
     ]
     for field in fields:
-        counts = summary.get("agreement_counts", {}).get(field, {"matches": 0, "total": 0})
+        counts = summary.get("agreement_counts", {}).get(
+            field, {"matches": 0, "total": 0}
+        )
         rate = summary.get("agreement_rates", {}).get(field, 0.0) * 100
-        lines.append(f"| {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |")
+        lines.append(
+            f"| {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |"
+        )
 
     if has_meaningful_cohort and summary.get("cohorts"):
-        lines.extend(["", "## Cohort Agreement", "", "| Cohort | Field | Agreement |", "| --- | --- | ---: |"])
+        lines.extend(
+            [
+                "",
+                "## Cohort Agreement",
+                "",
+                "| Cohort | Field | Agreement |",
+                "| --- | --- | ---: |",
+            ]
+        )
         for cohort, cohort_summary in summary["cohorts"].items():
             for field in fields:
-                counts = cohort_summary.get("agreement_counts", {}).get(field, {"matches": 0, "total": 0})
+                counts = cohort_summary.get("agreement_counts", {}).get(
+                    field, {"matches": 0, "total": 0}
+                )
                 rate = cohort_summary.get("agreement_rates", {}).get(field, 0.0) * 100
-                lines.append(f"| {cohort} | {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |")
+                lines.append(
+                    f"| {cohort} | {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |"
+                )
 
     lines.extend(["", "## Per-Trial Details", ""])
     if has_meaningful_cohort:
@@ -315,7 +352,17 @@ def write_benchmark_report(results, summary, output_path):
         ]
         if has_meaningful_cohort:
             row.append(_strip(result.get("cohort")) or "unspecified")
-        row.extend([mark("D1"), mark("D2"), mark("D3"), mark("D4"), mark("D5"), mark("Overall"), notes or "-"])
+        row.extend(
+            [
+                mark("D1"),
+                mark("D2"),
+                mark("D3"),
+                mark("D4"),
+                mark("D5"),
+                mark("Overall"),
+                notes or "-",
+            ]
+        )
 
         lines.append("| " + " | ".join(row) + " |")
 

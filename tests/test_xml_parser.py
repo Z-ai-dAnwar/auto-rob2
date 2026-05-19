@@ -1,6 +1,11 @@
 import pytest
 
-from rob2_pipeline.xml_parser import sanitize_stray_lt, extract_tag, parse_sq_response, validate_sq_answers
+from rob2_pipeline.xml_parser import (
+    sanitize_stray_lt,
+    extract_tag,
+    parse_sq_response,
+    validate_sq_answers,
+)
 
 
 def test_extract_tag_well_formed_fragment():

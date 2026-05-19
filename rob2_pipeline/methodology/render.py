@@ -2,7 +2,10 @@ from rob2_pipeline.methodology.types import DomainMethodology
 
 
 def render_methodology(methodology: DomainMethodology, sq_ids: list[str]) -> str:
-    lines = ["=== CANONICAL RoB 2 METHODOLOGY ===", f"{methodology.domain_id}: {methodology.title}"]
+    lines = [
+        "=== CANONICAL RoB 2 METHODOLOGY ===",
+        f"{methodology.domain_id}: {methodology.title}",
+    ]
     if methodology.principles:
         lines.append("Principles:")
         lines.extend(f"- {principle}" for principle in methodology.principles)

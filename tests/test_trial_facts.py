@@ -7,9 +7,15 @@ def test_extract_trial_facts_collects_trial_level_evidence():
     evidence["d1_randomization"]["text"] = (
         "Participants were randomized centrally. Allocation was concealed by a web system."
     )
-    evidence["d2_blinding"]["text"] = "The trial was open-label and participants were aware of treatment."
-    evidence["methods"]["text"] = "The primary analysis used the intention-to-treat population."
-    evidence["d5_registration"]["text"] = "The protocol was amended before unblinded analyses."
+    evidence["d2_blinding"]["text"] = (
+        "The trial was open-label and participants were aware of treatment."
+    )
+    evidence["methods"]["text"] = (
+        "The primary analysis used the intention-to-treat population."
+    )
+    evidence["d5_registration"]["text"] = (
+        "The protocol was amended before unblinded analyses."
+    )
 
     facts = extract_trial_facts({"evidence": evidence})
 

@@ -15,7 +15,9 @@ def judge_overall(domain_judgments: dict) -> tuple[str, str]:
     if values and all(v == "Low" for v in values):
         return "Low", "Low in all 5 domains"
 
-    some_concerns_domains = [k for k, v in domain_judgments.items() if v == "Some concerns"]
+    some_concerns_domains = [
+        k for k, v in domain_judgments.items() if v == "Some concerns"
+    ]
     n_sc = len(some_concerns_domains)
 
     if n_sc == 2:
@@ -34,4 +36,7 @@ def judge_overall(domain_judgments: dict) -> tuple[str, str]:
             "Probable High; FLAG FOR HUMAN REVIEW/CONFIRMATION."
         )
 
-    return "Some concerns", f"Some concerns in {n_sc} domain(s): {', '.join(some_concerns_domains)}"
+    return (
+        "Some concerns",
+        f"Some concerns in {n_sc} domain(s): {', '.join(some_concerns_domains)}",
+    )

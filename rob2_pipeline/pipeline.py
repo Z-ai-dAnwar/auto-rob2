@@ -72,13 +72,17 @@ def run_assessment(
 
     try:
         graph = build_rob2_graph()
-        state = graph.invoke(create_initial_state(pdf_path, outcome, effect_of_interest))
+        state = graph.invoke(
+            create_initial_state(pdf_path, outcome, effect_of_interest)
+        )
 
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
         if state.get("markdown_report"):
-            (output_path / f"{base}_rob2_report.md").write_text(state["markdown_report"], encoding="utf-8")
+            (output_path / f"{base}_rob2_report.md").write_text(
+                state["markdown_report"], encoding="utf-8"
+            )
         json_data = _assessment_json(state)
         (output_path / f"{base}_rob2_data.json").write_text(
             json.dumps(json_data, indent=2, ensure_ascii=False),

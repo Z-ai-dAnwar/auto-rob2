@@ -25,7 +25,9 @@ class OpenAIProvider(LLMProvider):
         from langchain_core.messages import HumanMessage, SystemMessage
 
         start = time.time()
-        r = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+        r = self.client.invoke(
+            [SystemMessage(content=system), HumanMessage(content=user)]
+        )
         usage = r.usage_metadata or {}
         return LLMResponse(
             r.content,

@@ -45,9 +45,13 @@ def create_initial_state(
         "effect_of_interest": effect_of_interest,
         "registration_number": NOT_REPORTED,
         "registered_endpoint": NOT_REPORTED,
-        "registered_secondary_endpoints": kwargs.get("registered_secondary_endpoints", "Not reported"),
+        "registered_secondary_endpoints": kwargs.get(
+            "registered_secondary_endpoints", "Not reported"
+        ),
         "registered_analysis": NOT_REPORTED,
-        "ctgov_outcomes": kwargs.get("ctgov_outcomes", "(ClinicalTrials.gov data not yet retrieved)"),
+        "ctgov_outcomes": kwargs.get(
+            "ctgov_outcomes", "(ClinicalTrials.gov data not yet retrieved)"
+        ),
         "n_randomized": NOT_REPORTED,
         "sources_consulted": [],
         "trial_facts": {},

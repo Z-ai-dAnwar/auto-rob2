@@ -10,17 +10,33 @@ from rob2_pipeline.pipeline import run_assessment
 
 def main():
     """CLI entrypoint for running RoB 2 assessments."""
-    parser = argparse.ArgumentParser(description="Run an automated RoB 2 assessment for an RCT PDF.")
-    parser.add_argument("input", help="Path to a PDF file or directory containing PDF files.")
-    parser.add_argument("--outcome", default=None, help="Optional specific outcome to assess.")
+    parser = argparse.ArgumentParser(
+        description="Run an automated RoB 2 assessment for an RCT PDF."
+    )
+    parser.add_argument(
+        "input", help="Path to a PDF file or directory containing PDF files."
+    )
+    parser.add_argument(
+        "--outcome", default=None, help="Optional specific outcome to assess."
+    )
     parser.add_argument(
         "--effect",
         default=get_default_effect_of_interest(),
         help="Effect of interest; defaults to ITT.",
     )
-    parser.add_argument("--output-dir", default=default_output_dir(), help="Directory for Markdown and JSON outputs.")
-    parser.add_argument("--no-cache", action="store_true", help="Bypass prompt cache for this run.")
-    parser.add_argument("--debug", action="store_true", help="Print compact debug summary after each run.")
+    parser.add_argument(
+        "--output-dir",
+        default=default_output_dir(),
+        help="Directory for Markdown and JSON outputs.",
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Bypass prompt cache for this run."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print compact debug summary after each run.",
+    )
     args = parser.parse_args()
 
     if args.no_cache:

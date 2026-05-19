@@ -9,7 +9,9 @@ from rob2_pipeline.state import RoB2State
 from rob2_pipeline.xml_parser import sanitize_stray_lt, extract_tag
 
 
-def _nested_text(xml_string: str, parent: str, child: str, default: str = "Not reported") -> str:
+def _nested_text(
+    xml_string: str, parent: str, child: str, default: str = "Not reported"
+) -> str:
     try:
         sanitized = sanitize_stray_lt(xml_string)
         parser = etree.XMLParser(recover=True)
@@ -87,7 +89,10 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
     requested_outcome = state.get("outcome", "")
     extracted_outcome = _nested_text(response, "outcome_assessed", "value")
     evidence_text = "\n".join(
-        [state.get("full_text", ""), *(format_evidence(evidence[field]) for field in EVIDENCE_SECTION_FIELDS)]
+        [
+            state.get("full_text", ""),
+            *(format_evidence(evidence[field]) for field in EVIDENCE_SECTION_FIELDS),
+        ]
     )
     registration_number = _prefer_extracted(
         _nested_text(response, "trial_registration", "number"),
@@ -95,25 +100,42 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
     )
     n_randomized = _prefer_extracted(
         _nested_text(response, "n_randomized", "value"),
-        _first_match(evidence_text, [r"(\d{2,6})\s+(?:patients|participants)\s+(?:were\s+)?randomi[sz]ed"]),
+        _first_match(
+            evidence_text,
+            [r"(\d{2,6})\s+(?:patients|participants)\s+(?:were\s+)?randomi[sz]ed"],
+        ),
     )
     registered_analysis = _prefer_extracted(
         _nested_text(response, "registered_analysis", "value"),
-        "ITT" if re.search(r"intention[- ]to[- ]treat|\bITT\b", evidence_text, flags=re.IGNORECASE) else "Not reported",
+        "ITT"
+        if re.search(
+            r"intention[- ]to[- ]treat|\bITT\b", evidence_text, flags=re.IGNORECASE
+        )
+        else "Not reported",
     )
     updated_state = {
         "intervention": _nested_text(response, "experimental_intervention", "value"),
         "comparator": _nested_text(response, "comparator_intervention", "value"),
         "outcome": requested_outcome or extracted_outcome,
-        "outcome_type": (extract_tag(response, "outcome_type") or "clinician-composite").strip(),
+        "outcome_type": (
+            extract_tag(response, "outcome_type") or "clinician-composite"
+        ).strip(),
         "numerical_result": _nested_text(response, "numerical_result", "value"),
         "effect_of_interest": state.get("effect_of_interest", "ITT"),
         "registration_number": registration_number,
         "n_randomized": n_randomized,
-        "registered_endpoint": _nested_text(response, "registered_primary_endpoint", "value"),
-        "registered_secondary_endpoints": (extract_tag(response, "registered_secondary_endpoints") or "Not reported").strip(),
+        "registered_endpoint": _nested_text(
+            response, "registered_primary_endpoint", "value"
+        ),
+        "registered_secondary_endpoints": (
+            extract_tag(response, "registered_secondary_endpoints") or "Not reported"
+        ).strip(),
         "registered_analysis": registered_analysis,
-        "sources_consulted": [field for field in EVIDENCE_SECTION_FIELDS if format_evidence(evidence[field])],
+        "sources_consulted": [
+            field
+            for field in EVIDENCE_SECTION_FIELDS
+            if format_evidence(evidence[field])
+        ],
         "llm_call_log": log,
     }
 
@@ -141,14 +163,26 @@ def preliminary_info_node(state: RoB2State) -> RoB2State:
         if _reg_data:
             _outcomes = extract_outcomes(_reg_data)
             state["ctgov_outcomes"] = format_outcomes_for_prompt(_outcomes)
-            state["ctgov_design"] = format_design_for_prompt(extract_design_info(_reg_data))
-            state["ctgov_description"] = format_description_for_prompt(extract_description(_reg_data))
-            state["ctgov_flow"] = format_flow_for_prompt(extract_participant_flow(_reg_data))
+            state["ctgov_design"] = format_design_for_prompt(
+                extract_design_info(_reg_data)
+            )
+            state["ctgov_description"] = format_description_for_prompt(
+                extract_description(_reg_data)
+            )
+            state["ctgov_flow"] = format_flow_for_prompt(
+                extract_participant_flow(_reg_data)
+            )
             # Override secondary endpoints with API data (more reliable than text extraction)
             if _outcomes["secondary"]:
-                state["registered_secondary_endpoints"] = "; ".join(_outcomes["secondary"])
+                state["registered_secondary_endpoints"] = "; ".join(
+                    _outcomes["secondary"]
+                )
             # Fill primary endpoint if not extracted from paper
-            if _outcomes["primary"] and state.get("registered_endpoint") in ("Not reported", "", None):
+            if _outcomes["primary"] and state.get("registered_endpoint") in (
+                "Not reported",
+                "",
+                None,
+            ):
                 state["registered_endpoint"] = "; ".join(_outcomes["primary"])
         else:
             _unavailable = "(ClinicalTrials.gov data not available for this trial)"

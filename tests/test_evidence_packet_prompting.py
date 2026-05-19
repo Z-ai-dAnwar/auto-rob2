@@ -35,15 +35,35 @@ def test_domain_prompt_includes_verified_evidence_packet(monkeypatch):
         },
     }
 
-    def fake_call(call_fn, state, prompt, node_name, parse_fn, parse_sq_ids, chunk_sources):
+    def fake_call(
+        call_fn, state, prompt, node_name, parse_fn, parse_sq_ids, chunk_sources
+    ):
         captured["prompt"] = prompt
-        return "", [], {
-            "1.1": {"answer": "Y", "quote": "Computer-generated", "justification": "Random sequence."},
-            "1.2": {"answer": "NI", "quote": "No relevant text found", "justification": "Missing."},
-            "1.3": {"answer": "NI", "quote": "No relevant text found", "justification": "Missing."},
-        }
+        return (
+            "",
+            [],
+            {
+                "1.1": {
+                    "answer": "Y",
+                    "quote": "Computer-generated",
+                    "justification": "Random sequence.",
+                },
+                "1.2": {
+                    "answer": "NI",
+                    "quote": "No relevant text found",
+                    "justification": "Missing.",
+                },
+                "1.3": {
+                    "answer": "NI",
+                    "quote": "No relevant text found",
+                    "justification": "Missing.",
+                },
+            },
+        )
 
-    monkeypatch.setattr("rob2_pipeline.nodes.domain1.call_node_llm_with_sources", fake_call)
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.domain1.call_node_llm_with_sources", fake_call
+    )
 
     domain1_sq_node(state)
 

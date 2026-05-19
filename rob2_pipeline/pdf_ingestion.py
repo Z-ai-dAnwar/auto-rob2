@@ -12,7 +12,11 @@ from lxml import etree  # type: ignore[import-untyped]
 
 from rob2_pipeline.config import build_provider
 from rob2_pipeline.docling_utils import export_table_markdown, label_name
-from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
+from rob2_pipeline.models import (
+    EVIDENCE_SECTION_FIELDS,
+    PaperEvidence,
+    empty_paper_evidence,
+)
 from rob2_pipeline.trace import append_llm_call
 from rob2_pipeline.types import LLMCallLogEntry
 from rob2_pipeline.xml_parser import sanitize_stray_lt
@@ -51,8 +55,20 @@ SECTION_PATTERNS = {
         "analysis population",
     ],
     "results": ["results", "findings"],
-    "missing_data": ["missing data", "lost to follow", "dropout", "withdrawal", "discontinu"],
-    "registration": ["clinicaltrials", "isrctn", "trial registration", "registered", "protocol number"],
+    "missing_data": [
+        "missing data",
+        "lost to follow",
+        "dropout",
+        "withdrawal",
+        "discontinu",
+    ],
+    "registration": [
+        "clinicaltrials",
+        "isrctn",
+        "trial registration",
+        "registered",
+        "protocol number",
+    ],
     "baseline": ["baseline", "demographic", "characteristics"],
     "consort": [
         "consort",
@@ -78,7 +94,9 @@ _CENSORING_PATTERNS = [
     re.compile(r"(?i)\bcensor\w*\b.*\d|\d.*\bcensor\w*\b"),
     re.compile(r"(?i)\bdata[ -]?maturity\b.*\d|\d\s*%\s*data\s*maturity"),
     re.compile(r"(?i)\bdata[ -]?cut(?:off)?\b.*\d|\d.*\bdata[ -]?cut(?:off)?\b"),
-    re.compile(r"(?i)\bfollow[ -]?up\b.*\bcomplete\b.*\d|\d.*\bfollow[ -]?up\b.*\bcomplete\b"),
+    re.compile(
+        r"(?i)\bfollow[ -]?up\b.*\bcomplete\b.*\d|\d.*\bfollow[ -]?up\b.*\bcomplete\b"
+    ),
     re.compile(r"(?i)\badministratively\s+censored\b"),
     re.compile(r"(?i)\bmedian\s+follow[ -]?up\b.*\d"),
     re.compile(r"(?i)\b\d[\d,]*\s*/\s*\d[\d,]*\s+participants?\b.*\bevents?\b"),
@@ -87,14 +105,29 @@ _CENSORING_PATTERNS = [
 
 
 def allow_remote_evidence_extraction() -> bool:
-    return os.getenv("ROB2_REMOTE_EVIDENCE_EXTRACTION", "1").strip() not in {"0", "false", "False"}
+    return os.getenv("ROB2_REMOTE_EVIDENCE_EXTRACTION", "1").strip() not in {
+        "0",
+        "false",
+        "False",
+    }
 
 
 def appears_rct_candidate(text: str) -> bool:
     lowered = text.lower()
-    trial_signals = ["random", "randomized", "randomised", "assigned", "allocation", "placebo", "double-blind"]
+    trial_signals = [
+        "random",
+        "randomized",
+        "randomised",
+        "assigned",
+        "allocation",
+        "placebo",
+        "double-blind",
+    ]
     context_signals = ["trial", "participants", "patients", "phase "]
-    return any(signal in lowered for signal in trial_signals) and any(signal in lowered for signal in context_signals)
+    return any(signal in lowered for signal in trial_signals) and any(
+        signal in lowered for signal in context_signals
+    )
+
 
 PROMPT_PAPER_EXTRACTION = """
 You are a clinical trial analyst. Extract the following content from the paper below.
@@ -183,7 +216,9 @@ def _extract_with_docling_loader(pdf_path: str, use_ocr: bool) -> str:
     docs = list(loader.lazy_load())
     markdown = "\n\n".join(doc.page_content for doc in docs if doc.page_content)
     if len(markdown.strip()) < MIN_EXTRACTED_CHARS:
-        raise RuntimeError(f"langchain-docling returned too little text to use with OCR={use_ocr}")
+        raise RuntimeError(
+            f"langchain-docling returned too little text to use with OCR={use_ocr}"
+        )
     return markdown
 
 
@@ -201,7 +236,9 @@ def _get_docling_converter(use_ocr: bool):
     pipeline_options.do_ocr = use_ocr
     converter = DocumentConverter(
         allowed_formats=[InputFormat.PDF],
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)},
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+        },
     )
     _DOCLING_CONVERTERS[use_ocr] = converter
     return converter
@@ -319,7 +356,11 @@ def build_document_repr(doc) -> DocumentRepr:
             if table:
                 current_tables.append(table)
             continue
-        if item_label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"} and item_text:
+        if (
+            item_label_name
+            in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"}
+            and item_text
+        ):
             current_text.append(item_text)
 
     flush()
@@ -330,7 +371,9 @@ def _tables_from_xml(parent) -> list[str]:
     tables_el = parent.find("tables")
     if tables_el is None:
         return []
-    child_tables = ["".join(table.itertext()).strip() for table in tables_el.findall(".//table")]
+    child_tables = [
+        "".join(table.itertext()).strip() for table in tables_el.findall(".//table")
+    ]
     child_tables = [table for table in child_tables if table]
     if child_tables:
         return child_tables
@@ -357,11 +400,15 @@ def _parse_paper_evidence_response(response: str) -> PaperEvidence:
     return evidence
 
 
-def extract_paper_evidence(doc_repr: DocumentRepr) -> tuple[PaperEvidence, list[LLMCallLogEntry]]:
+def extract_paper_evidence(
+    doc_repr: DocumentRepr,
+) -> tuple[PaperEvidence, list[LLMCallLogEntry]]:
     prompt = PROMPT_PAPER_EXTRACTION.format(paper=doc_repr.to_prompt_repr())
     provider = build_provider()
     start = time.perf_counter()
-    response_obj = provider.complete(system=PAPER_EXTRACTION_SYSTEM_MESSAGE, user=prompt)
+    response_obj = provider.complete(
+        system=PAPER_EXTRACTION_SYSTEM_MESSAGE, user=prompt
+    )
     response = response_obj.content
     evidence = _parse_paper_evidence_response(response)
     latency_ms = int((time.perf_counter() - start) * 1000)
@@ -414,7 +461,9 @@ def paper_evidence_from_sections(
         "baseline_table": ["baseline"],
     }
     for field, section_names in mapping.items():
-        text = "\n\n".join(sections.get(name, "") for name in section_names if sections.get(name, "")).strip()
+        text = "\n\n".join(
+            sections.get(name, "") for name in section_names if sections.get(name, "")
+        ).strip()
         cast(dict[str, object], evidence)[field] = {
             "text": cap_section(text) if text else "",
             "tables": [],
@@ -429,7 +478,9 @@ def extract_structural_paper_evidence(doc_repr: DocumentRepr) -> PaperEvidence:
         parse_sections(doc_repr.to_prompt_repr() or doc_repr.full_text),
         extraction_method="docling_struct",
         source="docling_struct",
-        warnings=["LLM evidence extraction failed; used Docling structural keyword mapping."],
+        warnings=[
+            "LLM evidence extraction failed; used Docling structural keyword mapping."
+        ],
     )
     table_mapping = {
         "baseline_table": SECTION_PATTERNS["baseline"],
@@ -443,7 +494,9 @@ def extract_structural_paper_evidence(doc_repr: DocumentRepr) -> PaperEvidence:
         for field, keywords in table_mapping.items():
             if block.tables and any(keyword in searchable for keyword in keywords):
                 field_evidence = cast(dict[str, object], evidence)[field]
-                tables = cast(list[str], cast(dict[str, object], field_evidence)["tables"])
+                tables = cast(
+                    list[str], cast(dict[str, object], field_evidence)["tables"]
+                )
                 tables.extend(table for table in block.tables if table not in tables)
     return evidence
 
@@ -544,7 +597,11 @@ def _extract_keyword_context(full_text: str, section_name: str) -> str:
         if len(windows) >= 8:
             break
 
-    return cap_section("\n\n[... nearby text ...]\n\n".join(windows), keywords=keywords) if windows else ""
+    return (
+        cap_section("\n\n[... nearby text ...]\n\n".join(windows), keywords=keywords)
+        if windows
+        else ""
+    )
 
 
 def _augment_consort_from_results(sections: dict) -> dict:
@@ -566,7 +623,8 @@ def _augment_consort_from_results(sections: dict) -> dict:
             if matches:
                 extra.append(
                     f"\n[Patient flow numbers from {section_name} section: "
-                    + "; ".join(f"{m} patients" for m in matches[:10]) + "]"
+                    + "; ".join(f"{m} patients" for m in matches[:10])
+                    + "]"
                 )
         if extra:
             sections["consort"] = consort + "".join(extra)
@@ -585,7 +643,9 @@ def _parse_sections_from_docling_document(doc) -> dict[str, str] | None:
 
         for item, _ in iterator:
             label = getattr(item, "label", None)
-            label_name = getattr(label, "name", str(label)).upper() if label is not None else ""
+            label_name = (
+                getattr(label, "name", str(label)).upper() if label is not None else ""
+            )
             item_text = (getattr(item, "text", "") or "").strip()
 
             if label_name == "SECTION_HEADER":
@@ -606,13 +666,24 @@ def _parse_sections_from_docling_document(doc) -> dict[str, str] | None:
                 if table_text and current_section is not None:
                     buffers[current_section].append(table_text)
                 lowered_table = table_text.lower()
-                if table_text and any(keyword in lowered_table for keyword in SECTION_PATTERNS["baseline"]):
+                if table_text and any(
+                    keyword in lowered_table for keyword in SECTION_PATTERNS["baseline"]
+                ):
                     buffers["baseline"].append(table_text)
-                if table_text and any(keyword in lowered_table for keyword in SECTION_PATTERNS["results"]):
+                if table_text and any(
+                    keyword in lowered_table for keyword in SECTION_PATTERNS["results"]
+                ):
                     buffers["results"].append(table_text)
                 continue
 
-            if label_name in {"TEXT", "PARAGRAPH", "LIST_ITEM", "TITLE", "CAPTION", "FOOTNOTE"}:
+            if label_name in {
+                "TEXT",
+                "PARAGRAPH",
+                "LIST_ITEM",
+                "TITLE",
+                "CAPTION",
+                "FOOTNOTE",
+            }:
                 if current_section is not None and item_text:
                     buffers[current_section].append(item_text)
 
@@ -647,7 +718,10 @@ def _parse_sections_from_docling_document(doc) -> dict[str, str] | None:
 
         return _augment_consort_from_results(sections)
     except Exception as error:
-        logging.warning("Docling structured section parse failed; falling back to text parser: %s", error)
+        logging.warning(
+            "Docling structured section parse failed; falling back to text parser: %s",
+            error,
+        )
         return None
 
 

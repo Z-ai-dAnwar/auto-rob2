@@ -1,8 +1,13 @@
 from rob2_pipeline.models import empty_paper_evidence
-from rob2_pipeline.nodes.evidence_packets import build_evidence_packets, packet_block_for_domain
+from rob2_pipeline.nodes.evidence_packets import (
+    build_evidence_packets,
+    packet_block_for_domain,
+)
 
 
-def _state_with_chunks(domain: str, chunks: list[dict], outcome: str = "Progression-Free Survival") -> dict:
+def _state_with_chunks(
+    domain: str, chunks: list[dict], outcome: str = "Progression-Free Survival"
+) -> dict:
     evidence = empty_paper_evidence("test")
     return {
         "outcome": outcome,
@@ -147,7 +152,9 @@ def test_section_text_sources_carry_source_kind_tag():
     result = build_evidence_packets(state)
 
     sources = result["evidence_packets"]["1.1"]["sources"]
-    section_text_sources = [s for s in sources if s.get("section") == "d1_randomization"]
+    section_text_sources = [
+        s for s in sources if s.get("section") == "d1_randomization"
+    ]
     assert section_text_sources, "expected at least one section-text source for SQ 1.1"
     for source in section_text_sources:
         assert source.get("source_kind") == "section_text", (

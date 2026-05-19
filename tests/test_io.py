@@ -17,7 +17,10 @@ def test_discover_pdf_inputs_directory_sorted(tmp_path):
     (tmp_path / "a.pdf").write_bytes(b"%PDF-1.7")
     (tmp_path / "notes.txt").write_text("ignore", encoding="utf-8")
 
-    assert discover_pdf_inputs(str(tmp_path)) == [tmp_path / "a.pdf", tmp_path / "b.pdf"]
+    assert discover_pdf_inputs(str(tmp_path)) == [
+        tmp_path / "a.pdf",
+        tmp_path / "b.pdf",
+    ]
 
 
 def test_discover_pdf_inputs_rejects_non_pdf_file(tmp_path):

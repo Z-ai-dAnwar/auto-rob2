@@ -9,19 +9,33 @@ from rob2_pipeline.methodology import (
 from rob2_pipeline.methodology.render import render_methodology
 
 
-DOMAIN1_METHODOLOGY_TEXT = render_methodology(DOMAIN1_METHODOLOGY, ["1.1", "1.2", "1.3"])
-DOMAIN2_SQ12_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.1", "2.2"])
+DOMAIN1_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN1_METHODOLOGY, ["1.1", "1.2", "1.3"]
+)
+DOMAIN2_SQ12_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.1", "2.2"]
+)
 DOMAIN2_CONDITIONAL_METHODOLOGY_TEXT = render_methodology(
     DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.3", "2.4", "2.5"]
 )
-DOMAIN2_ANALYSIS_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.6", "2.7"])
+DOMAIN2_ANALYSIS_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN2_ASSIGNMENT_METHODOLOGY, ["2.6", "2.7"]
+)
 DOMAIN2_ADHERING_CONDITIONAL_METHODOLOGY_TEXT = render_methodology(
     DOMAIN2_ADHERING_METHODOLOGY, ["2.3a", "2.4a", "2.5a"]
 )
-DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT = render_methodology(DOMAIN2_ADHERING_METHODOLOGY, ["2.6a"])
-DOMAIN3_METHODOLOGY_TEXT = render_methodology(DOMAIN3_METHODOLOGY, ["3.1", "3.2", "3.3", "3.4"])
-DOMAIN4_METHODOLOGY_TEXT = render_methodology(DOMAIN4_METHODOLOGY, ["4.1", "4.2", "4.3", "4.4", "4.5"])
-DOMAIN5_METHODOLOGY_TEXT = render_methodology(DOMAIN5_METHODOLOGY, ["5.1", "5.2", "5.3"])
+DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN2_ADHERING_METHODOLOGY, ["2.6a"]
+)
+DOMAIN3_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN3_METHODOLOGY, ["3.1", "3.2", "3.3", "3.4"]
+)
+DOMAIN4_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN4_METHODOLOGY, ["4.1", "4.2", "4.3", "4.4", "4.5"]
+)
+DOMAIN5_METHODOLOGY_TEXT = render_methodology(
+    DOMAIN5_METHODOLOGY, ["5.1", "5.2", "5.3"]
+)
 
 
 PROMPT_RCT_SCREEN = """You are a systematic review methodologist. Verify whether the input study is a randomized controlled trial before any RoB 2 assessment.
@@ -135,7 +149,8 @@ RULES:
 - Do not guess numerical results.
 - Use "No relevant text found" only when the available sources genuinely do not contain the information."""
 
-PROMPT_DOMAIN1 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN1 = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 
@@ -163,7 +178,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 1 signaling questions: Bias arising from the randomization process.
-""" + DOMAIN1_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN1_METHODOLOGY_TEXT
+    + """
 
 If ClinicalTrials.gov design metadata is provided above, treat it as authoritative evidence about the trial's registered design:
 - An allocation type of RANDOMIZED is evidence that the registry classifies the trial as randomized; without sequence-generation details, this supports PY rather than Y for Q1.1.
@@ -191,8 +208,10 @@ Y/N means firm evidence is stated. PY/PN means a reasonable inference from indir
     <justification>[one sentence]</justification>
   </sq_1_3>
 </domain1>"""
+)
 
-PROMPT_DOMAIN2_SQ12 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN2_SQ12 = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Effect of interest: effect of assignment to intervention (intention-to-treat)
 
@@ -216,7 +235,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer the first two Domain 2 signaling questions: Bias due to deviations from intended interventions.
-""" + DOMAIN2_SQ12_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN2_SQ12_METHODOLOGY_TEXT
+    + """
 
 Important RoB 2 principle: an open-label trial is not automatically high risk. Risk depends on whether awareness led to deviations from intended interventions that arose because of the trial context, whether those deviations affected the outcome, whether they were balanced, and whether the analysis was appropriate.
 
@@ -236,8 +257,10 @@ If both 2.1 and 2.2 are N/PN, 2.3-2.5 are not applicable and the pipeline will s
     <justification>[one sentence]</justification>
   </sq_2_2>
 </domain2_part1>"""
+)
 
-PROMPT_DOMAIN2_CONDITIONAL = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN2_CONDITIONAL = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Prior answers: Q2.1 = {sq_2_1} | Q2.2 = {sq_2_2}
@@ -258,7 +281,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Because 2.1 or 2.2 was Y/PY/NI, answer the conditional Domain 2 questions for the effect of assignment to intervention.
-""" + DOMAIN2_CONDITIONAL_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN2_CONDITIONAL_METHODOLOGY_TEXT
+    + """
 
 If 2.3 is N/PN, answer 2.4 and 2.5 as NA. If 2.3 is Y/PY/NI, answer 2.4.
 
@@ -282,8 +307,10 @@ If 2.4 is N/PN/NI/NA, answer 2.5 as NA. If 2.4 is Y/PY, answer 2.5.
     <justification>[one sentence or "Not applicable"]</justification>
   </sq_2_5>
 </domain2_conditional>"""
+)
 
-PROMPT_DOMAIN2_ADHERING_CONDITIONAL = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN2_ADHERING_CONDITIONAL = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Prior answers: Q2.1 = {sq_2_1} | Q2.2 = {sq_2_2}
@@ -305,7 +332,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer the Domain 2 Version B conditional questions for bias due to deviations from intended interventions when estimating the effect of adhering to intervention.
-""" + DOMAIN2_ADHERING_CONDITIONAL_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN2_ADHERING_CONDITIONAL_METHODOLOGY_TEXT
+    + """
 
 <domain2_conditional>
   <sq_2_3>
@@ -325,8 +354,10 @@ Answer the Domain 2 Version B conditional questions for bias due to deviations f
     <justification>[one sentence or "Not applicable"]</justification>
   </sq_2_5>
 </domain2_conditional>"""
+)
 
-PROMPT_DOMAIN2_ANALYSIS = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN2_ANALYSIS = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Effect of interest in pipeline state: {effect_of_interest}
@@ -347,7 +378,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 2 analysis questions for the effect of assignment to intervention unless the user explicitly configured a per-protocol/adhering effect.
-""" + DOMAIN2_ANALYSIS_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN2_ANALYSIS_METHODOLOGY_TEXT
+    + """
 
 If 2.6 is Y/PY, answer 2.7 as NA.
 
@@ -363,8 +396,10 @@ If 2.6 is Y/PY, answer 2.7 as NA.
     <justification>[one sentence or "Not applicable"]</justification>
   </sq_2_7>
 </domain2_analysis>"""
+)
 
-PROMPT_DOMAIN2_ADHERING_ANALYSIS = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN2_ADHERING_ANALYSIS = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome}
 Effect of interest in pipeline state: {effect_of_interest}
@@ -385,7 +420,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 2 Version B analysis question for the effect of adhering to intervention.
-""" + DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN2_ADHERING_ANALYSIS_METHODOLOGY_TEXT
+    + """
 
 2.7 is not applicable for the effect of adhering to intervention; answer NA.
 
@@ -401,8 +438,10 @@ Answer Domain 2 Version B analysis question for the effect of adhering to interv
     <justification>Not applicable for effect of adhering to intervention.</justification>
   </sq_2_7>
 </domain2_analysis>"""
+)
 
-PROMPT_DOMAIN3 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN3 = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | N randomized: {n_randomized}
 
@@ -430,7 +469,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 3 signaling questions: Bias due to missing outcome data.
-""" + DOMAIN3_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN3_METHODOLOGY_TEXT
+    + """
 
 Before answering, calculate the percentage of randomised participants whose outcome data are included in the analysis: (analysis N / randomised N) x 100. If >= 10% of randomised participants are excluded from or absent in the analysis, answer N or PN rather than Y or PY. Report this calculation in the <completeness_calculation> field.
 
@@ -467,8 +508,10 @@ If 3.3 is N/PN, answer 3.4 as NA. If 3.3 is Y/PY/NI, answer 3.4.
     <uncertainty_flag>[HIGH or NORMAL]</uncertainty_flag>
   </sq_3_4>
 </domain3>"""
+)
 
-PROMPT_DOMAIN4 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN4 = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Outcome type: {outcome_type}
 Q2.1 participants aware of assignment: {sq_2_1}
@@ -489,7 +532,9 @@ Read the following evidence. The Primary Evidence section was extracted specific
 {rag_text}
 
 Answer Domain 4 signaling questions: Bias in measurement of the outcome.
-""" + DOMAIN4_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN4_METHODOLOGY_TEXT
+    + """
 
 Outcome-specific instruction: first identify the outcome currently being assessed: {outcome}. When the outcome_measurement evidence contains definitions for multiple outcomes, answer based only on the definition for {outcome}. Do not anchor Domain 4 reasoning to a different endpoint, even if that endpoint is described first or in more detail.
 
@@ -528,8 +573,10 @@ If 4.4 is N/PN, answer 4.5 as NA.
     <uncertainty_flag>[HIGH or NORMAL]</uncertainty_flag>
   </sq_4_5>
 </domain4>"""
+)
 
-PROMPT_DOMAIN5 = """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
+PROMPT_DOMAIN5 = (
+    """You are an expert systematic reviewer applying the Cochrane Risk of Bias 2 (RoB 2) tool.
 
 TRIAL: {intervention} vs {comparator} | Outcome: {outcome} | Outcome type: {outcome_type}
 Numerical result being assessed: {numerical_result}
@@ -568,7 +615,9 @@ Registered secondary endpoints: {registered_secondary_endpoints}
 {rag_text}
 
 Answer Domain 5 signaling questions: Bias in selection of the reported result.
-""" + DOMAIN5_METHODOLOGY_TEXT + """
+"""
+    + DOMAIN5_METHODOLOGY_TEXT
+    + """
 
 IMPORTANT: You are assessing Domain 5 for the specific outcome: {outcome}. All three questions concern whether the {outcome} result was selectively reported. Do NOT reason about whether other outcomes were selectively reported or chosen. Each outcome is assessed independently.
 
@@ -592,3 +641,4 @@ If a trial registration number is available, compare the registry/protocol outco
     <justification>[one sentence]</justification>
   </sq_5_3>
 </domain5>"""
+)

@@ -20,7 +20,9 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
     errors = list(state.get("errors", []))
     human_review_priority = state.get("human_review_priority", "HIGH")
     if state.get("intervention") == "Not reported":
-        errors.append("Intervention not reported; manual review required for Domain 5 assessment.")
+        errors.append(
+            "Intervention not reported; manual review required for Domain 5 assessment."
+        )
         human_review_priority = "HIGH"
     prompt = PROMPT_DOMAIN5.format(
         intervention=state["intervention"],
@@ -30,14 +32,20 @@ def domain5_sq_node(state: RoB2State) -> RoB2State:
         numerical_result=state.get("numerical_result", "Not reported"),
         registration_number=state.get("registration_number", "Not reported"),
         registered_endpoint=state.get("registered_endpoint", "Not reported"),
-        registered_secondary_endpoints=state.get("registered_secondary_endpoints", "Not reported"),
+        registered_secondary_endpoints=state.get(
+            "registered_secondary_endpoints", "Not reported"
+        ),
         reported_endpoint=state.get("outcome", "Not reported"),
         ctgov_outcomes=state.get("ctgov_outcomes", ""),
-        ctgov_description=state.get("ctgov_description", "(No ClinicalTrials.gov description available)"),
+        ctgov_description=state.get(
+            "ctgov_description", "(No ClinicalTrials.gov description available)"
+        ),
         registration_text=format_evidence(evidence["d5_registration"]),
         sap_text=format_evidence(evidence["d4_outcome_meas"]),
         results_text=format_evidence(evidence["results"]),
-        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d5", "")] if part),
+        rag_text="\n\n".join(
+            part for part in [packet_text, rag_contexts.get("d5", "")] if part
+        ),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,

@@ -32,13 +32,21 @@ def domain1_sq_node(state: RoB2State) -> RoB2State:
         outcome=state["outcome"],
         randomization_text="\n\n".join(
             part
-            for part in [format_evidence(evidence["d1_randomization"]) or format_evidence(evidence["methods"]), trial_level_text]
+            for part in [
+                format_evidence(evidence["d1_randomization"])
+                or format_evidence(evidence["methods"]),
+                trial_level_text,
+            ]
             if part
         ),
         baseline_text=format_evidence(evidence["baseline_table"]),
         consort_text=format_evidence(evidence["consort_flow"]),
-        rag_text="\n\n".join(part for part in [packet_text, rag_contexts.get("d1", "")] if part),
-        ctgov_design=state.get("ctgov_design", "(No ClinicalTrials.gov design metadata available)"),
+        rag_text="\n\n".join(
+            part for part in [packet_text, rag_contexts.get("d1", "")] if part
+        ),
+        ctgov_design=state.get(
+            "ctgov_design", "(No ClinicalTrials.gov design metadata available)"
+        ),
     )
     response, log, parsed = call_node_llm_with_sources(
         call_node_llm,

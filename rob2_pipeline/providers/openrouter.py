@@ -2,7 +2,12 @@ import time
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openrouter import ChatOpenRouter
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from ._rate_limiter import SlidingWindowRateLimiter
 from .base import LLMProvider, LLMResponse
@@ -22,7 +27,9 @@ class OpenRouterProvider(LLMProvider):
         self.api_key = api_key
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self._rate_limiter = SlidingWindowRateLimiter(rpm_limit=rpm_limit, rpd_limit=rpd_limit)
+        self._rate_limiter = SlidingWindowRateLimiter(
+            rpm_limit=rpm_limit, rpd_limit=rpd_limit
+        )
         self.client = ChatOpenRouter(
             api_key=api_key,
             model=model,
@@ -42,7 +49,9 @@ class OpenRouterProvider(LLMProvider):
     def complete(self, system: str, user: str) -> LLMResponse:
         self._rate_limiter.wait_for_slot()
         start = time.perf_counter()
-        response = self.client.invoke([SystemMessage(content=system), HumanMessage(content=user)])
+        response = self.client.invoke(
+            [SystemMessage(content=system), HumanMessage(content=user)]
+        )
         latency_ms = (time.perf_counter() - start) * 1000
         usage = response.usage_metadata or {}
         return LLMResponse(

@@ -14,4 +14,6 @@ def get_provider(provider_name: str, **kwargs) -> LLMProvider:
         from .openai import OpenAIProvider
 
         return OpenAIProvider(**kwargs)
-    raise ValueError(f"Unknown provider: {provider_name!r}. Valid: openrouter, anthropic, openai")
+    raise ValueError(
+        f"Unknown provider: {provider_name!r}. Valid: openrouter, anthropic, openai"
+    )

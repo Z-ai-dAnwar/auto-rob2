@@ -21,4 +21,7 @@ def judge_domain3(sq: dict) -> tuple[str, str]:
         return "High", "3.3=Y/PY/NI and 3.4=Y/PY/NI -> High"
     if s33 in ("Y", "PY", "NI") and s34 in ("N", "PN"):
         return "Some concerns", "3.3=Y/PY/NI and 3.4=N/PN -> Some concerns"
-    return "Some concerns", f"Unresolved D3 answers: 3.1={s31} 3.2={s32} 3.3={s33} 3.4={s34}"
+    return (
+        "Some concerns",
+        f"Unresolved D3 answers: 3.1={s31} 3.2={s32} 3.3={s33} 3.4={s34}",
+    )

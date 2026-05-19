@@ -29,7 +29,10 @@ SAMPLE_DATA = {
         },
         "oversightModule": {"oversightHasDmc": True},
         "sponsorCollaboratorsModule": {
-            "leadSponsor": {"name": "ECOG-ACRIN Cancer Research Group", "class": "NETWORK"}
+            "leadSponsor": {
+                "name": "ECOG-ACRIN Cancer Research Group",
+                "class": "NETWORK",
+            }
         },
         "outcomesModule": {
             "primaryOutcomes": [{"measure": "Overall Survival"}],
