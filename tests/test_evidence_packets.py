@@ -124,14 +124,42 @@ def test_packet_block_for_domain_is_compact_and_sq_labeled():
     assert "page 2" in block
 
 
-def test_section_fallback_excluded_when_rag_returned_chunks():
-    """When RAG has chunks for a domain, the candidate pool must contain no
-    section-text fallback sources (which have empty page_numbers and a
-    hardcoded score of 2.0 that would outrank real RAG hits)."""
+def test_section_text_sources_carry_source_kind_tag():
+    """Section-text fallback sources must be tagged source_kind="section_text"
+    so downstream code can distinguish them from real RAG chunks."""
     evidence = empty_paper_evidence("test")
-    # Populate the section evidence that _fallback_sources would otherwise pull.
-    # If the fallback runs, the test will see a source with empty page_numbers
-    # and section="d1_randomization".
+    evidence["d1_randomization"]["text"] = (
+        "Patients were randomized 1:1 using a centralized interactive web response system."
+    )
+    state = {
+        "outcome": "Overall Survival",
+        "evidence": evidence,
+        "rag_chunk_metadata": {
+            "d1": [],
+            "d2": [],
+            "d3": [],
+            "d4": [],
+            "d5": [],
+        },
+        "retrieval_grades": {},
+    }
+
+    result = build_evidence_packets(state)
+
+    sources = result["evidence_packets"]["1.1"]["sources"]
+    section_text_sources = [s for s in sources if s.get("section") == "d1_randomization"]
+    assert section_text_sources, "expected at least one section-text source for SQ 1.1"
+    for source in section_text_sources:
+        assert source.get("source_kind") == "section_text", (
+            f"section-text source missing source_kind tag: {source}"
+        )
+
+
+def test_section_text_sources_always_present_with_rag_chunks():
+    """Section-text fallback is unconditional: even when RAG returned chunks,
+    section-text sources should still be added to the candidate pool as
+    supplementary context."""
+    evidence = empty_paper_evidence("test")
     evidence["d1_randomization"]["text"] = (
         "Patients were randomized 1:1 using a centralized interactive web response system."
     )
@@ -157,40 +185,40 @@ def test_section_fallback_excluded_when_rag_returned_chunks():
 
     result = build_evidence_packets(state)
 
-    # SQs 1.1, 1.2, 1.3 all live in domain d1. None of their sources should
-    # be section-text fallbacks now that RAG returned a chunk for d1.
+    # At least one SQ in d1 should have a section-text source even though RAG
+    # returned a real chunk for the domain.
+    found_section_text = False
     for sq_id in ("1.1", "1.2", "1.3"):
         sources = result["evidence_packets"][sq_id]["sources"]
-        for source in sources:
-            # Section-text fallbacks have empty page_numbers and a section
-            # name that matches a PaperEvidence key like "d1_randomization".
-            assert source["section"] not in {
-                "d1_randomization",
-                "baseline_table",
-                "methods",
-            }, (
-                f"SQ {sq_id} picked up section-text fallback source "
-                f"{source['section']!r} even though RAG returned chunks"
-            )
-            assert source["page_numbers"], (
-                f"SQ {sq_id} has a source with empty page_numbers, which "
-                f"means a section-text fallback leaked into the candidate pool"
-            )
+        if any(s.get("source_kind") == "section_text" for s in sources):
+            found_section_text = True
+            break
+    assert found_section_text, (
+        "section-text sources should still appear in the candidate pool when "
+        "RAG returned chunks, since the fallback is unconditional"
+    )
 
 
-def test_section_fallback_used_when_rag_pool_is_empty():
-    """When RAG returns no chunks for a domain, the section-text fallback
-    must still fire so the packet has something to work with."""
+def test_verifier_does_not_flag_section_text_for_missing_page_numbers():
+    """A section-text source has no page metadata by design. The verifier
+    must not raise missing_page_source on a packet that contains a real chunk
+    with page numbers plus a section-text source without page numbers."""
     evidence = empty_paper_evidence("test")
     evidence["d1_randomization"]["text"] = (
-        "Patients were randomly assigned 1:1 using a computer-generated sequence."
+        "Patients were randomized 1:1 using a centralized interactive web response system."
     )
     state = {
         "outcome": "Overall Survival",
         "evidence": evidence,
-        # No RAG chunks for any domain. Fallback should fire for d1.
         "rag_chunk_metadata": {
-            "d1": [],
+            "d1": [
+                {
+                    "text": "Randomization used permuted blocks stratified by site.",
+                    "section": "Methods",
+                    "page_numbers": [4],
+                    "score": 0.1,
+                }
+            ],
             "d2": [],
             "d3": [],
             "d4": [],
@@ -201,13 +229,57 @@ def test_section_fallback_used_when_rag_pool_is_empty():
 
     result = build_evidence_packets(state)
 
-    packet_1_1 = result["evidence_packets"]["1.1"]
-    sources = packet_1_1["sources"]
-    assert sources, (
-        "SQ 1.1 should have section-text fallback sources when RAG pool is "
-        "empty for d1"
+    # At least one SQ in d1 should have both a chunk source (with pages) and a
+    # section-text source (without pages). missing_page_source must not fire.
+    for sq_id in ("1.1", "1.2", "1.3"):
+        packet = result["evidence_packets"][sq_id]
+        kinds = {s.get("source_kind") for s in packet["sources"]}
+        if {"rag_chunk", "section_text"}.issubset(kinds):
+            assert "missing_page_source" not in packet["negative_flags"], (
+                f"SQ {sq_id} should not be flagged missing_page_source: the "
+                f"only source with empty page_numbers is a section-text source"
+            )
+            return
+    raise AssertionError(
+        "test setup did not produce any packet with both rag_chunk and "
+        "section_text sources"
     )
-    # At least one source should be the section-text fallback.
-    assert any(
-        source["section"] == "d1_randomization" for source in sources
-    ), "section-text fallback for d1_randomization should appear in sources"
+
+
+def test_verifier_still_flags_chunk_source_with_empty_page_numbers():
+    """A real RAG chunk that is missing page numbers is still a defect and
+    must still trigger missing_page_source. Only section-text sources get a
+    pass."""
+    evidence = empty_paper_evidence("test")
+    state = {
+        "outcome": "Overall Survival",
+        "evidence": evidence,
+        "rag_chunk_metadata": {
+            "d1": [
+                {
+                    "text": "Randomization used permuted blocks stratified by site.",
+                    "section": "Methods",
+                    "page_numbers": [],
+                    "score": 0.1,
+                }
+            ],
+            "d2": [],
+            "d3": [],
+            "d4": [],
+            "d5": [],
+        },
+        "retrieval_grades": {},
+    }
+
+    result = build_evidence_packets(state)
+
+    packet = result["evidence_packets"]["1.1"]
+    rag_sources = [s for s in packet["sources"] if s.get("source_kind") == "rag_chunk"]
+    assert rag_sources, "expected at least one RAG chunk source"
+    assert any(not s.get("page_numbers") for s in rag_sources), (
+        "test setup should have a chunk source with empty page_numbers"
+    )
+    assert "missing_page_source" in packet["negative_flags"], (
+        "missing_page_source should still fire for a real RAG chunk that "
+        "has empty page_numbers"
+    )

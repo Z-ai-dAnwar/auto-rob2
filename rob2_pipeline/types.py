@@ -56,6 +56,7 @@ class PacketSource(TypedDict, total=False):
     page_numbers: list[int]
     score: float
     matched_terms: list[str]
+    source_kind: str
 
 
 class EvidenceFact(TypedDict, total=False):
