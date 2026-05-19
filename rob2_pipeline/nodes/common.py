@@ -23,6 +23,18 @@ NA_ANSWER = {
 }
 
 
+def _parse_failure_fallback(parse_sq_ids: list[str]) -> dict[str, dict]:
+    return {
+        sq_id: {
+            "answer": "NI",
+            "quote": "No relevant text found",
+            "justification": "LLM response could not be parsed after repair.",
+            "uncertainty_flag": "HIGH",
+        }
+        for sq_id in parse_sq_ids
+    }
+
+
 def call_node_llm(
     state: dict,
     prompt: str,
@@ -82,6 +94,8 @@ def call_node_llm(
 
     parsed = None
     trace_appended = False
+    cacheable_response = True
+    suspected_parse_failures: list[str] = []
     if parse_fn and parse_sq_ids:
         try:
             parsed = _parse_and_validate(response)
@@ -111,7 +125,14 @@ def call_node_llm(
             response_obj = provider.complete(system=SYSTEM_MESSAGE, user=repair_prompt)
             response = response_obj.content
             repair_latency_ms = int((time.perf_counter() - repair_start) * 1000)
-            parsed = _parse_and_validate(response)
+            try:
+                parsed = _parse_and_validate(response)
+                repair_parse_error = None
+            except Exception as repair_exc:  # noqa: BLE001
+                parsed = _parse_failure_fallback(parse_sq_ids)
+                suspected_parse_failures = list(parse_sq_ids)
+                repair_parse_error = str(repair_exc)
+                cacheable_response = False
             append_llm_call(
                 node=node_name,
                 system_prompt=SYSTEM_MESSAGE,
@@ -123,7 +144,7 @@ def call_node_llm(
                 cached=response_obj.cached,
                 latency_ms=repair_latency_ms,
                 cache_hit=False,
-                parse_error=None,
+                parse_error=repair_parse_error,
                 parsed_answers=parsed,
                 is_repair=True,
                 reasoning_content=response_obj.reasoning_content,
@@ -149,7 +170,8 @@ def call_node_llm(
         )
 
     latency_ms = int((time.perf_counter() - first_start) * 1000)
-    write_cache(node_name, prompt, response)
+    if cacheable_response:
+        write_cache(node_name, prompt, response)
     log_entry = {
         "node": node_name,
         "prompt_length_chars": len(prompt),
@@ -163,6 +185,8 @@ def call_node_llm(
     }
     if chunk_sources:
         log_entry["chunk_sources"] = chunk_sources
+    if suspected_parse_failures:
+        log_entry["suspected_parse_failures"] = suspected_parse_failures
     log.append(log_entry)
     return response, log, parsed
 

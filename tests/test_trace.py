@@ -257,3 +257,72 @@ def test_call_node_llm_traces_both_responses_on_parse_retry(monkeypatch):
     }
     assert second.model == "model-v2"
     assert "previous response for domain1_sq11 was invalid" in second.user_prompt
+
+
+def test_call_node_llm_returns_ni_fallback_when_repair_still_invalid(monkeypatch):
+    from rob2_pipeline.nodes import common as common_module
+    from rob2_pipeline.xml_parser import parse_sq_response
+
+    monkeypatch.setattr(common_module, "read_cache", lambda node, prompt: None)
+    monkeypatch.setattr(
+        common_module, "write_cache", lambda node, prompt, response: None
+    )
+
+    responses = iter(
+        [
+            ("", "model-v1", 100, 0),
+            ("", "model-v2", 80, 0),
+        ]
+    )
+
+    class FakeResponse:
+        def __init__(self, content, model, in_tok, out_tok):
+            self.content = content
+            self.model = model
+            self.input_tokens = in_tok
+            self.output_tokens = out_tok
+            self.cached = False
+            self.reasoning_content = None
+
+    class FakeProvider:
+        def complete(self, system, user):
+            content, model, in_tok, out_tok = next(responses)
+            return FakeResponse(content, model, in_tok, out_tok)
+
+    monkeypatch.setattr(common_module, "build_provider", lambda: FakeProvider())
+
+    start_trace(trial="T", outcome="AE")
+    response, log, parsed = common_module.call_node_llm(
+        state={},
+        prompt="domain2 analysis prompt",
+        node_name="domain2_analysis",
+        parse_fn=parse_sq_response,
+        parse_sq_ids=["2.6", "2.7"],
+    )
+
+    assert response == ""
+    assert parsed == {
+        "2.6": {
+            "answer": "NI",
+            "quote": "No relevant text found",
+            "justification": "LLM response could not be parsed after repair.",
+            "uncertainty_flag": "HIGH",
+        },
+        "2.7": {
+            "answer": "NI",
+            "quote": "No relevant text found",
+            "justification": "LLM response could not be parsed after repair.",
+            "uncertainty_flag": "HIGH",
+        },
+    }
+    assert log[0]["suspected_parse_failures"] == ["2.6", "2.7"]
+
+    trace = get_current_trace()
+    assert len(trace.llm_calls) == 2
+    first, second = trace.llm_calls
+    assert first.is_repair is False
+    assert first.parse_error == "Missing signaling question: 2.6"
+    assert first.parsed_answers is None
+    assert second.is_repair is True
+    assert second.parse_error == "Missing signaling question: 2.6"
+    assert second.parsed_answers == parsed
