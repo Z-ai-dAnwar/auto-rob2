@@ -28,12 +28,14 @@ If `rct_screener` determines a paper is not an RCT, the graph terminates early. 
 ## Core Components
 
 - `rob2_pipeline/pdf_ingestion.py`
-  - Extracts full text with LangChain Docling markdown export.
-  - Retries Docling conversion with OCR enabled when non-OCR extraction fails.
-  - Builds a structured document representation preserving section headings and markdown tables.
-  - Creates domain evidence from Docling structure, optionally refines evidence with an ingestion-time LLM XML extraction, and falls back to deterministic keyword mapping on failure.
-  - Builds LangChain `Document` chunks using Docling `HybridChunker` with a Hugging Face tokenizer configured for `BAAI/bge-small-en-v1.5`, 256-token chunks, and long counting windows.
-  - Includes CONSORT augmentation fallback from results/supplementary text and D3 censoring-context extraction.
+  - Compatibility facade for ingestion helpers used by graph nodes and tests.
+  - Re-exports focused modules under `rob2_pipeline/ingestion/`.
+
+- `rob2_pipeline/ingestion/`
+  - `docling_extract.py`: Docling text extraction, OCR retry, converter caching, and chunk creation.
+  - `document_repr.py`: Docling item traversal and prompt-facing document representation.
+  - `evidence.py`: paper evidence extraction, structural section mapping, keyword fallbacks, and censoring context.
+  - `settings.py`: ingestion constants and runtime feature flags.
 
 - `rob2_pipeline/docling_utils.py`
   - Small Docling compatibility helpers for item label names and markdown table export across Docling versions.
@@ -62,12 +64,14 @@ If `rct_screener` determines a paper is not an RCT, the graph terminates early. 
 - `rob2_pipeline/nodes/`
   - LangGraph node implementations.
   - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
+  - `nodes/domain_helpers.py` shares simple domain SQ call helpers across domain nodes.
   - `nodes/ingest.py` coordinates Docling extraction, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
   - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
   - `nodes/outcome_resolver.py` normalizes outcome type from inferred properties such as time-to-event, safety, objective event, and blinded adjudication.
   - `nodes/trial_facts.py` extracts reusable deterministic snippets for randomization, concealment, masking, deviations, amendments, and analysis populations.
   - `nodes/rag_retrieval.py` builds domain-level retrieval contexts, prompt-facing D2/D4 context variants, chunk metadata, and retrieval grades; if vector retrieval fails, it falls back to structured evidence sections.
-  - `nodes/evidence_packets.py` builds SQ-level evidence packets from retrieved chunks plus deterministic fallback sections.
+  - `nodes/evidence_packets.py` orchestrates SQ-level packet construction and prompt-facing packet rendering.
+  - Contract definitions, source selection, and packet grading live in focused sibling modules.
   - `nodes/verification.py` verifies SQ quotes and packet quality, then emits validation flags and recommended retry/escalation actions.
   - `nodes/reporter.py` writes the Markdown report, including verified-packet and quality-flag summaries.
 
