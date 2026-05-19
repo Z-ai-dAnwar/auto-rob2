@@ -13,7 +13,9 @@ from lxml import etree  # type: ignore[import-untyped]
 from rob2_pipeline.config import build_provider
 from rob2_pipeline.docling_utils import export_table_markdown, label_name
 from rob2_pipeline.models import EVIDENCE_SECTION_FIELDS, PaperEvidence, empty_paper_evidence
+from rob2_pipeline.trace import append_llm_call
 from rob2_pipeline.types import LLMCallLogEntry
+from rob2_pipeline.xml_parser import sanitize_stray_lt
 
 
 SECTION_PATTERNS = {
@@ -154,13 +156,7 @@ class DocumentRepr:
 
 
 def extract_full_text(pdf_path: str) -> str:
-    try:
-        return _normalize_extracted_text(_extract_with_docling(pdf_path))
-    except Exception as docling_error:
-        raise RuntimeError(
-            f"PDF text extraction failed with Docling for {pdf_path!r}. "
-            f"Docling error: {docling_error}."
-        ) from docling_error
+    return _normalize_extracted_text(_extract_with_docling(pdf_path))
 
 
 def _extract_with_docling(pdf_path: str) -> str:
@@ -344,6 +340,7 @@ def _tables_from_xml(parent) -> list[str]:
 
 def _parse_paper_evidence_response(response: str) -> PaperEvidence:
     cleaned = re.sub(r"```xml\s*|\s*```", "", response).strip()
+    cleaned = sanitize_stray_lt(cleaned)
     parser = etree.XMLParser(recover=True)
     root = etree.fromstring(f"<root>{cleaned}</root>".encode(), parser=parser)
     evidence = empty_paper_evidence("docling_llm")
@@ -381,6 +378,19 @@ def extract_paper_evidence(doc_repr: DocumentRepr) -> tuple[PaperEvidence, list[
             "cached": response_obj.cached,
         }
     ]
+    append_llm_call(
+        node="paper_evidence_extraction",
+        system_prompt=PAPER_EXTRACTION_SYSTEM_MESSAGE,
+        user_prompt=prompt,
+        response=response,
+        model=response_obj.model,
+        input_tokens=response_obj.input_tokens,
+        output_tokens=response_obj.output_tokens,
+        cached=response_obj.cached,
+        latency_ms=latency_ms,
+        cache_hit=False,
+        reasoning_content=response_obj.reasoning_content,
+    )
     return evidence, log
 
 

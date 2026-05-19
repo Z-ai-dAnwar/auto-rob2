@@ -30,17 +30,19 @@ def test_extract_full_text_uses_docling(monkeypatch):
 
 
 def test_extract_full_text_raises_when_docling_fails(monkeypatch):
+    """Single-path docling: if docling fails, the exception propagates up. No
+    silent fallback to a different parser."""
     def fake_docling(pdf_path):
-        raise RuntimeError("docling failed")
+        raise RuntimeError("docling exploded")
 
     monkeypatch.setattr(pdf_ingestion, "_extract_with_docling", fake_docling)
 
     try:
         extract_full_text("trial.pdf")
     except RuntimeError as error:
-        assert "PDF text extraction failed with Docling" in str(error)
+        assert "docling exploded" in str(error)
     else:
-        raise AssertionError("extract_full_text should raise when Docling fails")
+        raise AssertionError("extract_full_text should raise when docling fails")
 
 
 def _make_mock_chunk(text: str, headings: list[str], pages: list[int]):
@@ -439,6 +441,9 @@ def test_extract_censoring_context_returns_empty_for_no_matches():
 
 
 def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monkeypatch):
+    """If the docling converter fails, fall back to a text keyword parse of the
+    already-extracted full text. extract_full_text itself still raises on
+    failure (no pymupdf fallback)."""
     known_text = "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
     monkeypatch.setattr("rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text)
 

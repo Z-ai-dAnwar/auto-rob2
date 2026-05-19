@@ -11,7 +11,6 @@ class LLMCallLogEntry(TypedDict):
     input_tokens: NotRequired[int]
     output_tokens: NotRequired[int]
     cached: NotRequired[bool]
-    parse_error: NotRequired[str]
     suspected_parse_failures: NotRequired[list[str]]
     chunk_sources: NotRequired[list[str]]
 
@@ -57,6 +56,7 @@ class PacketSource(TypedDict, total=False):
     page_numbers: list[int]
     score: float
     matched_terms: list[str]
+    source_kind: str
 
 
 class EvidenceFact(TypedDict, total=False):

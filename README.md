@@ -28,6 +28,7 @@ Optional runtime settings:
 - `ROB2_PROVIDER`: `openrouter` (default), `anthropic`, or `openai`.
 - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`: model configuration.
 - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`: OpenRouter rate limits.
+- `ANTHROPIC_RPM_LIMIT`, `ANTHROPIC_TPM_LIMIT`: Anthropic rate limits (defaults 40 RPM / 30K input tokens per minute, sized under the Tier 1 50K TPM cap).
 - `ROB2_EFFECT_OF_INTEREST`: default effect, `ITT` or `per-protocol`.
 - `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
 - `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
@@ -97,6 +98,7 @@ Generated files:
 
 - `outputs/<pdf_basename>_rob2_report.md`
 - `outputs/<pdf_basename>_rob2_data.json`
+- `outputs/<pdf_basename>_trace.json`: per-call LLM input/output capture (full system + user prompts, raw responses, model metadata, parse-retry sequences). The trace file is meant for downstream analysis (external tools or hand review); chunk metadata lives in `_rob2_data.json` under `rag_sources` to avoid duplication. The trace is written in a `finally` block so a pipeline crash still flushes the partial trace.
 
 For PDFs screened as non-RCTs, the graph stops after screening; JSON is still written, but there may be no Markdown report and the judgment fields remain unset.
 
@@ -150,7 +152,7 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 ## Architecture
 
 - `rob2_pipeline/graph.py`: LangGraph wiring from ingestion through reporting, with early stop for non-RCTs and parallel D1-D5 fan-out after evidence packets are built.
-- `rob2_pipeline/pdf_ingestion.py`: Docling markdown extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, fallback section parsing, censoring-context extraction, and Docling `HybridChunker` chunk creation.
+- `rob2_pipeline/pdf_ingestion.py`: Docling markdown extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, censoring-context extraction, and Docling `HybridChunker` chunk creation.
 - `rob2_pipeline/rag.py` and `rag_queries.py`: BGE-small embeddings, LangChain FAISS indexes, section-filtered adaptive retrieval, retrieval grading, and SQ-derived domain query sets.
 - `rob2_pipeline/nodes/`: graph nodes for RCT screening, preliminary metadata, outcome normalization, trial facts, retrieval, evidence packets, signaling questions, deterministic judges, quote/packet verification, overall judgment, and report formatting.
 - `rob2_pipeline/methodology/`, `prompts.py`, and `judges/`: canonical RoB 2 guidance, XML prompt templates, and deterministic domain/overall decision tables.
@@ -164,6 +166,6 @@ Benchmark outputs are written to the requested output directory as `benchmark_re
 
 LLMs answer the RCT screen, preliminary extraction, optional ingestion evidence refinement, and signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
 
-If Docling structural extraction or vector retrieval fails after text extraction, the pipeline falls back to deterministic keyword-mapped evidence sections so the assessment can still proceed. If the RCT screener determines the paper is not an RCT, downstream RoB 2 assessment nodes do not run.
+If vector retrieval returns no chunks for a specific RoB 2 domain, the pipeline falls back to deterministic keyword-mapped evidence sections for that domain so the assessment can still proceed. If Docling extraction fails entirely, the run halts with a clear error rather than silently degrading to a different parser. If the RCT screener determines the paper is not an RCT, downstream RoB 2 assessment nodes do not run.
 
 Evidence-packet and quote verification are quality gates for review triage; they flag unsupported quotes, missing required evidence, fragile D3/D5 reasoning, and packets that should be retried or escalated. The generated report remains a draft assessment for human verification, not a substitute for independent systematic-review judgment.

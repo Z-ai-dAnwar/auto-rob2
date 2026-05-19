@@ -19,6 +19,10 @@ from rob2_pipeline.xml_parser import extract_tag
 
 
 def pdf_ingest_node(state: RoB2State) -> RoB2State:
+    # PDF parsing path: docling for structural extraction. If docling fails
+    # (converter, chunking, or structural extraction), fall back to a text
+    # keyword parse of the already-extracted full text. The full_text step
+    # itself has no fallback: if extract_full_text raises, the run halts.
     pdf_path = state["pdf_path"]
     full_text = extract_full_text(pdf_path)
 
@@ -48,6 +52,11 @@ def pdf_ingest_node(state: RoB2State) -> RoB2State:
                 "llm_call_log": log,
             }
         except Exception as error:  # noqa: BLE001
+            # LLM XML extraction is a separate concern from docling itself. If
+            # the remote model fails or returns unparseable XML, fall back to
+            # the structural extraction that docling already produced. This is
+            # not a parser swap; it is a downstream-LLM-failure recovery using
+            # the same docling output.
             evidence = extract_structural_paper_evidence(doc_repr)
             evidence["warnings"].append(f"LLM evidence extraction failed: {error}")
             return {"full_text": full_text, "evidence": evidence, "docling_doc": conv_result, "docling_chunks": docling_chunks}

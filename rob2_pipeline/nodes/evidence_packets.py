@@ -177,6 +177,10 @@ def _build_packet_for_contract(state: RoB2State, contract: EvidenceContract) -> 
 
 def _candidate_sources(state: RoB2State, contract: EvidenceContract) -> list[PacketSource]:
     raw_sources = list((state.get("rag_chunk_metadata") or {}).get(contract.domain, []))
+    # Section-text sources are belt-and-suspenders supplementary context for the
+    # LLM and run unconditionally alongside any RAG hits. They carry a
+    # source_kind="section_text" tag so downstream code (e.g. the verifier) can
+    # distinguish them from real RAG chunks, which have page metadata.
     raw_sources.extend(_fallback_sources(state, contract))
     terms = _contract_terms(contract)
     sources: list[PacketSource] = []
@@ -192,6 +196,7 @@ def _candidate_sources(state: RoB2State, contract: EvidenceContract) -> list[Pac
                 page_numbers=list(raw.get("page_numbers") or []),
                 score=float(raw.get("score", 1.0)),
                 matched_terms=matched,
+                source_kind=str(raw.get("source_kind", "rag_chunk")),
             )
         )
     return sources
@@ -206,7 +211,15 @@ def _fallback_sources(state: RoB2State, contract: EvidenceContract) -> list[dict
             continue
         text = format_evidence(section_evidence)
         if text:
-            sources.append({"text": text, "section": section, "page_numbers": [], "score": 2.0})
+            sources.append(
+                {
+                    "text": text,
+                    "section": section,
+                    "page_numbers": [],
+                    "score": 2.0,
+                    "source_kind": "section_text",
+                }
+            )
     return sources
 
 
@@ -240,7 +253,13 @@ def _negative_flags(state: RoB2State, contract: EvidenceContract, selected: list
     flags: list[str] = []
     if contract.outcome_bound and _looks_like_wrong_outcome(state.get("outcome", ""), text):
         flags.append("possible_wrong_outcome_context")
-    if any(not source.get("page_numbers") for source in selected):
+    # Only real RAG chunks need page numbers. Section-text sources are
+    # whole-section extracts and have no page metadata by design, so they are
+    # not eligible for a missing_page_source flag.
+    if any(
+        source.get("source_kind", "rag_chunk") != "section_text" and not source.get("page_numbers")
+        for source in selected
+    ):
         flags.append("missing_page_source")
     lowered = text.casefold()
     if contract.domain == "d5" and _RESULT_STAT_RE.search(text) and not any(term in lowered for term in _PRESPEC_TERMS):
