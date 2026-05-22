@@ -137,6 +137,97 @@ def test_packet_block_for_domain_is_compact_and_sq_labeled():
     assert "page 2" in block
 
 
+def test_d5_packet_includes_ctgov_source_without_page_numbers():
+    evidence = empty_paper_evidence("test")
+    state = {
+        "outcome": "Overall Survival",
+        "evidence": evidence,
+        "ctgov_outcomes": (
+            "Primary Outcome: Overall Survival. Time Frame: from randomization to death."
+        ),
+        "registered_endpoint": "Overall Survival",
+        "registered_secondary_endpoints": "Progression-Free Survival",
+        "registered_analysis": "Cox proportional hazards model",
+        "rag_chunk_metadata": {"d1": [], "d2": [], "d3": [], "d4": [], "d5": []},
+        "retrieval_grades": {},
+    }
+
+    result = build_evidence_packets(state)
+
+    sources = result["evidence_packets"]["5.1"]["sources"]
+    assert any(source.get("source_kind") == "ctgov" for source in sources)
+    ctgov = [source for source in sources if source.get("source_kind") == "ctgov"][0]
+    assert ctgov["document_name"] == "ClinicalTrials.gov"
+    assert ctgov["document_role"] == "registry"
+    assert ctgov["page_numbers"] == []
+    assert "missing_page_source" not in result["evidence_packets"]["5.1"][
+        "negative_flags"
+    ]
+
+
+def test_d5_packet_prefers_protocol_over_primary_result_when_terms_match():
+    state = _state_with_chunks(
+        "d5",
+        [
+            {
+                "text": "Published results report progression-free survival HR 0.70.",
+                "section": "Results",
+                "page_numbers": [8],
+                "score": 0.1,
+                "document_id": "primary",
+                "document_name": "paper.pdf",
+                "document_role": "primary",
+                "source_kind": "rag_chunk",
+                "source_path": "paper.pdf",
+            },
+            {
+                "text": "The protocol prespecified progression-free survival as a secondary endpoint.",
+                "section": "Endpoints",
+                "page_numbers": [12],
+                "score": 0.2,
+                "document_id": "supplement:001",
+                "document_name": "protocol.pdf",
+                "document_role": "protocol",
+                "source_kind": "rag_chunk",
+                "source_path": "protocol.pdf",
+            },
+        ],
+        outcome="Progression-Free Survival",
+    )
+
+    result = build_evidence_packets(state)
+
+    first = result["evidence_packets"]["5.2"]["sources"][0]
+    assert first["document_role"] == "protocol"
+
+
+def test_packet_block_renders_document_name_and_role():
+    state = _state_with_chunks(
+        "d5",
+        [
+            {
+                "text": "The protocol prespecified overall survival as the primary endpoint.",
+                "section": "Endpoints",
+                "page_numbers": [12],
+                "score": 0.1,
+                "document_id": "supplement:001",
+                "document_name": "protocol.pdf",
+                "document_role": "protocol",
+                "source_kind": "rag_chunk",
+                "source_path": "protocol.pdf",
+            }
+        ],
+        outcome="Overall Survival",
+    )
+    result = build_evidence_packets(state)
+
+    block = packet_block_for_domain(result["evidence_packets"], "d5")
+
+    assert "protocol.pdf" in block
+    assert "protocol" in block
+    assert "page 12" in block
+
+
 def test_section_text_sources_carry_source_kind_tag():
     """Section-text fallback sources must be tagged source_kind="section_text"
     so downstream code can distinguish them from real RAG chunks."""

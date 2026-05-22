@@ -11,6 +11,23 @@ from rob2_pipeline.state import RoB2State
 from rob2_pipeline.types import PacketSource
 
 
+DOMAIN_SOURCE_ROLE_PREFERENCES = {
+    "d1": ["primary", "protocol", "appendix"],
+    "d2": ["primary", "protocol", "sap", "appendix"],
+    "d3": ["primary", "appendix", "sap"],
+    "d4": ["primary", "protocol", "sap", "appendix"],
+    "d5": ["protocol", "sap", "registry", "primary", "appendix"],
+}
+
+
+def role_rank(domain: str, role: str) -> int:
+    preferences = DOMAIN_SOURCE_ROLE_PREFERENCES.get(domain, [])
+    try:
+        return preferences.index(role)
+    except ValueError:
+        return len(preferences) + 1
+
+
 def candidate_sources(
     state: RoB2State, contract: EvidenceContract
 ) -> list[PacketSource]:
@@ -19,6 +36,7 @@ def candidate_sources(
     # LLM and run unconditionally alongside any RAG hits. They carry a
     # source_kind="section_text" tag so downstream code (e.g. the verifier) can
     # distinguish them from real RAG chunks, which have page metadata.
+    raw_sources.extend(ctgov_sources(state, contract))
     raw_sources.extend(fallback_sources(state, contract))
     terms = contract_terms(contract)
     sources: list[PacketSource] = []
@@ -35,9 +53,54 @@ def candidate_sources(
                 score=float(raw.get("score", 1.0)),
                 matched_terms=matched,
                 source_kind=str(raw.get("source_kind", "rag_chunk")),
+                document_id=str(raw.get("document_id", "")),
+                document_name=str(raw.get("document_name", "")),
+                document_role=str(raw.get("document_role", "")),
+                source_path=str(raw.get("source_path", "")),
             )
         )
     return sources
+
+
+def ctgov_sources(state: RoB2State, contract: EvidenceContract) -> list[dict]:
+    fields_by_domain = {
+        "d1": ["ctgov_design"],
+        "d2": ["ctgov_design"],
+        "d3": ["ctgov_flow"],
+        "d5": [
+            "ctgov_outcomes",
+            "registered_endpoint",
+            "registered_secondary_endpoints",
+            "registered_analysis",
+        ],
+    }
+    fields = fields_by_domain.get(contract.domain, [])
+    text_parts = [str(state.get(field, "")).strip() for field in fields]
+    text = "\n\n".join(
+        part
+        for part in text_parts
+        if part
+        and part.casefold()
+        not in {
+            "not reported",
+            "(clinicaltrials.gov data not yet retrieved)",
+        }
+    )
+    if not text:
+        return []
+    return [
+        {
+            "text": text,
+            "section": "ClinicalTrials.gov",
+            "page_numbers": [],
+            "score": 0.5,
+            "source_kind": "ctgov",
+            "document_id": "ctgov",
+            "document_name": "ClinicalTrials.gov",
+            "document_role": "registry",
+            "source_path": "",
+        }
+    ]
 
 
 def fallback_sources(state: RoB2State, contract: EvidenceContract) -> list[dict]:
@@ -56,6 +119,10 @@ def fallback_sources(state: RoB2State, contract: EvidenceContract) -> list[dict]
                     "page_numbers": [],
                     "score": 2.0,
                     "source_kind": "section_text",
+                    "document_id": "primary",
+                    "document_name": "Primary paper evidence",
+                    "document_role": "primary",
+                    "source_path": state.get("pdf_path", ""),
                 }
             )
     return sources

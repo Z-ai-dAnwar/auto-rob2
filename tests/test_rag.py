@@ -8,6 +8,7 @@ from rob2_pipeline.rag import (
     build_filtered_index,
     build_index,
     grade_retrieved_context,
+    _doc_key,
     retrieve_adaptive,
 )
 
@@ -17,6 +18,27 @@ def _make_doc(text: str, section: str = "", pages: list[int] | None = None) -> D
         page_content=text,
         metadata={"section": section, "page_numbers": pages or []},
     )
+
+
+def test_doc_key_includes_document_id():
+    left = Document(
+        page_content="Same text",
+        metadata={
+            "section": "Methods",
+            "page_numbers": [1],
+            "document_id": "primary",
+        },
+    )
+    right = Document(
+        page_content="Same text",
+        metadata={
+            "section": "Methods",
+            "page_numbers": [1],
+            "document_id": "supplement:001",
+        },
+    )
+
+    assert _doc_key(left) != _doc_key(right)
 
 
 @pytest.fixture()
@@ -141,6 +163,28 @@ class TestRetrieveAdaptive:
             assert "section" in meta
             assert "page_numbers" in meta
             assert "score" in meta
+
+    def test_metadata_preserves_document_provenance(self):
+        docs = [
+            Document(
+                page_content="The protocol prespecified overall survival.",
+                metadata={
+                    "section": "Endpoints",
+                    "page_numbers": [12],
+                    "document_id": "supplement:001",
+                    "document_name": "protocol.pdf",
+                    "document_role": "protocol",
+                    "source_kind": "rag_chunk",
+                    "source_path": "protocol.pdf",
+                },
+            )
+        ]
+        index = build_index(docs)
+        _, metas = retrieve_adaptive(index, None, ["overall survival endpoint"])
+
+        assert metas[0]["document_id"] == "supplement:001"
+        assert metas[0]["document_name"] == "protocol.pdf"
+        assert metas[0]["document_role"] == "protocol"
 
     def test_respects_token_budget(self, sample_docs):
         index = build_index(sample_docs)

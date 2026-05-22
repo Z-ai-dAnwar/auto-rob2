@@ -9,6 +9,7 @@ from rob2_pipeline.types import (
     LLMCallLogEntry,
     OutcomeProperties,
     RetrievalGrade,
+    SourceDocument,
     TrialFacts,
     VerifierTraceEntry,
 )
@@ -31,6 +32,9 @@ class RoB2State(TypedDict, total=False):
     evidence: Annotated[PaperEvidence, take_latest]
     docling_doc: Annotated[Any, take_latest]
     docling_chunks: Annotated[list, take_latest]
+    supplementary_paths: Annotated[list[str], take_latest]
+    source_documents: Annotated[list[SourceDocument], take_latest]
+    supplement_warnings: Annotated[list[str], take_latest]
     rag_contexts: Annotated[dict[str, str], take_latest]
     rag_chunk_metadata: Annotated[dict, merge_dicts]
     retrieval_grades: Annotated[dict[str, RetrievalGrade], merge_dicts]

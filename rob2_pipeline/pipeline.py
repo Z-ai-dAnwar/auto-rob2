@@ -23,6 +23,9 @@ JSON_OUTPUT_KEYS = (
     "registered_endpoint",
     "registered_analysis",
     "n_randomized",
+    "supplementary_paths",
+    "source_documents",
+    "supplement_warnings",
     "evidence",
     "rag_sources",
     "retrieval_grades",
@@ -58,6 +61,7 @@ def run_assessment(
     outcome: str | None = None,
     effect_of_interest: str = DEFAULT_EFFECT_OF_INTEREST,
     output_dir: str = "outputs/",
+    supplementary_paths: list[str] | None = None,
 ) -> RoB2State:
     """
     Main entry point. Returns the completed state dict.
@@ -73,7 +77,12 @@ def run_assessment(
     try:
         graph = build_rob2_graph()
         state = graph.invoke(
-            create_initial_state(pdf_path, outcome, effect_of_interest)
+            create_initial_state(
+                pdf_path,
+                outcome,
+                effect_of_interest,
+                supplementary_paths=supplementary_paths or [],
+            )
         )
 
         output_path = Path(output_dir)

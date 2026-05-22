@@ -20,6 +20,22 @@ class ChunkMeta(TypedDict, total=False):
     section: str
     page_numbers: list[int]
     score: float
+    document_id: str
+    document_name: str
+    document_role: str
+    source_kind: str
+    source_path: str
+
+
+class SourceDocument(TypedDict, total=False):
+    document_id: str
+    document_name: str
+    document_role: str
+    source_kind: str
+    path: str
+    is_primary: bool
+    status: str
+    error: str
 
 
 class OutcomeProperties(TypedDict):
@@ -57,6 +73,10 @@ class PacketSource(TypedDict, total=False):
     score: float
     matched_terms: list[str]
     source_kind: str
+    document_id: str
+    document_name: str
+    document_role: str
+    source_path: str
 
 
 class EvidenceFact(TypedDict, total=False):
@@ -70,6 +90,11 @@ class EvidenceFact(TypedDict, total=False):
     confidence: float
     support_status: str
     missing_reason: str
+    document_id: str
+    document_name: str
+    document_role: str
+    source_kind: str
+    source_path: str
 
 
 class EvidencePacket(TypedDict, total=False):

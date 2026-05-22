@@ -1,10 +1,15 @@
 import argparse
 import os
+from pathlib import Path
 from pprint import pformat
 
 from rob2_pipeline.config import get_default_effect_of_interest
 from rob2_pipeline.debug import summarize_state
-from rob2_pipeline.io import default_output_dir, discover_pdf_inputs
+from rob2_pipeline.io import (
+    default_output_dir,
+    discover_pdf_inputs,
+    discover_supplements_for_pdf,
+)
 from rob2_pipeline.pipeline import run_assessment
 
 
@@ -30,6 +35,17 @@ def main():
         help="Directory for Markdown and JSON outputs.",
     )
     parser.add_argument(
+        "--supplement",
+        action="append",
+        default=[],
+        help="Supplement PDF path. Can be passed multiple times.",
+    )
+    parser.add_argument(
+        "--supplement-dir",
+        default=None,
+        help="Directory containing per-trial supplement folders named by primary PDF stem.",
+    )
+    parser.add_argument(
         "--no-cache", action="store_true", help="Bypass prompt cache for this run."
     )
     parser.add_argument(
@@ -43,13 +59,26 @@ def main():
         os.environ["ROB2_USE_CACHE"] = "0"
 
     pdf_paths = discover_pdf_inputs(args.input)
+    if args.supplement and len(pdf_paths) > 1:
+        parser.error(
+            "--supplement can only be used with a single PDF input; "
+            "use --supplement-dir for directory runs."
+        )
     for pdf_path in pdf_paths:
         print(f"Assessing: {pdf_path}")
+        supplement_paths = list(args.supplement or [])
+        supplement_paths.extend(
+            str(path)
+            for path in discover_supplements_for_pdf(
+                pdf_path, Path(args.supplement_dir) if args.supplement_dir else None
+            )
+        )
         state = run_assessment(
             pdf_path=str(pdf_path),
             outcome=args.outcome,
             effect_of_interest=args.effect,
             output_dir=args.output_dir,
+            supplementary_paths=supplement_paths,
         )
         print(f"Overall judgment: {state.get('overall_judgment') or 'Not assessed'}")
         print(f"Human review priority: {state.get('human_review_priority', 'HIGH')}")

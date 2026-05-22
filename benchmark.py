@@ -4,6 +4,7 @@ from pathlib import Path
 
 from rob2_pipeline.benchmark import (
     OUTCOME_LABELS,
+    find_supplements_for_trial,
     load_reference,
     run_benchmark,
     summarize_benchmark,
@@ -105,6 +106,22 @@ def main():
         "--debug", action="store_true", help="Print extra progress details."
     )
     parser.add_argument(
+        "--use-supplements",
+        action="store_true",
+        help="Use discovered supplements for each benchmark trial.",
+    )
+    parser.add_argument(
+        "--supplement-dir",
+        default=None,
+        help="Directory containing per-trial supplement folders.",
+    )
+    parser.add_argument(
+        "--supplement-policy",
+        choices=["auto", "required", "none"],
+        default="auto",
+        help="How benchmark should treat missing supplements.",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate inputs and print planned runs only.",
@@ -144,6 +161,12 @@ def main():
             print(
                 f"- {trial} -> {OUTCOME_LABELS[code]} [{item.get('cohort', 'unspecified')}] ({details})"
             )
+            if args.use_supplements and args.supplement_dir:
+                supplements = find_supplements_for_trial(
+                    Path(args.supplement_dir), trial
+                )
+                supplement_names = ", ".join(path.name for path in supplements) or "none"
+                print(f"  supplements: {supplement_names}")
         return
 
     results = run_benchmark(
@@ -151,6 +174,9 @@ def main():
         reference_csvs=reference_csvs,
         outcome_map=outcome_map,
         output_dir=output_dir,
+        supplement_dir=Path(args.supplement_dir) if args.supplement_dir else None,
+        use_supplements=args.use_supplements,
+        supplement_policy=args.supplement_policy,
     )
     summary = summarize_benchmark(results)
     write_benchmark_report(results, summary, output_dir / "benchmark_report.md")

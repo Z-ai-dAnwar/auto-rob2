@@ -124,6 +124,11 @@ def retrieve_adaptive(
                 section=doc.metadata.get("section", ""),
                 page_numbers=list(doc.metadata.get("page_numbers") or []),
                 score=scores[key],
+                document_id=doc.metadata.get("document_id", ""),
+                document_name=doc.metadata.get("document_name", ""),
+                document_role=doc.metadata.get("document_role", ""),
+                source_kind=doc.metadata.get("source_kind", "rag_chunk"),
+                source_path=doc.metadata.get("source_path", ""),
             )
         )
 
@@ -151,4 +156,5 @@ def grade_retrieved_context(domain: str, text: str, metas: list[ChunkMeta]) -> d
 def _doc_key(doc: Document) -> str:
     pages = ",".join(str(page) for page in doc.metadata.get("page_numbers") or [])
     section = doc.metadata.get("section", "")
-    return f"{section}|{pages}|{doc.page_content[:160]}"
+    document_id = doc.metadata.get("document_id", "")
+    return f"{document_id}|{section}|{pages}|{doc.page_content[:160]}"

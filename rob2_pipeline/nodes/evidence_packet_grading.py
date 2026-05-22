@@ -48,11 +48,10 @@ def negative_flags(
         state.get("outcome", ""), text
     ):
         flags.append("possible_wrong_outcome_context")
-    # Only real RAG chunks need page numbers. Section-text sources are
-    # whole-section extracts and have no page metadata by design, so they are
-    # not eligible for a missing_page_source flag.
+    # Only real RAG chunks need page numbers. Structured sources such as
+    # section text and ClinicalTrials.gov have no page metadata by design.
     if any(
-        source.get("source_kind", "rag_chunk") != "section_text"
+        source.get("source_kind", "rag_chunk") == "rag_chunk"
         and not source.get("page_numbers")
         for source in selected
     ):
@@ -114,6 +113,11 @@ def source_to_fact(
         page_numbers=source.get("page_numbers", []),
         confidence=confidence,
         support_status="supported" if quote else "missing",
+        document_id=source.get("document_id", ""),
+        document_name=source.get("document_name", ""),
+        document_role=source.get("document_role", ""),
+        source_kind=source.get("source_kind", ""),
+        source_path=source.get("source_path", ""),
     )
 
 

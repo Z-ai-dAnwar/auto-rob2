@@ -1,5 +1,10 @@
 import rob2_pipeline.pdf_ingestion as pdf_ingestion
+from langchain_core.documents import Document
 from rob2_pipeline.models import empty_paper_evidence, format_evidence
+from rob2_pipeline.ingestion.supplements import (
+    apply_source_metadata,
+    primary_source_document,
+)
 from rob2_pipeline.nodes.ingest import pdf_ingest_node
 from rob2_pipeline.pdf_ingestion import (
     _build_docling_chunks,
@@ -189,6 +194,24 @@ def test_build_docling_chunks_configures_tokenizer_for_long_docling_counts(monke
     assert result[0].page_content == "Text about randomization."
     assert result[0].metadata["section"] == "Methods"
     assert result[0].metadata["page_numbers"] == [2]
+
+
+def test_primary_source_metadata_can_be_applied_to_docling_chunks(tmp_path):
+    pdf_path = tmp_path / "ARCHES.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 fake")
+    chunks = [
+        Document(
+            page_content="Primary paper methods.",
+            metadata={"section": "Methods", "page_numbers": [2]},
+        )
+    ]
+
+    enriched = apply_source_metadata(chunks, primary_source_document(pdf_path))
+
+    assert enriched[0].metadata["document_id"] == "primary"
+    assert enriched[0].metadata["document_name"] == "ARCHES.pdf"
+    assert enriched[0].metadata["document_role"] == "primary"
+    assert enriched[0].metadata["source_kind"] == "rag_chunk"
 
 
 def test_parse_sections_detects_expected_sections():
@@ -519,6 +542,38 @@ def test_ingest_node_falls_back_to_text_parse_when_docling_structure_fails(monke
     assert result["docling_chunks"] == []
     assert "randomly assigned" in result["evidence"]["methods"]["text"]
     assert "randomly assigned" in result["evidence"]["d1_randomization"]["text"]
+
+
+def test_ingest_node_records_skipped_supplements_when_primary_docling_falls_back(
+    monkeypatch,
+):
+    known_text = (
+        "Methods\nParticipants were randomly assigned in a 1:1 ratio.\nResults\nDone."
+    )
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest.extract_full_text", lambda _: known_text
+    )
+
+    class BrokenConverter:
+        def convert(self, _):
+            raise RuntimeError("docling structured parse failed")
+
+    monkeypatch.setattr(
+        "rob2_pipeline.nodes.ingest._get_docling_converter",
+        lambda use_ocr: BrokenConverter(),
+    )
+
+    result = pdf_ingest_node(
+        {
+            "pdf_path": "trial.pdf",
+            "supplementary_paths": ["inputs/benchmark/supplement/TITAN/protocol.pdf"],
+        }
+    )
+
+    assert result["docling_chunks"] == []
+    assert result["source_documents"][1]["document_name"] == "protocol.pdf"
+    assert result["source_documents"][1]["status"] == "failed"
+    assert "Supplement not ingested" in result["supplement_warnings"][0]
 
 
 def test_ingest_node_stores_docling_conversion_result(monkeypatch):

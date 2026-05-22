@@ -18,5 +18,16 @@ def discover_pdf_inputs(input_path: str) -> list[Path]:
     raise FileNotFoundError(f"Input path does not exist: {path}")
 
 
+def discover_supplements_for_pdf(
+    pdf_path: Path, supplement_root: Path | None
+) -> list[Path]:
+    if supplement_root is None:
+        return []
+    trial_dir = supplement_root / pdf_path.stem
+    if not trial_dir.exists() or not trial_dir.is_dir():
+        return []
+    return sorted(path for path in trial_dir.glob("*.pdf") if path.is_file())
+
+
 def default_output_dir() -> str:
     return DEFAULT_OUTPUT_DIR

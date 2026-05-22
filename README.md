@@ -33,6 +33,8 @@ Optional runtime settings:
 - `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
 - `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
 - `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`: skip the ingestion-time LLM evidence refinement and use Docling structural extraction only.
+- `ROB2_SUPPLEMENT_PAGE_WINDOW`: supplement PDF page-window size for Docling parsing; defaults to `20` so long appendices/protocols are parsed in bounded chunks.
+- `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`: defensive upper bound for supplement page scanning; defaults to `1000`. `ROB2_SUPPLEMENT_MAX_PAGES` is still accepted as a legacy alias.
 
 Settings such as `ROB2_PROVIDER`, `ROB2_MODEL`, and rate limits are read from the process environment during import. Export them before running the CLI if you need values other than the defaults; `.env` is still useful for API keys loaded when the provider is built.
 
@@ -81,6 +83,23 @@ Run every PDF in `inputs/`:
 uv run python main.py inputs --output-dir outputs
 ```
 
+Run with explicit supplementary files:
+
+```bash
+uv run python main.py inputs/benchmark/TITAN.pdf \
+  --outcome "Overall Survival" \
+  --supplement inputs/benchmark/supplement/TITAN/nejmoa1903307_protocol.pdf
+```
+
+Run with a supplement directory. The directory should contain per-study folders
+named by the primary PDF stem:
+
+```bash
+uv run python main.py inputs/benchmark/TITAN.pdf \
+  --outcome "Overall Survival" \
+  --supplement-dir inputs/benchmark/supplement
+```
+
 Or call the Python API:
 
 ```python
@@ -91,6 +110,7 @@ state = run_assessment(
     outcome="Functional Recovery",
     effect_of_interest="ITT",
     output_dir="outputs",
+    supplementary_paths=["inputs/example-protocol.pdf"],
 )
 ```
 
@@ -104,7 +124,8 @@ For PDFs screened as non-RCTs, the graph stops after screening; JSON is still wr
 
 The JSON output includes source and quality diagnostics for human review:
 
-- `rag_sources`: retrieved chunk text, section labels, page numbers, and similarity scores by RoB 2 domain when vector retrieval succeeds.
+- `supplementary_paths`, `source_documents`, and `supplement_warnings`: supplementary files requested, document parse status, and optional supplement failures.
+- `rag_sources`: retrieved chunk text, section labels, page numbers, similarity scores, document names, source roles, and source paths by RoB 2 domain when vector retrieval succeeds.
 - `retrieval_grades`: domain-level relevance/coverage grades and retry recommendations.
 - `evidence_packets`, `evidence_facts`, and `packet_grades`: SQ-level evidence contracts, selected sources, candidate facts, missing-evidence flags, and packet retry recommendations.
 - `evidence_validation_flags`, `verifier_trace`, and `verification_actions`: quote-support and packet-quality checks emitted before overall judgment.
@@ -145,6 +166,15 @@ Validate configuration without running LLM calls:
 uv run python benchmark.py \
   --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE \
   --dry-run
+```
+
+Run benchmark with supplements discovered from `inputs/benchmark/supplement/<TRIAL>/`:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map TITAN:OS "SWOG 1216:OS" \
+  --use-supplements \
+  --supplement-dir inputs/benchmark/supplement
 ```
 
 Benchmark outputs are written to the requested output directory as `benchmark_report.md`, `benchmark_results.json`, and per-trial assessment subdirectories such as `<TRIAL>_<outcome_code>/`.

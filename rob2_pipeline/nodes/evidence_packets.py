@@ -12,6 +12,7 @@ from rob2_pipeline.nodes.evidence_packet_grading import (
     source_to_fact,
 )
 from rob2_pipeline.nodes.evidence_source_selection import candidate_sources
+from rob2_pipeline.nodes.evidence_source_selection import role_rank
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.types import EvidenceFact, EvidencePacket, RetrievalGrade
 
@@ -55,10 +56,16 @@ def packet_block_for_domain(
         source_lines = []
         for source in sources[:3]:
             pages = source.get("page_numbers") or []
-            page = pages[0] if pages else "?"
+            page = f"page {pages[0]}" if pages else "no page"
             section = source.get("section") or "Unknown"
+            document_name = source.get("document_name") or "Unknown document"
+            document_role = (
+                source.get("document_role") or source.get("source_kind") or "source"
+            )
             text = compact(source.get("text", ""), 700)
-            source_lines.append(f"- page {page}, {section}: {text}")
+            source_lines.append(
+                f"- {document_role} ({document_name}), {page}, {section}: {text}"
+            )
         missing = ", ".join(packet.get("missing_evidence", [])) or "none"
         flags = ", ".join(packet.get("negative_flags", [])) or "none"
         parts.append(
@@ -83,6 +90,7 @@ def _build_packet_for_contract(
         candidates,
         key=lambda source: (
             -len(source.get("matched_terms", [])),
+            role_rank(contract.domain, source.get("document_role", "")),
             source.get("score", 1e9),
         ),
     )

@@ -52,6 +52,48 @@ def _find_pdf_for_trial(pdf_dir: Path, trial_name: str) -> Path | None:
     return None
 
 
+def find_supplements_for_trial(supplement_dir: Path, trial_name: str) -> list[Path]:
+    if not supplement_dir.exists() or not supplement_dir.is_dir():
+        return []
+    target = trial_name.strip().casefold()
+    for candidate in supplement_dir.iterdir():
+        if candidate.is_dir() and candidate.name.strip().casefold() == target:
+            return sorted(path for path in candidate.glob("*.pdf") if path.is_file())
+    return []
+
+
+def _required_supplement_failures(
+    requested_paths: list[Path], source_documents: list[dict]
+) -> list[str]:
+    def key(value: object) -> str:
+        text = _strip(value)
+        if not text:
+            return ""
+        try:
+            text = str(Path(text).resolve())
+        except OSError:
+            pass
+        return text.replace("\\", "/").casefold()
+
+    non_primary_documents = [
+        document for document in source_documents if not document.get("is_primary")
+    ]
+    documents_by_path = {
+        key(document.get("path")): document
+        for document in non_primary_documents
+        if _strip(document.get("path"))
+    }
+    failures: list[str] = []
+    for requested in requested_paths:
+        requested_key = key(requested)
+        document = documents_by_path.get(requested_key)
+        if document is None:
+            failures.append(f"{requested.name} (not ingested)")
+        elif document.get("status") not in {"parsed", "partial"}:
+            failures.append(f"{requested.name} ({document.get('status', 'unknown')})")
+    return failures
+
+
 def _iter_outcome_map(outcome_map) -> list[tuple[str, str, str]]:
     if isinstance(outcome_map, dict):
         return [(trial, code, "unspecified") for trial, code in outcome_map.items()]
@@ -105,7 +147,14 @@ def compare_judgments(pipeline: dict, reference: dict) -> dict[str, bool]:
 
 
 def run_benchmark(
-    pdf_dir, reference_csvs, outcome_map, output_dir, **run_kwargs
+    pdf_dir,
+    reference_csvs,
+    outcome_map,
+    output_dir,
+    supplement_dir=None,
+    use_supplements: bool = False,
+    supplement_policy: str = "auto",
+    **run_kwargs,
 ) -> list[dict]:
     pdf_dir_path = Path(pdf_dir)
     output_dir_path = Path(output_dir)
@@ -129,6 +178,9 @@ def run_benchmark(
             "outcome_code": code,
             "outcome": outcome_label,
             "cohort": _strip(cohort) or "unspecified",
+            "supplementary_paths": [],
+            "supplements_found": 0,
+            "supplement_policy": supplement_policy,
             "skipped": False,
             "error": None,
             "notes": "",
@@ -167,16 +219,46 @@ def run_benchmark(
         trial_result["pdf_path"] = str(pdf_path)
         trial_result["reference"] = reference_row_entry["row"]
         assessment_output_dir = output_dir_path / f"{pdf_path.stem}_{code.lower()}"
+        supplement_paths: list[Path] = []
+        if (
+            use_supplements
+            and supplement_policy != "none"
+            and supplement_dir is not None
+        ):
+            supplement_paths = find_supplements_for_trial(
+                Path(supplement_dir), trial_name
+            )
+        trial_result["supplementary_paths"] = [
+            str(path) for path in supplement_paths
+        ]
+        trial_result["supplements_found"] = len(supplement_paths)
+        if use_supplements and supplement_policy == "required" and not supplement_paths:
+            trial_result["error"] = f"Required supplements not found in {supplement_dir}"
+            trial_result["notes"] = trial_result["error"]
+            trial_result["comparison"] = {}
+            results.append(trial_result)
+            continue
 
         try:
             run_assessment(
                 pdf_path=str(pdf_path),
                 outcome=outcome_label,
                 output_dir=str(assessment_output_dir),
+                supplementary_paths=[str(path) for path in supplement_paths],
                 **run_kwargs,
             )
             output_json = assessment_output_dir / f"{pdf_path.stem}_rob2_data.json"
             pipeline_output = json.loads(output_json.read_text(encoding="utf-8"))
+            if supplement_policy == "required":
+                failures = _required_supplement_failures(
+                    supplement_paths,
+                    list(pipeline_output.get("source_documents") or []),
+                )
+                if failures:
+                    raise RuntimeError(
+                        "Required supplement ingestion failed: "
+                        + ", ".join(failures)
+                    )
             trial_result["pipeline"] = {
                 "domain_judgments": pipeline_output.get("domain_judgments") or {},
                 "overall_judgment": pipeline_output.get("overall_judgment"),

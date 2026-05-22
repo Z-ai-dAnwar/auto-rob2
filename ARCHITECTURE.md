@@ -6,7 +6,7 @@
 
 The compiled graph in `rob2_pipeline/graph.py` executes these stages:
 
-1. PDF ingestion, OCR retry, section/table parsing, and Docling chunking
+1. PDF ingestion, OCR retry, section/table parsing, Docling chunking, and optional supplementary PDF chunking
 2. RCT screening
 3. Preliminary trial metadata extraction with ClinicalTrials.gov enrichment
 4. Outcome-property normalization and trial-fact extraction
@@ -35,6 +35,7 @@ If `rct_screener` determines a paper is not an RCT, the graph terminates early. 
   - `docling_extract.py`: Docling text extraction, OCR retry, converter caching, and chunk creation.
   - `document_repr.py`: Docling item traversal and prompt-facing document representation.
   - `evidence.py`: paper evidence extraction, structural section mapping, keyword fallbacks, and censoring context.
+  - `supplements.py`: supplementary PDF role classification, source document records, provenance metadata application, and optional supplement chunk ingestion.
   - `settings.py`: ingestion constants and runtime feature flags.
 
 - `rob2_pipeline/docling_utils.py`
@@ -65,12 +66,12 @@ If `rct_screener` determines a paper is not an RCT, the graph terminates early. 
   - LangGraph node implementations.
   - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
   - `nodes/domain_helpers.py` shares simple domain SQ call helpers across domain nodes.
-  - `nodes/ingest.py` coordinates Docling extraction, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
+  - `nodes/ingest.py` coordinates Docling extraction, optional supplementary chunk ingestion, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
   - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
   - `nodes/outcome_resolver.py` normalizes outcome type from inferred properties such as time-to-event, safety, objective event, and blinded adjudication.
   - `nodes/trial_facts.py` extracts reusable deterministic snippets for randomization, concealment, masking, deviations, amendments, and analysis populations.
   - `nodes/rag_retrieval.py` builds domain-level retrieval contexts, prompt-facing D2/D4 context variants, chunk metadata, and retrieval grades; if vector retrieval fails, it falls back to structured evidence sections.
-  - `nodes/evidence_packets.py` orchestrates SQ-level packet construction and prompt-facing packet rendering.
+  - `nodes/evidence_packets.py` orchestrates SQ-level packet construction and prompt-facing packet rendering, including source-role labels for primary, supplement, and registry evidence.
   - Contract definitions, source selection, and packet grading live in focused sibling modules.
   - `nodes/verification.py` verifies SQ quotes and packet quality, then emits validation flags and recommended retry/escalation actions.
   - `nodes/reporter.py` writes the Markdown report, including verified-packet and quality-flag summaries.
@@ -120,7 +121,7 @@ If `rct_screener` determines a paper is not an RCT, the graph terminates early. 
    - Auto-sets the effect of interest to `per-protocol` for detected safety endpoints when `ROB2_EFFECT_OF_INTEREST` is at its `ITT` default.
 4. `outcome_resolver`: normalizes `outcome_type` from `outcome_properties`
 5. `trial_facts`: extracts reusable trial-level snippets for prompt grounding
-6. `rag_retrieval`: per-document embedding, section-filtered retrieval, metadata capture, retrieval grading, compatibility context mapping for D2/D4 prompt groups, and D3 censoring-context augmentation
+6. `rag_retrieval`: per-document embedding, section-filtered retrieval, provenance metadata capture, retrieval grading, compatibility context mapping for D2/D4 prompt groups, and D3 censoring-context augmentation
 7. `evidence_packet_builder`: builds SQ-specific packets with required-evidence contracts, candidate facts, negative flags, and packet grades
 8. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
 9. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
@@ -151,16 +152,17 @@ State schema is defined in `rob2_pipeline/state.py` and initialized in `rob2_pip
 
 Important fields:
 
-- `pdf_path`, `full_text`, `evidence`: source input and extracted paper evidence.
-- `docling_doc`, `docling_chunks`: non-JSON Docling conversion result and LangChain `Document` chunks.
+- `pdf_path`, `full_text`, `evidence`: primary source input and extracted primary-paper evidence.
+- `docling_doc`, `docling_chunks`: non-JSON primary Docling conversion result and LangChain `Document` chunks. When supplements are provided, `docling_chunks` also includes supplementary chunks tagged with document provenance.
+- `supplementary_paths`, `source_documents`, `supplement_warnings`: optional supplementary PDF inputs, parsed/missing/failed document inventory, and non-fatal supplement ingestion warnings.
 - `rag_contexts`: prompt-facing context strings. Current keys are `d1`, `d2_blinding`, `d2_deviations`, `d2_analysis`, `d3`, `d4_measurement`, `d4_assessor`, and `d5`.
-- `rag_chunk_metadata`: JSON-emitted as `rag_sources`, grouped by domain (`d1` through `d5`) with text, section, pages, and score.
+- `rag_chunk_metadata`: JSON-emitted as `rag_sources`, grouped by domain (`d1` through `d5`) with text, section, pages, score, `document_id`, `document_name`, `document_role`, `source_kind`, and `source_path`.
 - `retrieval_grades`, `evidence_packets`, `evidence_facts`, `packet_grades`: retrieval and evidence-packet diagnostics.
 - `sq_answers`: parsed signaling-question answers
 - `domain_judgments`, `domain_rationales`
 - `effect_of_interest`: `ITT` or `per-protocol`
 - `outcome_properties`
-- `registered_endpoint`, `registered_secondary_endpoints`
+- `registered_endpoint`, `registered_secondary_endpoints`, `registered_analysis`
 - `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`
 - `sources_consulted`, `trial_facts`
 - `evidence_validation_flags`, `verifier_trace`, `verification_actions`
@@ -185,6 +187,10 @@ Important fields:
 - Ingestion evidence refinement: `ROB2_REMOTE_EVIDENCE_EXTRACTION`
   - default enabled
   - set to `0`, `false`, or `False` to skip the ingestion-time LLM evidence extraction and use Docling structural evidence only
+- Supplement ingestion:
+  - `ROB2_SUPPLEMENT_PAGE_WINDOW`: default `20`, parses supplements in bounded page windows.
+  - `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`: default `1000`, a defensive scan limit. `ROB2_SUPPLEMENT_MAX_PAGES` remains a legacy alias.
+  - Supplement windows that trigger native Docling errors are skipped with warnings; later windows continue when possible.
 - Caches:
   - Prompt cache: `ROB2_USE_CACHE` (`.rob2_cache/`)
   - ClinicalTrials.gov cache: `ROB2_CTGOV_CACHE`
@@ -227,6 +233,16 @@ uv run python benchmark.py \
   --dry-run
 ```
 
+Validate benchmark supplement discovery without LLM calls:
+
+```bash
+uv run python benchmark.py \
+  --outcome-map TITAN:OS "SWOG 1216:OS" \
+  --dry-run \
+  --use-supplements \
+  --supplement-dir inputs/benchmark/supplement
+```
+
 Typical failure triage:
 
 1. XML parse failures
@@ -237,7 +253,7 @@ Typical failure triage:
    - Check evidence extraction warnings in the JSON output; Docling structural failures are reported there
 3. RAG retrieval gaps
    - Inspect `rag_contexts` and `rob2_pipeline/rag.py`
-   - Inspect JSON `rag_sources` for chunk text, section labels, page numbers, and similarity scores
+   - Inspect JSON `rag_sources` for chunk text, section labels, page numbers, similarity scores, document names, and source roles
    - Inspect `retrieval_grades` for missing domain terms and retry recommendations
    - If `rag_sources` is empty, check `evidence.warnings` for vector retrieval failure and confirm the BGE embedding model is available locally or downloadable from Hugging Face.
 4. Evidence packet or quote verification flags
