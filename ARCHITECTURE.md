@@ -17,7 +17,8 @@ changing or debugging it. For installation and command-line usage, start with
    signaling questions. Deterministic judges convert those answers into D1-D5
    and overall judgments.
 4. **Outputs must be auditable.** Reports are accompanied by JSON diagnostics,
-   source provenance, retrieval grades, evidence packets, and LLM traces.
+   source provenance, retrieval grades, evidence packets, LLM traces, and
+   timing traces.
 
 ## End-To-End Flow
 
@@ -43,7 +44,9 @@ ingestion, evidence selection, signaling-question answering, deterministic
 judgment, verification, and report formatting.
 
 `rob2_pipeline/pipeline.py` owns the public `run_assessment()` API and writes
-the Markdown report, data JSON, and trace JSON after graph execution.
+the Markdown report, data JSON, and trace JSON after graph execution. Graph
+nodes are wrapped centrally in `rob2_pipeline/graph.py` so every node execution
+records a timing span in the active trace.
 
 ## Major Subsystems
 
@@ -146,11 +149,29 @@ caching, XML parsing and repair, trace logging, and error normalization.
 | `rob2_pipeline/methodology/` | RoB 2 rule cards rendered into prompts |
 | `rob2_pipeline/providers/` | OpenRouter, Anthropic, and OpenAI adapters |
 | `rob2_pipeline/cache.py` | Optional prompt cache |
-| `rob2_pipeline/trace.py` | LLM input/output trace records |
+| `rob2_pipeline/trace.py` | LLM input/output records and graph-node timing spans |
 | `rob2_pipeline/xml_parser.py` | XML extraction and repair helpers |
 
 Avoid direct provider SDK calls inside graph nodes. Keeping calls behind the
 provider abstraction makes traces, caching, retries, and tests consistent.
+
+### Timing Instrumentation
+
+The active trace records two timing layers:
+
+| Layer | Trace field | Meaning |
+| --- | --- | --- |
+| Graph node spans | `node_spans` | Wall-clock duration, status, timestamps, and error text for each LangGraph node |
+| LLM calls | `llm_calls` | Provider-facing latency, cache hits, token counts, repairs, parse errors, and model metadata |
+
+Node spans are produced by the central graph wrapper, not by individual node
+implementations. This keeps instrumentation additive as the graph evolves and
+ensures exceptions still close spans before the original error is re-raised.
+
+LLM latency and node duration are intentionally separate. A node span includes
+all work inside the node, including local parsing, retrieval, Docling work, and
+any nested LLM calls. Benchmark summaries use these fields to estimate non-LLM
+time as `max(total_wall_ms - llm_total_ms, 0)`.
 
 ### Judging, Verification, And Reporting
 
@@ -270,7 +291,24 @@ Primary PDFs resolve from `inputs/benchmark/<TRIAL>.pdf`. When
 is supplied.
 
 Benchmark results include the reference row, pipeline judgments, agreement
-comparisons, supplement counts, errors, and aggregate confusion matrices.
+comparisons, supplement counts, errors, aggregate confusion matrices, and
+timing summaries.
+
+Each benchmark result gets a `timing` object when an assessment is attempted or
+fails before execution in a non-skipped path. It includes:
+
+- total wall-clock runtime for the assessment attempt
+- whether the assessment trace was available
+- total graph-node duration
+- total LLM latency, LLM call count, cache hits, repairs, and parse errors
+- estimated non-LLM time
+- slowest nodes
+- LLM latency grouped by node
+
+`benchmark_report.md` renders a `Timing Summary` section with aggregate
+wall-clock timing, slowest runs, and node timing totals. Raw per-node span
+payloads remain in the per-assessment trace JSON rather than the public
+benchmark summary JSON.
 
 ## Configuration Reference
 
@@ -315,6 +353,7 @@ For ingestion problems, inspect:
 2. `source_documents`
 3. `supplement_warnings`
 4. the LLM trace for extraction failures
+5. `node_spans` for slow or failed ingestion nodes
 
 Common failure modes:
 
@@ -328,6 +367,7 @@ Common failure modes:
 | Supplement parse issue | `source_documents`, `supplement_warnings` |
 | `std::bad_alloc` from Docling | Supplement window warnings; reduce page-window size |
 | Empty RAG output | embedding availability and primary evidence warnings |
+| Slow benchmark run | `benchmark_report.md` Timing Summary, per-result `timing`, and trace `node_spans` |
 
 ## Extension Guide
 
@@ -359,6 +399,8 @@ graph.
 - Human review remains required.
 - Prompt cache is opt-in with `ROB2_USE_CACHE=1`.
 - Rate limiting is lock-protected for concurrent graph fan-out.
+- Timing instrumentation is always on and additive; it does not alter pipeline
+  decisions or benchmark accuracy calculations.
 - ClinicalTrials.gov evidence is supporting evidence; it may disagree with
   protocols or publications.
 - Supplement ingestion is intentionally tolerant in normal runs and stricter in
