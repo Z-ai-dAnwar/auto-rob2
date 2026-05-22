@@ -639,7 +639,10 @@ def test_write_benchmark_report_renders_timing_summary(tmp_path):
     assert "## Timing Summary" in report
     assert "### Slowest Runs" in report
     assert "### Node Timing" in report
-    assert "| Trial | Outcome | Wall Time | LLM Time | Estimated Non-LLM | LLM Calls | Cache Hits | Slowest Node |" in report
+    assert (
+        "| Trial | Outcome | Wall Time | LLM Time | Estimated Non-LLM | LLM Calls | Cache Hits | Slowest Node |"
+        in report
+    )
     assert "| Node | Calls | Total Time | Mean Time | Max Time | Errors |" in report
     assert "1.0s" in report
     assert "0.4s" in report

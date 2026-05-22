@@ -132,7 +132,8 @@ outputs/<pdf_basename>_trace.json
 
 - The Markdown report is the human-readable draft RoB 2 assessment.
 - The data JSON is the main audit artifact.
-- The trace JSON captures LLM inputs and outputs for debugging.
+- The trace JSON captures LLM inputs/outputs and graph-node timing spans for
+  debugging and performance analysis.
 
 Useful JSON fields:
 
@@ -148,6 +149,13 @@ Useful JSON fields:
 | `retrieval_grades`, `packet_grades`    | Retrieval and packet quality diagnostics             |
 | `evidence_validation_flags`            | Quote-support and quality flags                      |
 | `verification_actions`                 | Suggested retry or review actions                    |
+
+Useful trace JSON fields:
+
+| Field        | What it tells you                                               |
+| ------------ | --------------------------------------------------------------- |
+| `llm_calls`  | Per-call prompt/response metadata, token counts, cache hits, repairs, parse errors, and latency |
+| `node_spans` | Per-graph-node wall-clock timing, status, timestamps, and errors |
 
 If the paper is screened as non-RCT, the graph stops early. JSON is still
 written, but report and judgment fields may be absent.
@@ -204,6 +212,16 @@ Benchmark outputs:
 <output-dir>/benchmark_results.json
 <output-dir>/<TRIAL>_<OUTCOME_CODE>/...
 ```
+
+Benchmark results include timing data for each attempted assessment. Each
+per-result `timing` object reports total wall time, trace availability, total
+LLM latency, estimated non-LLM time, LLM call/cache/repair counts, slowest
+nodes, and LLM latency grouped by node. `benchmark_report.md` also includes a
+`Timing Summary` section with aggregate wall-clock timing, slowest runs, and
+node timing totals.
+
+Timing data is instrumentation-only. It does not change prompts, provider
+selection, graph behavior, cache policy, or benchmark accuracy calculations.
 
 ## Supplement Handling
 

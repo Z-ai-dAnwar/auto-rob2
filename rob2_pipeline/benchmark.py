@@ -491,9 +491,7 @@ def _summarize_results_subset(results) -> dict:
 
 def _summarize_timing_results(results) -> dict[str, Any]:
     timed_results = [
-        result
-        for result in results
-        if isinstance(result.get("timing"), dict)
+        result for result in results if isinstance(result.get("timing"), dict)
     ]
     if not timed_results:
         return {
@@ -574,9 +572,8 @@ def _summarize_timing_results(results) -> dict[str, Any]:
         slowest_runs.append(
             {
                 "trial": _strip(result.get("trial")) or _strip(result.get("id")),
-                "outcome": _strip(result.get("outcome")) or _strip(
-                    result.get("outcome_code")
-                ),
+                "outcome": _strip(result.get("outcome"))
+                or _strip(result.get("outcome_code")),
                 "cohort": _strip(result.get("cohort")) or "unspecified",
                 "total_wall_ms": wall_ms,
                 "llm_total_ms": llm_ms,
@@ -722,9 +719,7 @@ def write_benchmark_report(results, summary, output_path):
         for run in timing.get("slowest_runs") or []:
             slowest_node = _strip(run.get("slowest_node")) or "-"
             if slowest_node != "-":
-                slowest_node = (
-                    f"{slowest_node} ({_format_seconds(run.get('slowest_node_duration_ms', 0))})"
-                )
+                slowest_node = f"{slowest_node} ({_format_seconds(run.get('slowest_node_duration_ms', 0))})"
             lines.append(
                 "| "
                 + " | ".join(
