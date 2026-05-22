@@ -1,7 +1,10 @@
 import csv
 import json
 import logging
+import time
+from collections import defaultdict
 from pathlib import Path
+from statistics import mean, median
 from typing import Any
 
 from rob2_pipeline.pipeline import run_assessment
@@ -92,6 +95,138 @@ def _required_supplement_failures(
         elif document.get("status") not in {"parsed", "partial"}:
             failures.append(f"{requested.name} ({document.get('status', 'unknown')})")
     return failures
+
+
+def _coerce_int_ms(value: object) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _format_seconds(value_ms: object) -> str:
+    return f"{_coerce_int_ms(value_ms) / 1000:.1f}s"
+
+
+def _summarize_trace_timing(trace_path: Path, total_wall_ms: int) -> dict[str, Any]:
+    timing = {
+        "total_wall_ms": total_wall_ms,
+        "trace_available": False,
+        "node_total_ms": 0,
+        "llm_total_ms": 0,
+        "non_llm_estimated_ms": max(total_wall_ms, 0),
+        "llm_calls": 0,
+        "llm_cache_hits": 0,
+        "llm_repairs": 0,
+        "llm_parse_errors": 0,
+        "slowest_nodes": [],
+        "llm_by_node": {},
+        "_node_spans": [],
+    }
+
+    try:
+        trace_data = json.loads(trace_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        timing["trace_error"] = "trace file not found"
+        return timing
+    except Exception as exc:  # noqa: BLE001
+        timing["trace_error"] = str(exc)
+        return timing
+
+    raw_llm_calls = trace_data.get("llm_calls") or []
+    llm_calls = [call for call in raw_llm_calls if isinstance(call, dict)]
+    raw_node_spans = trace_data.get("node_spans") or []
+    node_spans = [span for span in raw_node_spans if isinstance(span, dict)]
+
+    llm_total_ms = 0
+    llm_cache_hits = 0
+    llm_repairs = 0
+    llm_parse_errors = 0
+    llm_by_node: dict[str, dict[str, int]] = {}
+    for call in llm_calls:
+        node = _strip(call.get("node")) or "unknown"
+        node_summary = llm_by_node.setdefault(
+            node,
+            {
+                "calls": 0,
+                "latency_ms": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cache_hits": 0,
+                "repairs": 0,
+                "parse_errors": 0,
+            },
+        )
+        latency_ms = _coerce_int_ms(call.get("latency_ms"))
+        node_summary["calls"] += 1
+        node_summary["latency_ms"] += latency_ms
+        node_summary["input_tokens"] += _coerce_int_ms(call.get("input_tokens"))
+        node_summary["output_tokens"] += _coerce_int_ms(call.get("output_tokens"))
+        if call.get("cache_hit"):
+            node_summary["cache_hits"] += 1
+            llm_cache_hits += 1
+        if call.get("is_repair"):
+            node_summary["repairs"] += 1
+            llm_repairs += 1
+        if call.get("parse_error"):
+            node_summary["parse_errors"] += 1
+            llm_parse_errors += 1
+        llm_total_ms += latency_ms
+
+    sorted_spans = sorted(
+        (
+            {
+                "node": _strip(span.get("node")) or "unknown",
+                "duration_ms": _coerce_int_ms(span.get("duration_ms")),
+                "status": _strip(span.get("status")) or "ok",
+                "error": _strip(span.get("error")) or None,
+                "timestamp_start": span.get("timestamp_start"),
+                "timestamp_end": span.get("timestamp_end"),
+            }
+            for span in node_spans
+        ),
+        key=lambda span: (-span["duration_ms"], span["node"]),
+    )
+
+    timing.update(
+        {
+            "trace_available": True,
+            "node_total_ms": sum(span["duration_ms"] for span in sorted_spans),
+            "llm_total_ms": llm_total_ms,
+            "non_llm_estimated_ms": max(total_wall_ms - llm_total_ms, 0),
+            "llm_calls": len(llm_calls),
+            "llm_cache_hits": llm_cache_hits,
+            "llm_repairs": llm_repairs,
+            "llm_parse_errors": llm_parse_errors,
+            "slowest_nodes": [
+                {
+                    "node": span["node"],
+                    "duration_ms": span["duration_ms"],
+                    "status": span["status"],
+                }
+                for span in sorted_spans[:3]
+            ],
+            "llm_by_node": llm_by_node,
+            "_node_spans": sorted_spans,
+        }
+    )
+    return timing
+
+
+def _timing_without_private_fields(timing: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in timing.items()
+        if not key.startswith("_") and key != "node_spans"
+    }
+
+
+def _public_result(result: dict[str, Any]) -> dict[str, Any]:
+    public = dict(result)
+    timing = public.get("timing")
+    if isinstance(timing, dict):
+        public["timing"] = _timing_without_private_fields(timing)
+    return public
 
 
 def _iter_outcome_map(outcome_map) -> list[tuple[str, str, str]]:
@@ -218,7 +353,6 @@ def run_benchmark(
 
         trial_result["pdf_path"] = str(pdf_path)
         trial_result["reference"] = reference_row_entry["row"]
-        assessment_output_dir = output_dir_path / f"{pdf_path.stem}_{code.lower()}"
         supplement_paths: list[Path] = []
         if (
             use_supplements
@@ -236,9 +370,22 @@ def run_benchmark(
             )
             trial_result["notes"] = trial_result["error"]
             trial_result["comparison"] = {}
+            trace_path = (
+                output_dir_path
+                / f"{pdf_path.stem}_{code.lower()}"
+                / f"{pdf_path.stem}_trace.json"
+            )
+            trial_result["timing"] = _summarize_trace_timing(
+                trace_path,
+                0,
+            )
+            trial_result["timing"]["trace_error"] = "assessment not run"
             results.append(trial_result)
             continue
 
+        assessment_output_dir = output_dir_path / f"{pdf_path.stem}_{code.lower()}"
+        start_wall = time.perf_counter()
+        run_error: Exception | None = None
         try:
             run_assessment(
                 pdf_path=str(pdf_path),
@@ -247,6 +394,22 @@ def run_benchmark(
                 supplementary_paths=[str(path) for path in supplement_paths],
                 **run_kwargs,
             )
+        except Exception as exc:  # noqa: BLE001
+            run_error = exc
+            trial_result["error"] = str(exc)
+            trial_result["notes"] = str(exc)
+            trial_result["comparison"] = {}
+            LOGGER.exception("run_assessment failed for trial %s", trial_name)
+        finally:
+            total_wall_ms = int((time.perf_counter() - start_wall) * 1000)
+            trace_path = assessment_output_dir / f"{pdf_path.stem}_trace.json"
+            trial_result["timing"] = _summarize_trace_timing(trace_path, total_wall_ms)
+
+        if run_error is not None:
+            results.append(trial_result)
+            continue
+
+        try:
             output_json = assessment_output_dir / f"{pdf_path.stem}_rob2_data.json"
             pipeline_output = json.loads(output_json.read_text(encoding="utf-8"))
             if supplement_policy == "required":
@@ -326,6 +489,139 @@ def _summarize_results_subset(results) -> dict:
     }
 
 
+def _summarize_timing_results(results) -> dict[str, Any]:
+    timed_results = [
+        result
+        for result in results
+        if isinstance(result.get("timing"), dict)
+    ]
+    if not timed_results:
+        return {
+            "evaluated_runs": 0,
+            "total_wall_ms": 0,
+            "mean_wall_ms": 0,
+            "median_wall_ms": 0,
+            "total_node_duration_ms": 0,
+            "total_llm_latency_ms": 0,
+            "total_llm_calls": 0,
+            "total_llm_cache_hits": 0,
+            "total_llm_repairs": 0,
+            "total_llm_parse_errors": 0,
+            "total_non_llm_estimated_ms": 0,
+            "slowest_runs": [],
+            "node_aggregates": {},
+        }
+
+    wall_times = []
+    node_aggregate_totals: dict[str, dict[str, int]] = defaultdict(
+        lambda: {
+            "calls": 0,
+            "total_duration_ms": 0,
+            "max_duration_ms": 0,
+            "error_count": 0,
+        }
+    )
+    slowest_runs = []
+    total_wall_ms = 0
+    total_node_duration_ms = 0
+    total_llm_latency_ms = 0
+    total_llm_calls = 0
+    total_llm_cache_hits = 0
+    total_llm_repairs = 0
+    total_llm_parse_errors = 0
+    total_non_llm_estimated_ms = 0
+
+    for result in timed_results:
+        timing = result.get("timing") or {}
+        wall_ms = _coerce_int_ms(timing.get("total_wall_ms"))
+        llm_ms = _coerce_int_ms(timing.get("llm_total_ms"))
+        node_total_ms = _coerce_int_ms(timing.get("node_total_ms"))
+        non_llm_ms = _coerce_int_ms(timing.get("non_llm_estimated_ms"))
+        wall_times.append(wall_ms)
+        total_wall_ms += wall_ms
+        total_node_duration_ms += node_total_ms
+        total_llm_latency_ms += llm_ms
+        total_llm_calls += _coerce_int_ms(timing.get("llm_calls"))
+        total_llm_cache_hits += _coerce_int_ms(timing.get("llm_cache_hits"))
+        total_llm_repairs += _coerce_int_ms(timing.get("llm_repairs"))
+        total_llm_parse_errors += _coerce_int_ms(timing.get("llm_parse_errors"))
+        total_non_llm_estimated_ms += non_llm_ms
+
+        for span in timing.get("node_spans") or timing.get("_node_spans") or []:
+            if not isinstance(span, dict):
+                continue
+            node = _strip(span.get("node")) or "unknown"
+            duration_ms = _coerce_int_ms(span.get("duration_ms"))
+            node_summary = node_aggregate_totals[node]
+            node_summary["calls"] += 1
+            node_summary["total_duration_ms"] += duration_ms
+            node_summary["max_duration_ms"] = max(
+                node_summary["max_duration_ms"], duration_ms
+            )
+            if _strip(span.get("status")).casefold() == "error":
+                node_summary["error_count"] += 1
+
+        slowest_nodes = timing.get("slowest_nodes") or []
+        slowest_node = ""
+        slowest_node_duration_ms = 0
+        if slowest_nodes:
+            first_slowest_node = slowest_nodes[0]
+            if isinstance(first_slowest_node, dict):
+                slowest_node = _strip(first_slowest_node.get("node"))
+                slowest_node_duration_ms = _coerce_int_ms(
+                    first_slowest_node.get("duration_ms")
+                )
+        slowest_runs.append(
+            {
+                "trial": _strip(result.get("trial")) or _strip(result.get("id")),
+                "outcome": _strip(result.get("outcome")) or _strip(
+                    result.get("outcome_code")
+                ),
+                "cohort": _strip(result.get("cohort")) or "unspecified",
+                "total_wall_ms": wall_ms,
+                "llm_total_ms": llm_ms,
+                "non_llm_estimated_ms": non_llm_ms,
+                "llm_calls": _coerce_int_ms(timing.get("llm_calls")),
+                "llm_cache_hits": _coerce_int_ms(timing.get("llm_cache_hits")),
+                "slowest_node": slowest_node,
+                "slowest_node_duration_ms": slowest_node_duration_ms,
+            }
+        )
+
+    slowest_runs.sort(key=lambda item: (-item["total_wall_ms"], item["trial"]))
+    ordered_node_aggregates = {
+        node: {
+            "calls": data["calls"],
+            "total_duration_ms": data["total_duration_ms"],
+            "mean_duration_ms": int(round(data["total_duration_ms"] / data["calls"]))
+            if data["calls"]
+            else 0,
+            "max_duration_ms": data["max_duration_ms"],
+            "error_count": data["error_count"],
+        }
+        for node, data in sorted(
+            node_aggregate_totals.items(),
+            key=lambda item: (-item[1]["total_duration_ms"], item[0]),
+        )
+    }
+
+    return {
+        "evaluated_runs": len(timed_results),
+        "total_wall_ms": total_wall_ms,
+        "mean_wall_ms": int(round(mean(wall_times))) if wall_times else 0,
+        "median_wall_ms": int(round(median(wall_times))) if wall_times else 0,
+        "total_node_duration_ms": total_node_duration_ms,
+        "total_llm_latency_ms": total_llm_latency_ms,
+        "total_llm_calls": total_llm_calls,
+        "total_llm_cache_hits": total_llm_cache_hits,
+        "total_llm_repairs": total_llm_repairs,
+        "total_llm_parse_errors": total_llm_parse_errors,
+        "total_non_llm_estimated_ms": total_non_llm_estimated_ms,
+        "slowest_runs": slowest_runs[:5],
+        "node_aggregates": ordered_node_aggregates,
+    }
+
+
 def summarize_benchmark(results) -> dict:
     summary = _summarize_results_subset(results)
     cohorts: dict[str, list[dict]] = {}
@@ -336,6 +632,7 @@ def summarize_benchmark(results) -> dict:
         cohort: _summarize_results_subset(items)
         for cohort, items in sorted(cohorts.items())
     }
+    summary["timing"] = _summarize_timing_results(results)
     return summary
 
 
@@ -347,7 +644,12 @@ def write_benchmark_report(results, summary, output_path):
 
     json_path.write_text(
         json.dumps(
-            {"results": results, "summary": summary}, indent=2, ensure_ascii=False
+            {
+                "results": [_public_result(result) for result in results],
+                "summary": summary,
+            },
+            indent=2,
+            ensure_ascii=False,
         ),
         encoding="utf-8",
     )
@@ -395,6 +697,75 @@ def write_benchmark_report(results, summary, output_path):
                 lines.append(
                     f"| {cohort} | {field} | {rate:.1f}% ({counts['matches']}/{counts['total']}) |"
                 )
+
+    timing = summary.get("timing") or {}
+    if timing:
+        lines.extend(
+            [
+                "",
+                "## Timing Summary",
+                "",
+                f"- Evaluated runs: {timing.get('evaluated_runs', 0)}",
+                f"- Total wall time: {_format_seconds(timing.get('total_wall_ms', 0))}",
+                f"- Mean wall time per run: {_format_seconds(timing.get('mean_wall_ms', 0))}",
+                f"- Median wall time per run: {_format_seconds(timing.get('median_wall_ms', 0))}",
+                f"- Total LLM latency: {_format_seconds(timing.get('total_llm_latency_ms', 0))}",
+                f"- Total LLM calls: {timing.get('total_llm_calls', 0)}",
+                f"- Total cache hits: {timing.get('total_llm_cache_hits', 0)}",
+                "",
+                "### Slowest Runs",
+                "",
+                "| Trial | Outcome | Wall Time | LLM Time | Estimated Non-LLM | LLM Calls | Cache Hits | Slowest Node |",
+                "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+            ]
+        )
+        for run in timing.get("slowest_runs") or []:
+            slowest_node = _strip(run.get("slowest_node")) or "-"
+            if slowest_node != "-":
+                slowest_node = (
+                    f"{slowest_node} ({_format_seconds(run.get('slowest_node_duration_ms', 0))})"
+                )
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _strip(run.get("trial")) or "-",
+                        _strip(run.get("outcome")) or "-",
+                        _format_seconds(run.get("total_wall_ms", 0)),
+                        _format_seconds(run.get("llm_total_ms", 0)),
+                        _format_seconds(run.get("non_llm_estimated_ms", 0)),
+                        str(run.get("llm_calls", 0)),
+                        str(run.get("llm_cache_hits", 0)),
+                        slowest_node,
+                    ]
+                )
+                + " |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "### Node Timing",
+                "",
+                "| Node | Calls | Total Time | Mean Time | Max Time | Errors |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for node, node_summary in (timing.get("node_aggregates") or {}).items():
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        node,
+                        str(node_summary.get("calls", 0)),
+                        _format_seconds(node_summary.get("total_duration_ms", 0)),
+                        _format_seconds(node_summary.get("mean_duration_ms", 0)),
+                        _format_seconds(node_summary.get("max_duration_ms", 0)),
+                        str(node_summary.get("error_count", 0)),
+                    ]
+                )
+                + " |"
+            )
 
     lines.extend(["", "## Per-Trial Details", ""])
     if has_meaningful_cohort:

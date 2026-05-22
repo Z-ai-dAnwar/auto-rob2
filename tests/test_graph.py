@@ -2,7 +2,10 @@ from pathlib import Path
 import json
 from unittest.mock import Mock, patch
 
-from rob2_pipeline.graph import build_rob2_graph
+import pytest
+
+from rob2_pipeline.graph import build_rob2_graph, timed_node
+from rob2_pipeline.trace import get_current_trace, start_trace, end_trace
 from rob2_pipeline.models import empty_paper_evidence
 from rob2_pipeline.pdf_ingestion import DocumentRepr
 from rob2_pipeline.pipeline import run_assessment
@@ -290,6 +293,60 @@ def _patch_ingest_dependencies():
         ),
         patch("rob2_pipeline.nodes.ingest._build_docling_chunks", return_value=[]),
     )
+
+
+def test_timed_node_records_ok_span_and_returns_result():
+    try:
+        start_trace(trial="T", outcome="OS")
+
+        def fake_node(state):
+            assert state == {"value": 1}
+            return {"value": 2}
+
+        wrapped = timed_node("fake_node", fake_node)
+
+        result = wrapped({"value": 1})
+
+        trace = get_current_trace()
+        assert result == {"value": 2}
+        assert trace is not None
+        assert len(trace.node_spans) == 1
+        span = trace.node_spans[0]
+        assert span.node == "fake_node"
+        assert span.status == "ok"
+        assert span.error is None
+        assert span.timestamp_start
+        assert span.timestamp_end
+        assert span.duration_ms >= 0
+    finally:
+        end_trace()
+
+
+def test_timed_node_records_error_span_and_reraises():
+    try:
+        start_trace(trial="T", outcome="OS")
+
+        def fake_node(state):
+            assert state == {"value": 1}
+            raise RuntimeError("boom")
+
+        wrapped = timed_node("fake_node", fake_node)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            wrapped({"value": 1})
+
+        trace = get_current_trace()
+        assert trace is not None
+        assert len(trace.node_spans) == 1
+        span = trace.node_spans[0]
+        assert span.node == "fake_node"
+        assert span.status == "error"
+        assert span.error == "boom"
+        assert span.timestamp_start
+        assert span.timestamp_end
+        assert span.duration_ms >= 0
+    finally:
+        end_trace()
 
 
 def test_graph_happy_path_with_mocked_llm(tmp_path):

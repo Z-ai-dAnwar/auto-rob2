@@ -8,6 +8,7 @@ from rob2_pipeline.trace import (
     append_llm_call,
     end_trace,
     get_current_trace,
+    record_node_span,
     start_trace,
 )
 
@@ -106,6 +107,48 @@ def test_pipeline_trace_write_writes_named_file(tmp_path: Path):
     assert data["outcome"] == "PFS"
     assert len(data["llm_calls"]) == 1
     assert data["llm_calls"][0]["node"] == "rct_screener"
+    assert data["node_spans"] == []
+
+
+def test_record_node_span_records_ok_and_error_spans():
+    start_trace(trial="T", outcome="OS")
+
+    with record_node_span("screen"):
+        pass
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with record_node_span("extract"):
+            raise RuntimeError("boom")
+
+    trace = get_current_trace()
+    assert trace is not None
+    assert len(trace.node_spans) == 2
+
+    ok_span, error_span = trace.node_spans
+    assert ok_span.node == "screen"
+    assert ok_span.status == "ok"
+    assert ok_span.error is None
+    assert ok_span.duration_ms >= 0
+    assert ok_span.timestamp_start
+    assert ok_span.timestamp_end
+
+    assert error_span.node == "extract"
+    assert error_span.status == "error"
+    assert error_span.error == "boom"
+    assert error_span.duration_ms >= 0
+    assert error_span.timestamp_start
+    assert error_span.timestamp_end
+
+
+def test_pipeline_trace_serialization_includes_node_spans():
+    trace = start_trace(trial="SER", outcome=None)
+    with record_node_span("screen"):
+        pass
+
+    data = json.loads(trace.to_json())
+    assert "node_spans" in data
+    assert len(data["node_spans"]) == 1
+    assert data["node_spans"][0]["node"] == "screen"
 
 
 def test_call_node_llm_appends_to_trace_on_cache_hit(monkeypatch):

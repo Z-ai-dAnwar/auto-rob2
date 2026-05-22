@@ -12,6 +12,8 @@ LangGraph node would require touching ~10 files for no functional gain.
 """
 
 import json
+import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,12 +42,23 @@ class LlmNodeTrace:
 
 
 @dataclass
+class PipelineNodeSpan:
+    node: str
+    status: str
+    timestamp_start: str
+    timestamp_end: str | None = None
+    duration_ms: int | None = None
+    error: str | None = None
+
+
+@dataclass
 class PipelineTrace:
     trial: str
     outcome: str | None
     timestamp_start: str
     timestamp_end: str | None = None
     llm_calls: list[LlmNodeTrace] = field(default_factory=list)
+    node_spans: list[PipelineNodeSpan] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -123,3 +136,30 @@ def append_llm_call(
             reasoning_content=reasoning_content,
         )
     )
+
+
+@contextmanager
+def record_node_span(node_name: str):
+    trace = _CURRENT_TRACE
+    if trace is None:
+        yield
+        return
+
+    start = datetime.now(timezone.utc)
+    start_counter = time.perf_counter()
+    span = PipelineNodeSpan(
+        node=node_name,
+        status="ok",
+        timestamp_start=start.isoformat(),
+    )
+    trace.node_spans.append(span)
+    try:
+        yield
+    except Exception as exc:
+        span.status = "error"
+        span.error = str(exc)
+        raise
+    finally:
+        end = datetime.now(timezone.utc)
+        span.timestamp_end = end.isoformat()
+        span.duration_ms = int((time.perf_counter() - start_counter) * 1000)

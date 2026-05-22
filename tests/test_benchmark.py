@@ -1,3 +1,4 @@
+import json
 from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
@@ -271,6 +272,387 @@ def test_write_benchmark_report_hides_unspecified_cohort_when_no_labels(tmp_path
     assert "unspecified" not in report
 
 
+def test_run_benchmark_attaches_timing_from_trace_file(tmp_path, monkeypatch):
+    pdf_dir = tmp_path / "benchmark"
+    pdf_dir.mkdir()
+    (pdf_dir / "TITAN.pdf").write_bytes(b"pdf")
+
+    reference_csv = tmp_path / "ref.csv"
+    reference_csv.write_text(
+        "Trial,D1,D2,D3,D4,D5,Overall Risk\nTITAN,Low,Low,Low,Low,Low,Low\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+
+    def fake_run_assessment(**kwargs):
+        assessment_dir = Path(kwargs["output_dir"])
+        assessment_dir.mkdir(parents=True)
+        assessment_dir.joinpath("TITAN_rob2_data.json").write_text(
+            '{"domain_judgments": {}, "overall_judgment": ""}',
+            encoding="utf-8",
+        )
+        assessment_dir.joinpath("TITAN_trace.json").write_text(
+            json.dumps(
+                {
+                    "llm_calls": [
+                        "malformed call entry",
+                        {
+                            "node": "domain3_sq",
+                            "latency_ms": 120,
+                            "cache_hit": True,
+                            "input_tokens": 4,
+                            "output_tokens": 2,
+                            "is_repair": False,
+                            "parse_error": None,
+                        },
+                        {
+                            "node": "domain3_sq",
+                            "latency_ms": 80,
+                            "cache_hit": False,
+                            "input_tokens": 3,
+                            "output_tokens": 1,
+                            "is_repair": True,
+                            "parse_error": "bad parse",
+                        },
+                        {
+                            "node": "pdf_ingest",
+                            "latency_ms": 50,
+                            "cache_hit": False,
+                            "input_tokens": 1,
+                            "output_tokens": 1,
+                            "is_repair": False,
+                            "parse_error": None,
+                        },
+                    ],
+                    "node_spans": [
+                        {
+                            "node": "domain3_sq",
+                            "status": "ok",
+                            "timestamp_start": "2026-05-22T00:00:00Z",
+                            "timestamp_end": "2026-05-22T00:00:00Z",
+                            "duration_ms": 200,
+                            "error": None,
+                        },
+                        {
+                            "node": "pdf_ingest",
+                            "status": "ok",
+                            "timestamp_start": "2026-05-22T00:00:00Z",
+                            "timestamp_end": "2026-05-22T00:00:00Z",
+                            "duration_ms": 300,
+                            "error": None,
+                        },
+                        {
+                            "node": "pdf_ingest",
+                            "status": "error",
+                            "timestamp_start": "2026-05-22T00:00:00Z",
+                            "timestamp_end": "2026-05-22T00:00:00Z",
+                            "duration_ms": 25,
+                            "error": "boom",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    perf_counter_values = iter([100.0, 100.5])
+    monkeypatch.setattr(
+        "rob2_pipeline.benchmark.time.perf_counter",
+        lambda: next(perf_counter_values),
+    )
+    monkeypatch.setattr("rob2_pipeline.benchmark.run_assessment", fake_run_assessment)
+
+    results = run_benchmark(
+        pdf_dir=pdf_dir,
+        reference_csvs={"OS": reference_csv},
+        outcome_map=[{"trial": "TITAN", "outcome_code": "OS"}],
+        output_dir=output_dir,
+    )
+
+    timing = results[0]["timing"]
+    assert timing["trace_available"] is True
+    assert timing["total_wall_ms"] == 500
+    assert timing["node_total_ms"] == 525
+    assert timing["llm_total_ms"] == 250
+    assert timing["non_llm_estimated_ms"] == 250
+    assert timing["llm_calls"] == 3
+    assert timing["llm_cache_hits"] == 1
+    assert timing["llm_repairs"] == 1
+    assert timing["llm_parse_errors"] == 1
+    assert timing["slowest_nodes"][0] == {
+        "node": "pdf_ingest",
+        "duration_ms": 300,
+        "status": "ok",
+    }
+    assert timing["llm_by_node"]["domain3_sq"] == {
+        "calls": 2,
+        "latency_ms": 200,
+        "input_tokens": 7,
+        "output_tokens": 3,
+        "cache_hits": 1,
+        "repairs": 1,
+        "parse_errors": 1,
+    }
+
+
+def test_run_benchmark_uses_wall_time_when_trace_is_missing(tmp_path, monkeypatch):
+    pdf_dir = tmp_path / "benchmark"
+    pdf_dir.mkdir()
+    (pdf_dir / "TITAN.pdf").write_bytes(b"pdf")
+
+    reference_csv = tmp_path / "ref.csv"
+    reference_csv.write_text(
+        "Trial,D1,D2,D3,D4,D5,Overall Risk\nTITAN,Low,Low,Low,Low,Low,Low\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "out"
+
+    def fake_run_assessment(**kwargs):
+        assessment_dir = Path(kwargs["output_dir"])
+        assessment_dir.mkdir(parents=True)
+        assessment_dir.joinpath("TITAN_rob2_data.json").write_text(
+            '{"domain_judgments": {}, "overall_judgment": ""}',
+            encoding="utf-8",
+        )
+
+    perf_counter_values = iter([200.0, 200.125])
+    monkeypatch.setattr(
+        "rob2_pipeline.benchmark.time.perf_counter",
+        lambda: next(perf_counter_values),
+    )
+    monkeypatch.setattr("rob2_pipeline.benchmark.run_assessment", fake_run_assessment)
+
+    results = run_benchmark(
+        pdf_dir=pdf_dir,
+        reference_csvs={"OS": reference_csv},
+        outcome_map=[{"trial": "TITAN", "outcome_code": "OS"}],
+        output_dir=output_dir,
+    )
+
+    timing = results[0]["timing"]
+    assert timing["trace_available"] is False
+    assert timing["trace_error"] == "trace file not found"
+    assert timing["total_wall_ms"] == 125
+    assert timing["node_total_ms"] == 0
+    assert timing["llm_total_ms"] == 0
+    assert timing["non_llm_estimated_ms"] == 125
+    assert timing["llm_calls"] == 0
+    assert timing["llm_cache_hits"] == 0
+    assert timing["llm_repairs"] == 0
+    assert timing["llm_parse_errors"] == 0
+    assert timing["slowest_nodes"] == []
+    assert timing["llm_by_node"] == {}
+
+
+def test_summarize_benchmark_includes_timing_aggregates():
+    results = [
+        {
+            "trial": "A",
+            "outcome": "Outcome A",
+            "comparison": {},
+            "reference": {},
+            "pipeline": {},
+            "timing": {
+                "total_wall_ms": 1000,
+                "trace_available": True,
+                "node_total_ms": 900,
+                "llm_total_ms": 400,
+                "non_llm_estimated_ms": 600,
+                "llm_calls": 2,
+                "llm_cache_hits": 1,
+                "llm_repairs": 0,
+                "llm_parse_errors": 0,
+                "slowest_nodes": [
+                    {"node": "pdf_ingest", "duration_ms": 600, "status": "ok"}
+                ],
+                "node_spans": [
+                    {"node": "pdf_ingest", "status": "ok", "duration_ms": 600},
+                    {"node": "domain3_sq", "status": "ok", "duration_ms": 300},
+                ],
+                "llm_by_node": {
+                    "pdf_ingest": {
+                        "calls": 1,
+                        "latency_ms": 400,
+                        "input_tokens": 10,
+                        "output_tokens": 2,
+                        "cache_hits": 1,
+                        "repairs": 0,
+                        "parse_errors": 0,
+                    }
+                },
+            },
+        },
+        {
+            "trial": "B",
+            "outcome": "Outcome B",
+            "comparison": {},
+            "reference": {},
+            "pipeline": {},
+            "timing": {
+                "total_wall_ms": 2000,
+                "trace_available": True,
+                "node_total_ms": 1500,
+                "llm_total_ms": 1200,
+                "non_llm_estimated_ms": 800,
+                "llm_calls": 4,
+                "llm_cache_hits": 0,
+                "llm_repairs": 1,
+                "llm_parse_errors": 1,
+                "slowest_nodes": [
+                    {"node": "domain3_sq", "duration_ms": 900, "status": "error"}
+                ],
+                "node_spans": [
+                    {"node": "pdf_ingest", "status": "ok", "duration_ms": 300},
+                    {"node": "domain3_sq", "status": "error", "duration_ms": 900},
+                    {"node": "quote_verify", "status": "ok", "duration_ms": 100},
+                ],
+                "llm_by_node": {
+                    "domain3_sq": {
+                        "calls": 2,
+                        "latency_ms": 1000,
+                        "input_tokens": 5,
+                        "output_tokens": 1,
+                        "cache_hits": 0,
+                        "repairs": 1,
+                        "parse_errors": 1,
+                    },
+                    "quote_verify": {
+                        "calls": 1,
+                        "latency_ms": 200,
+                        "input_tokens": 2,
+                        "output_tokens": 1,
+                        "cache_hits": 0,
+                        "repairs": 0,
+                        "parse_errors": 0,
+                    },
+                },
+            },
+        },
+        {"trial": "C", "skipped": True, "error": None, "comparison": {}},
+    ]
+
+    summary = summarize_benchmark(results)
+
+    assert summary["timing"]["evaluated_runs"] == 2
+    assert summary["timing"]["total_wall_ms"] == 3000
+    assert summary["timing"]["mean_wall_ms"] == 1500
+    assert summary["timing"]["median_wall_ms"] == 1500
+    assert summary["timing"]["total_llm_latency_ms"] == 1600
+    assert summary["timing"]["total_llm_calls"] == 6
+    assert summary["timing"]["total_llm_cache_hits"] == 1
+    assert summary["timing"]["node_aggregates"]["domain3_sq"] == {
+        "calls": 2,
+        "total_duration_ms": 1200,
+        "mean_duration_ms": 600,
+        "max_duration_ms": 900,
+        "error_count": 1,
+    }
+    assert summary["timing"]["slowest_runs"][0]["trial"] == "B"
+
+
+def test_write_benchmark_report_renders_timing_summary(tmp_path):
+    results = [
+        {
+            "id": "A:OS",
+            "trial": "A",
+            "outcome": "Outcome A",
+            "cohort": "unspecified",
+            "skipped": False,
+            "error": None,
+            "notes": "",
+            "comparison": {
+                "D1": True,
+                "D2": True,
+                "D3": True,
+                "D4": True,
+                "D5": True,
+                "Overall": True,
+            },
+            "reference": {
+                "D1": "Low",
+                "D2": "Low",
+                "D3": "Low",
+                "D4": "Low",
+                "D5": "Low",
+                "Overall Risk": "Low",
+            },
+            "pipeline": {
+                "domain_judgments": {
+                    "D1": "Low",
+                    "D2": "Low",
+                    "D3": "Low",
+                    "D4": "Low",
+                    "D5": "Low",
+                },
+                "overall_judgment": "Low",
+            },
+            "timing": {
+                "total_wall_ms": 1000,
+                "trace_available": True,
+                "node_total_ms": 900,
+                "llm_total_ms": 400,
+                "non_llm_estimated_ms": 600,
+                "llm_calls": 2,
+                "llm_cache_hits": 1,
+                "llm_repairs": 0,
+                "llm_parse_errors": 0,
+                "slowest_nodes": [
+                    {"node": "pdf_ingest", "duration_ms": 600, "status": "ok"}
+                ],
+                "node_spans": [
+                    {
+                        "node": "pdf_ingest",
+                        "status": "ok",
+                        "timestamp_start": "2026-05-22T00:00:00Z",
+                        "timestamp_end": "2026-05-22T00:00:00Z",
+                        "duration_ms": 600,
+                        "error": None,
+                    },
+                    {
+                        "node": "domain3_sq",
+                        "status": "ok",
+                        "timestamp_start": "2026-05-22T00:00:00Z",
+                        "timestamp_end": "2026-05-22T00:00:00Z",
+                        "duration_ms": 300,
+                        "error": None,
+                    },
+                ],
+                "llm_by_node": {
+                    "pdf_ingest": {
+                        "calls": 1,
+                        "latency_ms": 400,
+                        "input_tokens": 10,
+                        "output_tokens": 2,
+                        "cache_hits": 1,
+                        "repairs": 0,
+                        "parse_errors": 0,
+                    }
+                },
+            },
+        }
+    ]
+    summary = summarize_benchmark(results)
+
+    write_benchmark_report(results, summary, tmp_path / "benchmark_report.md")
+
+    report = (tmp_path / "benchmark_report.md").read_text(encoding="utf-8")
+    assert "## Timing Summary" in report
+    assert "### Slowest Runs" in report
+    assert "### Node Timing" in report
+    assert "| Trial | Outcome | Wall Time | LLM Time | Estimated Non-LLM | LLM Calls | Cache Hits | Slowest Node |" in report
+    assert "| Node | Calls | Total Time | Mean Time | Max Time | Errors |" in report
+    assert "1.0s" in report
+    assert "0.4s" in report
+    benchmark_json = json.loads(
+        (tmp_path / "benchmark_results.json").read_text(encoding="utf-8")
+    )
+    public_timing = benchmark_json["results"][0]["timing"]
+    assert "_node_spans" not in public_timing
+    assert "node_spans" not in public_timing
+    assert "_node_spans" not in json.dumps(benchmark_json["summary"])
+    assert "node_spans" not in json.dumps(benchmark_json["summary"])
+
+
 def test_find_supplements_for_trial_handles_spaces_and_case(tmp_path):
     supplement_root = tmp_path / "supplement"
     trial_dir = supplement_root / "SWOG 1216"
@@ -351,6 +733,8 @@ def test_run_benchmark_required_supplements_errors_when_missing(tmp_path):
     assert results[0]["skipped"] is False
     assert "Required supplements" in results[0]["error"]
     assert "Required supplements" in results[0]["notes"]
+    assert results[0]["timing"]["trace_available"] is False
+    assert results[0]["timing"]["trace_error"] == "assessment not run"
 
 
 def test_run_benchmark_required_supplements_errors_on_parse_failure(

@@ -1,3 +1,5 @@
+from functools import wraps
+
 from langgraph.graph import END, StateGraph
 
 from rob2_pipeline.nodes.domain1 import domain1_judge_node, domain1_sq_node
@@ -21,6 +23,7 @@ from rob2_pipeline.nodes.reporter import report_formatter_node
 from rob2_pipeline.nodes.trial_facts import trial_facts_node
 from rob2_pipeline.nodes.verification import quote_verifier_node
 from rob2_pipeline.state import RoB2State
+from rob2_pipeline.trace import record_node_span
 
 
 DOMAIN_START_NODES = [
@@ -32,38 +35,61 @@ DOMAIN_START_NODES = [
 ]
 
 
+def timed_node(node_name, fn):
+    @wraps(fn)
+    def _wrapped(*args, **kwargs):
+        with record_node_span(node_name):
+            return fn(*args, **kwargs)
+
+    return _wrapped
+
+
 def build_rob2_graph():
     """Build and compile the LangGraph for RoB 2 assessment."""
     g = StateGraph(RoB2State)
 
-    g.add_node("pdf_ingest", pdf_ingest_node)
-    g.add_node("rct_screener", rct_screener_node)
-    g.add_node("preliminary_info", preliminary_info_node)
-    g.add_node("outcome_resolver", outcome_resolver_node)
-    g.add_node("trial_facts", trial_facts_node)
-    g.add_node("rag_retrieval", rag_retrieval_node)
-    g.add_node("evidence_packet_builder", evidence_packet_builder_node)
+    g.add_node("pdf_ingest", timed_node("pdf_ingest", pdf_ingest_node))
+    g.add_node("rct_screener", timed_node("rct_screener", rct_screener_node))
+    g.add_node(
+        "preliminary_info", timed_node("preliminary_info", preliminary_info_node)
+    )
+    g.add_node(
+        "outcome_resolver", timed_node("outcome_resolver", outcome_resolver_node)
+    )
+    g.add_node("trial_facts", timed_node("trial_facts", trial_facts_node))
+    g.add_node("rag_retrieval", timed_node("rag_retrieval", rag_retrieval_node))
+    g.add_node(
+        "evidence_packet_builder",
+        timed_node("evidence_packet_builder", evidence_packet_builder_node),
+    )
 
-    g.add_node("domain1_sq", domain1_sq_node)
-    g.add_node("domain1_judge", domain1_judge_node)
+    g.add_node("domain1_sq", timed_node("domain1_sq", domain1_sq_node))
+    g.add_node("domain1_judge", timed_node("domain1_judge", domain1_judge_node))
 
-    g.add_node("domain2_sq12", domain2_sq12_node)
-    g.add_node("domain2_conditional", domain2_conditional_node)
-    g.add_node("domain2_analysis", domain2_analysis_node)
-    g.add_node("domain2_judge", domain2_judge_node)
+    g.add_node("domain2_sq12", timed_node("domain2_sq12", domain2_sq12_node))
+    g.add_node(
+        "domain2_conditional",
+        timed_node("domain2_conditional", domain2_conditional_node),
+    )
+    g.add_node(
+        "domain2_analysis", timed_node("domain2_analysis", domain2_analysis_node)
+    )
+    g.add_node("domain2_judge", timed_node("domain2_judge", domain2_judge_node))
 
-    g.add_node("domain3_sq", domain3_sq_node)
-    g.add_node("domain3_judge", domain3_judge_node)
+    g.add_node("domain3_sq", timed_node("domain3_sq", domain3_sq_node))
+    g.add_node("domain3_judge", timed_node("domain3_judge", domain3_judge_node))
 
-    g.add_node("domain4_sq", domain4_sq_node)
-    g.add_node("domain4_judge", domain4_judge_node)
+    g.add_node("domain4_sq", timed_node("domain4_sq", domain4_sq_node))
+    g.add_node("domain4_judge", timed_node("domain4_judge", domain4_judge_node))
 
-    g.add_node("domain5_sq", domain5_sq_node)
-    g.add_node("domain5_judge", domain5_judge_node)
+    g.add_node("domain5_sq", timed_node("domain5_sq", domain5_sq_node))
+    g.add_node("domain5_judge", timed_node("domain5_judge", domain5_judge_node))
 
-    g.add_node("quote_verifier", quote_verifier_node)
-    g.add_node("overall_judge", overall_judge_node)
-    g.add_node("report_formatter", report_formatter_node)
+    g.add_node("quote_verifier", timed_node("quote_verifier", quote_verifier_node))
+    g.add_node("overall_judge", timed_node("overall_judge", overall_judge_node))
+    g.add_node(
+        "report_formatter", timed_node("report_formatter", report_formatter_node)
+    )
 
     g.set_entry_point("pdf_ingest")
     g.add_edge("pdf_ingest", "rct_screener")
