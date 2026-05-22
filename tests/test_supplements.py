@@ -110,9 +110,7 @@ def test_ingest_supplements_uses_lightweight_converter_and_windowed_pages(
             calls.append((path, kwargs))
             return type("Result", (), {"document": object()})()
 
-    monkeypatch.setattr(
-        supplements, "_get_supplement_converter", lambda: Converter()
-    )
+    monkeypatch.setattr(supplements, "_get_supplement_converter", lambda: Converter())
     monkeypatch.setattr(
         "rob2_pipeline.pdf_ingestion._configure_docling_runtime", lambda: None
     )
@@ -154,7 +152,9 @@ def test_ingest_supplements_skips_failed_page_window_and_continues(
                 raise RuntimeError("std::bad_alloc")
             if page_range == (7, 8):
                 raise RuntimeError("page range outside document")
-            return type("Result", (), {"document": object(), "page_range": page_range})()
+            return type(
+                "Result", (), {"document": object(), "page_range": page_range}
+            )()
 
     def fake_chunks(conv_result):
         start, end = conv_result.page_range
@@ -171,7 +171,9 @@ def test_ingest_supplements_skips_failed_page_window_and_continues(
     monkeypatch.setattr(
         "rob2_pipeline.pdf_ingestion._configure_docling_runtime", lambda: None
     )
-    monkeypatch.setattr("rob2_pipeline.pdf_ingestion._build_docling_chunks", fake_chunks)
+    monkeypatch.setattr(
+        "rob2_pipeline.pdf_ingestion._build_docling_chunks", fake_chunks
+    )
 
     chunks, documents, warnings = supplements.ingest_supplements([str(supplement)])
 
@@ -195,7 +197,9 @@ def test_ingest_supplements_continues_after_empty_window(tmp_path, monkeypatch):
             calls.append(page_range)
             if page_range == (7, 8):
                 raise RuntimeError("page range outside document")
-            return type("Result", (), {"document": object(), "page_range": page_range})()
+            return type(
+                "Result", (), {"document": object(), "page_range": page_range}
+            )()
 
     def fake_chunks(conv_result):
         if conv_result.page_range == (1, 2):
@@ -214,7 +218,9 @@ def test_ingest_supplements_continues_after_empty_window(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "rob2_pipeline.pdf_ingestion._configure_docling_runtime", lambda: None
     )
-    monkeypatch.setattr("rob2_pipeline.pdf_ingestion._build_docling_chunks", fake_chunks)
+    monkeypatch.setattr(
+        "rob2_pipeline.pdf_ingestion._build_docling_chunks", fake_chunks
+    )
 
     chunks, documents, warnings = supplements.ingest_supplements([str(supplement)])
 
@@ -338,7 +344,9 @@ def test_pdf_ingest_node_appends_supplement_chunks(monkeypatch):
         def convert(self, path):
             return Result()
 
-    monkeypatch.setattr(node, "_get_docling_converter", lambda use_ocr=False: Converter())
+    monkeypatch.setattr(
+        node, "_get_docling_converter", lambda use_ocr=False: Converter()
+    )
 
     result = node.pdf_ingest_node(
         {"pdf_path": "primary.pdf", "supplementary_paths": ["protocol.pdf"]}
@@ -392,7 +400,9 @@ def test_pdf_ingest_node_preserves_primary_chunks_when_supplement_ingestion_esca
     monkeypatch.setattr(
         node,
         "ingest_supplements",
-        lambda paths: (_ for _ in ()).throw(RuntimeError("unexpected supplement error")),
+        lambda paths: (_ for _ in ()).throw(
+            RuntimeError("unexpected supplement error")
+        ),
     )
 
     class Result:
@@ -402,7 +412,9 @@ def test_pdf_ingest_node_preserves_primary_chunks_when_supplement_ingestion_esca
         def convert(self, path):
             return Result()
 
-    monkeypatch.setattr(node, "_get_docling_converter", lambda use_ocr=False: Converter())
+    monkeypatch.setattr(
+        node, "_get_docling_converter", lambda use_ocr=False: Converter()
+    )
 
     result = node.pdf_ingest_node(
         {"pdf_path": "primary.pdf", "supplementary_paths": ["protocol.pdf"]}

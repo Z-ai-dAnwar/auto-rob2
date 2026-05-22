@@ -228,12 +228,12 @@ def run_benchmark(
             supplement_paths = find_supplements_for_trial(
                 Path(supplement_dir), trial_name
             )
-        trial_result["supplementary_paths"] = [
-            str(path) for path in supplement_paths
-        ]
+        trial_result["supplementary_paths"] = [str(path) for path in supplement_paths]
         trial_result["supplements_found"] = len(supplement_paths)
         if use_supplements and supplement_policy == "required" and not supplement_paths:
-            trial_result["error"] = f"Required supplements not found in {supplement_dir}"
+            trial_result["error"] = (
+                f"Required supplements not found in {supplement_dir}"
+            )
             trial_result["notes"] = trial_result["error"]
             trial_result["comparison"] = {}
             results.append(trial_result)
@@ -256,8 +256,7 @@ def run_benchmark(
                 )
                 if failures:
                     raise RuntimeError(
-                        "Required supplement ingestion failed: "
-                        + ", ".join(failures)
+                        "Required supplement ingestion failed: " + ", ".join(failures)
                     )
             trial_result["pipeline"] = {
                 "domain_judgments": pipeline_output.get("domain_judgments") or {},

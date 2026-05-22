@@ -34,11 +34,7 @@ def classify_supplement(path: Path) -> str:
         return "data_sharing"
     if "disclosure" in compact or "coi" in compact or "conflict" in compact:
         return "disclosure"
-    if (
-        "appendix" in compact
-        or "supplement" in compact
-        or compact.startswith("mmc")
-    ):
+    if "appendix" in compact or "supplement" in compact or compact.startswith("mmc"):
         return "appendix"
     return "unknown_supplement"
 

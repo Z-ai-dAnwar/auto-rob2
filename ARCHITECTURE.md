@@ -1,289 +1,366 @@
 # Architecture
 
-## Pipeline Overview
+This document explains how `auto-rob2` works internally and where to look when
+changing or debugging it. For installation and command-line usage, start with
+`README.md`.
 
-`auto-rob2` runs a LangGraph workflow for automated first-pass Cochrane Risk of Bias 2 assessment. LLMs extract structured trial facts and signaling-question answers, while deterministic Python judges compute domain and overall RoB 2 judgments.
+## Design Goals
 
-The compiled graph in `rob2_pipeline/graph.py` executes these stages:
+`auto-rob2` is built around four constraints:
 
-1. PDF ingestion, OCR retry, section/table parsing, Docling chunking, and optional supplementary PDF chunking
-2. RCT screening
-3. Preliminary trial metadata extraction with ClinicalTrials.gov enrichment
-4. Outcome-property normalization and trial-fact extraction
-5. Per-document RAG retrieval from Docling chunks, with fallback contexts and retrieval grading
-6. SQ-specific evidence packet construction
-7. Parallel domain-level signaling-question fan-out (D1-D5)
-8. Deterministic domain judgments
-9. Quote and packet verification
-10. Deterministic overall judgment and human-review priority
-11. Report generation (Markdown report payload, then JSON/Markdown writes in `pipeline.py`)
+1. **The primary paper stays central.** Supplements and registries enrich the
+   evidence base, but they do not replace the study report.
+2. **Context is selected before prompting.** Long PDFs and supplements are
+   parsed into chunks, retrieved, and packaged so domain prompts receive
+   targeted evidence rather than whole documents.
+3. **LLMs do not make final labels directly.** LLMs answer structured RoB 2
+   signaling questions. Deterministic judges convert those answers into D1-D5
+   and overall judgments.
+4. **Outputs must be auditable.** Reports are accompanied by JSON diagnostics,
+   source provenance, retrieval grades, evidence packets, and LLM traces.
 
-Outputs per run:
+## End-To-End Flow
 
-- `outputs/<pdf>_rob2_report.md`
-- `outputs/<pdf>_rob2_data.json`
+The compiled LangGraph workflow lives in `rob2_pipeline/graph.py`.
 
-If `rct_screener` determines a paper is not an RCT, the graph terminates early. JSON output is still written; Markdown may be absent because the report formatter does not run.
+```text
+pdf_ingest
+  -> rct_screener
+  -> preliminary_info
+  -> outcome_resolver
+  -> trial_facts
+  -> rag_retrieval
+  -> evidence_packet_builder
+  -> D1-D5 signaling-question nodes
+  -> deterministic domain judges
+  -> quote_verifier
+  -> overall_judge
+  -> report_formatter
+```
 
-## Core Components
+The RCT screener can stop the graph early. Otherwise, the run proceeds through
+ingestion, evidence selection, signaling-question answering, deterministic
+judgment, verification, and report formatting.
 
-- `rob2_pipeline/pdf_ingestion.py`
-  - Compatibility facade for ingestion helpers used by graph nodes and tests.
-  - Re-exports focused modules under `rob2_pipeline/ingestion/`.
+`rob2_pipeline/pipeline.py` owns the public `run_assessment()` API and writes
+the Markdown report, data JSON, and trace JSON after graph execution.
 
-- `rob2_pipeline/ingestion/`
-  - `docling_extract.py`: Docling text extraction, OCR retry, converter caching, and chunk creation.
-  - `document_repr.py`: Docling item traversal and prompt-facing document representation.
-  - `evidence.py`: paper evidence extraction, structural section mapping, keyword fallbacks, and censoring context.
-  - `supplements.py`: supplementary PDF role classification, source document records, provenance metadata application, and optional supplement chunk ingestion.
-  - `settings.py`: ingestion constants and runtime feature flags.
+## Major Subsystems
 
-- `rob2_pipeline/docling_utils.py`
-  - Small Docling compatibility helpers for item label names and markdown table export across Docling versions.
+### Entry Points
 
-- `rob2_pipeline/rag.py`
-  - Embeds Docling chunks with `BAAI/bge-small-en-v1.5` via `langchain-huggingface`.
-  - Builds FAISS indexes from the current document only.
-  - Builds optional section-filtered indexes per domain and falls back to the full index if filtered recall is too sparse.
-  - Performs adaptive multi-query retrieval within a token budget and returns both context text and chunk metadata.
-  - Grades retrieved context by domain for relevance, coverage, missing evidence, and retry recommendation.
+| File | Responsibility |
+| --- | --- |
+| `main.py` | CLI for one PDF or a directory of PDFs |
+| `benchmark.py` | CLI for benchmark runs |
+| `rob2_pipeline/pipeline.py` | `run_assessment()` API and output writing |
+| `rob2_pipeline/benchmark.py` | Benchmark orchestration, comparisons, and summaries |
 
-- `rob2_pipeline/rag_queries.py`
-  - Static query sets for each signaling question.
-  - `domain_queries()` aggregates SQ queries into D1-D5 retrieval contexts.
+### Ingestion
 
-- `rob2_pipeline/methodology/`
-  - Canonical RoB 2 methodology guidance used by prompts.
-  - `types.py` defines citations, response rules, rule cards, and domain methodology containers.
-  - `domain1.py` through `domain5.py` define source-backed SQ guidance.
-  - `render.py` turns selected rule cards into compact prompt sections.
+Primary paper ingestion is strict because the assessment cannot proceed without
+the main article. Supplement ingestion is best-effort unless benchmark
+`supplement_policy="required"` is used.
 
-- `rob2_pipeline/prompts.py`
-  - Prompt templates for RCT screening, preliminary extraction, and D1-D5 signaling questions.
-  - Imports rendered methodology blocks from `rob2_pipeline/methodology/` so SQ guidance has one canonical source.
+| File | Responsibility |
+| --- | --- |
+| `rob2_pipeline/ingestion/docling_extract.py` | Docling conversion, OCR retry, chunk creation |
+| `rob2_pipeline/ingestion/document_repr.py` | Prompt-facing document block representation |
+| `rob2_pipeline/ingestion/evidence.py` | Primary-paper structured evidence extraction |
+| `rob2_pipeline/ingestion/supplements.py` | Supplement classification, windowed parsing, provenance |
+| `rob2_pipeline/ingestion/settings.py` | Ingestion constants and environment controls |
+| `rob2_pipeline/pdf_ingestion.py` | Compatibility facade for ingestion helpers |
 
-- `rob2_pipeline/nodes/`
-  - LangGraph node implementations.
-  - `nodes/common.py` centralizes provider-backed LLM calls, cache reads/writes, and parse-repair.
-  - `nodes/domain_helpers.py` shares simple domain SQ call helpers across domain nodes.
-  - `nodes/ingest.py` coordinates Docling extraction, optional supplementary chunk ingestion, optional remote evidence extraction, fallback evidence extraction, and RCT screening.
-  - `nodes/preliminary.py` also enriches registration data via ClinicalTrials.gov API v2.
-  - `nodes/outcome_resolver.py` normalizes outcome type from inferred properties such as time-to-event, safety, objective event, and blinded adjudication.
-  - `nodes/trial_facts.py` extracts reusable deterministic snippets for randomization, concealment, masking, deviations, amendments, and analysis populations.
-  - `nodes/rag_retrieval.py` builds domain-level retrieval contexts, prompt-facing D2/D4 context variants, chunk metadata, and retrieval grades; if vector retrieval fails, it falls back to structured evidence sections.
-  - `nodes/evidence_packets.py` orchestrates SQ-level packet construction and prompt-facing packet rendering, including source-role labels for primary, supplement, and registry evidence.
-  - Contract definitions, source selection, and packet grading live in focused sibling modules.
-  - `nodes/verification.py` verifies SQ quotes and packet quality, then emits validation flags and recommended retry/escalation actions.
-  - `nodes/reporter.py` writes the Markdown report, including verified-packet and quality-flag summaries.
+`pdf_ingest` produces primary-paper text, primary evidence, Docling chunks, and
+optional supplement chunks. Supplement chunks are added to retrieval with
+explicit metadata; supplement text is not appended to `full_text`.
 
-- `rob2_pipeline/providers/`
-  - Provider abstraction around LangChain chat models.
-  - Supported providers: `openrouter`, `anthropic`, `openai`.
-  - Selection is configured by `ROB2_PROVIDER` and built via `rob2_pipeline.config.build_provider()`.
+### Trial Metadata And Registry Enrichment
 
-- `rob2_pipeline/registration_api.py`
-  - Fetches and formats outcomes from ClinicalTrials.gov API v2.
-  - Used to populate `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`, and registered endpoint fields.
+`preliminary_info` extracts trial metadata such as intervention, comparator,
+outcome, and registration number. When an NCT number is available,
+`registration_api.py` fetches ClinicalTrials.gov API v2 data.
 
-- `rob2_pipeline/judges/`
-  - Deterministic RoB 2 decision tables for D1-D5 and overall judgment.
-  - These functions implement the adjudication logic; LLMs do not set final judgments directly.
+Registry fields populate state keys such as:
 
-- `rob2_pipeline/cache.py`
-  - Optional disk prompt cache utilities.
+- `registered_endpoint`
+- `registered_secondary_endpoints`
+- `registered_analysis`
+- `ctgov_outcomes`
+- `ctgov_design`
+- `ctgov_description`
+- `ctgov_flow`
 
-- `rob2_pipeline/types.py`
-  - Shared typed structures for LLM call logs, retrieval metadata, outcome properties, trial facts, evidence packets/facts, retrieval grades, and verifier traces.
+ClinicalTrials.gov evidence enters later evidence packets as a structured
+source with `source_kind="ctgov"` and `document_role="registry"`.
 
-- `rob2_pipeline/xml_parser.py`
-  - Strict XML extraction/parsing for SQ answers and metadata.
+### Retrieval
 
-- `rob2_pipeline/benchmark.py`
-  - Loads reference CSV rows, runs assessments for requested trial/outcome pairs, compares judgments, builds confusion matrices, and writes benchmark Markdown/JSON reports.
-  - Supports optional cohort labels such as `calibration` and `validation`; default `unspecified` labels are stored in JSON but hidden from Markdown reports when no meaningful labels are present.
+Retrieval is per study, not global. Each run builds a FAISS index from that
+study's primary and supplement chunks.
 
-- `rob2_pipeline/pipeline.py`
-  - Public orchestration entrypoint for assessments.
-  - Writes the Markdown report when available and always writes JSON diagnostics for the completed state.
+| File | Responsibility |
+| --- | --- |
+| `rob2_pipeline/rag.py` | Embeddings, FAISS indexes, adaptive retrieval, grading |
+| `rob2_pipeline/rag_queries.py` | Domain and signaling-question query sets |
+| `rob2_pipeline/nodes/rag_retrieval.py` | Graph node that emits RAG context and metadata |
 
-## Execution Flow
+The retrieval node runs domain-specific query sets, deduplicates results, keeps
+chunks within a token budget, and writes both prompt-facing text
+(`rag_contexts`) and JSON-facing metadata (`rag_chunk_metadata`, emitted as
+`rag_sources`).
 
-1. `pdf_ingest`: markdown extraction + deterministic section parsing
-   - `extract_full_text` uses LangChain Docling markdown export, first without OCR and then with OCR if needed.
-   - The ingest node then performs a non-OCR Docling conversion used for chunks and structural document representation.
-   - Structural evidence is available when that conversion succeeds.
-   - Optional LLM evidence refinement runs only when remote extraction is enabled and the document appears to be an RCT candidate.
-   - If Docling structure fails, keyword-based evidence fallback is used.
-2. `rct_screener`: stop early for non-RCT studies
-3. `preliminary_info`: trial metadata extraction
-   - Uses paper evidence, then fetches ClinicalTrials.gov API v2 data when an NCT number is available.
-   - Can auto-select a registered secondary endpoint that matches the assessed outcome.
-   - Auto-sets the effect of interest to `per-protocol` for detected safety endpoints when `ROB2_EFFECT_OF_INTEREST` is at its `ITT` default.
-4. `outcome_resolver`: normalizes `outcome_type` from `outcome_properties`
-5. `trial_facts`: extracts reusable trial-level snippets for prompt grounding
-6. `rag_retrieval`: per-document embedding, section-filtered retrieval, provenance metadata capture, retrieval grading, compatibility context mapping for D2/D4 prompt groups, and D3 censoring-context augmentation
-7. `evidence_packet_builder`: builds SQ-specific packets with required-evidence contracts, candidate facts, negative flags, and packet grades
-8. Parallel fan-out to domain SQ nodes: D1, D2, D3, D4, D5
-9. D2 branches internally from SQ 2.1/2.2 to conditional questions when needed, then analysis questions
-10. Domain judge nodes produce deterministic domain judgments
-11. `quote_verifier`: checks quote support and packet quality, and records validation flags/actions
-12. `overall_judge`: overall risk + review priority
-13. `report_formatter`: markdown report payload
+If vector retrieval fails, downstream nodes still receive deterministic
+fallback sections extracted from the primary paper.
 
-## Concurrency Model
+### Evidence Packets
 
-LangGraph merges parallel node writes via reducers in `RoB2State`:
+Evidence packets are the main protection against context overload. They combine
+RAG chunks, ClinicalTrials.gov fields, and primary-paper fallback sections into
+signaling-question-specific inputs.
 
-- `sq_answers`: dict-merge reducer
-- `domain_judgments`: dict-merge reducer
-- `domain_rationales`: dict-merge reducer
-- `rag_chunk_metadata`: dict-merge reducer
-- `retrieval_grades`: dict-merge reducer
-- `evidence_packets`: dict-merge reducer
-- `evidence_facts`: dict-merge reducer
-- `packet_grades`: dict-merge reducer
-- `llm_call_log`: list concat reducer
+| File | Responsibility |
+| --- | --- |
+| `rob2_pipeline/nodes/evidence_contracts.py` | Required evidence for each signaling question |
+| `rob2_pipeline/nodes/evidence_source_selection.py` | Candidate source creation and ranking |
+| `rob2_pipeline/nodes/evidence_packet_grading.py` | Missing-evidence and quality flags |
+| `rob2_pipeline/nodes/evidence_packets.py` | Packet construction and prompt rendering |
 
-Most nodes return partial updates only (not full state) to avoid concurrent channel update collisions. Sequential nodes use latest-value reducers for scalar and list outputs such as `verification_actions`.
+Contracts define what each signaling question needs: required labels, matching
+terms, fallback sections, denominator requirements, outcome-binding
+requirements, and prespecification requirements.
+
+Source ranking is domain-aware. For example, D5 prefers protocol, SAP, and
+registry sources; D3 gives weight to appendix and SAP missing-data evidence;
+D4 values outcome-definition and adjudication sources.
+
+### LLM Calls
+
+All graph LLM calls go through `call_node_llm()` in
+`rob2_pipeline/nodes/common.py`. That layer handles provider selection, prompt
+caching, XML parsing and repair, trace logging, and error normalization.
+
+| File | Responsibility |
+| --- | --- |
+| `rob2_pipeline/prompts.py` | Prompt templates |
+| `rob2_pipeline/methodology/` | RoB 2 rule cards rendered into prompts |
+| `rob2_pipeline/providers/` | OpenRouter, Anthropic, and OpenAI adapters |
+| `rob2_pipeline/cache.py` | Optional prompt cache |
+| `rob2_pipeline/trace.py` | LLM input/output trace records |
+| `rob2_pipeline/xml_parser.py` | XML extraction and repair helpers |
+
+Avoid direct provider SDK calls inside graph nodes. Keeping calls behind the
+provider abstraction makes traces, caching, retries, and tests consistent.
+
+### Judging, Verification, And Reporting
+
+| File | Responsibility |
+| --- | --- |
+| `rob2_pipeline/judges/` | Deterministic D1-D5 and overall judgment logic |
+| `rob2_pipeline/nodes/verification.py` | Quote support and packet quality verification |
+| `rob2_pipeline/nodes/reporter.py` | Markdown report payload |
+
+The domain judges consume parsed signaling-question answers, not raw free-form
+model text. The quote verifier adds audit flags and suggested actions when
+evidence support looks weak or packet quality is low.
 
 ## State Model
 
-State schema is defined in `rob2_pipeline/state.py` and initialized in `rob2_pipeline/state_factory.py`.
+State is defined in `rob2_pipeline/state.py` and initialized in
+`rob2_pipeline/state_factory.py`.
 
-Important fields:
+Important state groups:
 
-- `pdf_path`, `full_text`, `evidence`: primary source input and extracted primary-paper evidence.
-- `docling_doc`, `docling_chunks`: non-JSON primary Docling conversion result and LangChain `Document` chunks. When supplements are provided, `docling_chunks` also includes supplementary chunks tagged with document provenance.
-- `supplementary_paths`, `source_documents`, `supplement_warnings`: optional supplementary PDF inputs, parsed/missing/failed document inventory, and non-fatal supplement ingestion warnings.
-- `rag_contexts`: prompt-facing context strings. Current keys are `d1`, `d2_blinding`, `d2_deviations`, `d2_analysis`, `d3`, `d4_measurement`, `d4_assessor`, and `d5`.
-- `rag_chunk_metadata`: JSON-emitted as `rag_sources`, grouped by domain (`d1` through `d5`) with text, section, pages, score, `document_id`, `document_name`, `document_role`, `source_kind`, and `source_path`.
-- `retrieval_grades`, `evidence_packets`, `evidence_facts`, `packet_grades`: retrieval and evidence-packet diagnostics.
-- `sq_answers`: parsed signaling-question answers
-- `domain_judgments`, `domain_rationales`
-- `effect_of_interest`: `ITT` or `per-protocol`
-- `outcome_properties`
-- `registered_endpoint`, `registered_secondary_endpoints`, `registered_analysis`
-- `ctgov_outcomes`, `ctgov_design`, `ctgov_description`, `ctgov_flow`
-- `sources_consulted`, `trial_facts`
-- `evidence_validation_flags`, `verifier_trace`, `verification_actions`
-- `overall_policy`
-- `llm_call_log`, `errors`
+| Group | Representative keys |
+| --- | --- |
+| Inputs | `pdf_path`, `supplementary_paths` |
+| Primary ingestion | `full_text`, `evidence`, `docling_doc`, `docling_chunks` |
+| Source inventory | `source_documents`, `supplement_warnings` |
+| Trial metadata | `intervention`, `comparator`, `outcome`, `registration_number` |
+| Registry enrichment | `registered_endpoint`, `ctgov_outcomes`, `ctgov_design`, `ctgov_flow` |
+| Retrieval | `rag_contexts`, `rag_chunk_metadata`, `retrieval_grades` |
+| Packets | `evidence_packets`, `evidence_facts`, `packet_grades` |
+| Judgments | `sq_answers`, `domain_judgments`, `overall_judgment` |
+| Quality | `evidence_validation_flags`, `verification_actions`, `human_review_priority` |
+| Diagnostics | `errors`, `llm_call_log`, `verifier_trace` |
 
-## Runtime and Configuration
+Several graph nodes run in parallel, so reducers in `state.py` merge node
+outputs safely. Dict-like fields merge by key; logs concatenate.
 
-- Provider selection: `ROB2_PROVIDER` (`openrouter`, `anthropic`, `openai`)
-- Provider keys:
-  - `OPENROUTER_API_KEY`
-  - `ANTHROPIC_API_KEY`
-  - `OPENAI_API_KEY`
-- Hugging Face auth may be needed once for the `BAAI/bge-small-en-v1.5` tokenizer/embedding download:
-  - `hf auth login`
-  - or set `HF_TOKEN`
-- LLM config:
-  - `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`
-  - `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`
-- Effect of interest: `ROB2_EFFECT_OF_INTEREST` (`ITT` or `per-protocol`)
-  - The preliminary node may auto-switch safety endpoints to `per-protocol` when this environment setting is at its `ITT` default.
-- Ingestion evidence refinement: `ROB2_REMOTE_EVIDENCE_EXTRACTION`
-  - default enabled
-  - set to `0`, `false`, or `False` to skip the ingestion-time LLM evidence extraction and use Docling structural evidence only
-- Supplement ingestion:
-  - `ROB2_SUPPLEMENT_PAGE_WINDOW`: default `20`, parses supplements in bounded page windows.
-  - `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`: default `1000`, a defensive scan limit. `ROB2_SUPPLEMENT_MAX_PAGES` remains a legacy alias.
-  - Supplement windows that trigger native Docling errors are skipped with warnings; later windows continue when possible.
-- Caches:
-  - Prompt cache: `ROB2_USE_CACHE` (`.rob2_cache/`)
-  - ClinicalTrials.gov cache: `ROB2_CTGOV_CACHE`
+## Source Provenance
 
-Provider credentials can live in `.env` because `build_provider()` calls `load_dotenv()`. Settings read at module import time, such as `ROB2_PROVIDER`, `ROB2_MODEL`, and rate limits, should be exported in the process environment before invoking the CLI when they differ from defaults.
+Every retrieved or packetized source should be traceable. Source metadata
+commonly includes:
 
-All LLM invocations should use LangChain/LangGraph integrations (no direct provider HTTP API calls in pipeline LLM execution paths).
+- `document_id`
+- `document_name`
+- `document_role`
+- `source_kind`
+- `source_path`
+- `section`
+- `page_numbers`
+- `score`
 
-## Debugging Playbook
+Common `document_role` values are `primary`, `protocol`, `sap`, `appendix`,
+`disclosure`, `data_sharing`, `unknown_supplement`, and `registry`.
 
-Quick run with summary:
+Common `source_kind` values are `rag_chunk`, `section_text`, and `ctgov`.
+
+Only real `rag_chunk` sources require page numbers. Structured fallbacks such
+as `ctgov` and `section_text` are exempt from missing-page validation.
+
+## Supplement Ingestion
+
+Supplement parsing lives in `rob2_pipeline/ingestion/supplements.py`.
+
+Key behavior:
+
+- Supplements are optional by default.
+- Supplements never replace `full_text` or primary-paper `evidence`.
+- Filename heuristics classify roles such as `protocol`, `sap`, `appendix`,
+  `disclosure`, and `data_sharing`.
+- Long supplements are parsed in page windows.
+- Failed windows are recorded and skipped; later windows continue.
+- Empty windows do not stop scanning.
+- Usable supplement chunks join the same per-study RAG index as primary chunks.
+
+Runtime controls:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `ROB2_SUPPLEMENT_PAGE_WINDOW` | `20` | Number of pages parsed per supplement window |
+| `ROB2_SUPPLEMENT_MAX_SCAN_PAGES` | `1000` | Defensive scan limit for very long supplements |
+| `ROB2_SUPPLEMENT_MAX_PAGES` | unset | Legacy alias for max scan pages |
+
+`source_documents` records one status per requested source:
+
+| Status | Meaning |
+| --- | --- |
+| `parsed` | Clean parse |
+| `partial` | One or more windows failed; inspect warnings and retrieved sources for usable chunks |
+| `failed` | No usable content could be extracted |
+| `missing` | Requested file did not exist |
+
+Benchmark `required` mode accepts `parsed` and `partial` as present source
+documents, but `partial` still requires review of warnings and retrieved
+sources. It fails missing, failed, or not-ingested requested supplements.
+
+## Benchmark Architecture
+
+Benchmark execution is implemented in `rob2_pipeline/benchmark.py`; the
+top-level `benchmark.py` file handles CLI parsing.
+
+Reference CSVs live in:
+
+```text
+data/references/overall_survival.csv
+data/references/progression_free_survival.csv
+data/references/adverse_events.csv
+```
+
+Benchmark inputs are selected with:
+
+```text
+--outcome-map TRIAL:OUTCOME[:COHORT]
+```
+
+Primary PDFs resolve from `inputs/benchmark/<TRIAL>.pdf`. When
+`--use-supplements` is enabled, supplements resolve from
+`inputs/benchmark/supplement/<TRIAL>/*.pdf` unless another supplement directory
+is supplied.
+
+Benchmark results include the reference row, pipeline judgments, agreement
+comparisons, supplement counts, errors, and aggregate confusion matrices.
+
+## Configuration Reference
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| `ROB2_PROVIDER` | `openrouter` | Provider adapter |
+| `ROB2_MODEL` | provider default | Model used for graph LLM calls |
+| `ROB2_TEMPERATURE` | provider setting | Generation temperature |
+| `ROB2_MAX_TOKENS` | provider setting | Output token limit |
+| `ROB2_EFFECT_OF_INTEREST` | `ITT` | Default effect of interest |
+| `ROB2_USE_CACHE` | off | Prompt cache in `.rob2_cache/` |
+| `ROB2_CTGOV_CACHE` | unset | ClinicalTrials.gov cache path |
+| `ROB2_REMOTE_EVIDENCE_EXTRACTION` | enabled | Set `0` to skip ingestion-time LLM refinement |
+| `ROB2_SUPPLEMENT_PAGE_WINDOW` | `20` | Supplement parsing window size |
+| `ROB2_SUPPLEMENT_MAX_SCAN_PAGES` | `1000` | Supplement scan safety limit |
+| `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT` | provider setting | OpenRouter rate-limit controls |
+| `ANTHROPIC_RPM_LIMIT`, `ANTHROPIC_TPM_LIMIT` | provider setting | Anthropic rate-limit controls |
+
+## Debugging Guide
+
+Useful commands:
 
 ```bash
 uv run python main.py inputs/example.pdf --debug
-```
-
-Run tests:
-
-```bash
+uv run python benchmark.py --outcome-map CHAARTED:OS --dry-run
 uv run python -m pytest -q
+uv run python -m pytest tests/test_supplements.py -q
 ```
 
-Run focused tests:
+For a wrong judgment, inspect in this order:
 
-```bash
-uv run python -m pytest tests/test_benchmark.py -q
-```
+1. `domain_judgments` and `domain_rationales`
+2. relevant `sq_answers`
+3. relevant `evidence_packets`
+4. domain `rag_sources`
+5. `retrieval_grades` and `packet_grades`
+6. `evidence_validation_flags` and `verification_actions`
 
-Syntax-check changed Python files when a full test run is unnecessary:
+For ingestion problems, inspect:
 
-```bash
-uv run python -m py_compile rob2_pipeline/benchmark.py tests/test_benchmark.py
-```
+1. `evidence.warnings`
+2. `source_documents`
+3. `supplement_warnings`
+4. the LLM trace for extraction failures
 
-Validate benchmark inputs without LLM calls:
+Common failure modes:
 
-```bash
-uv run python benchmark.py \
-  --outcome-map CHAARTED:OS:calibration CHAARTED:PFS:validation \
-  --dry-run
-```
+| Problem | First check |
+| --- | --- |
+| XML parse failure | Trace JSON and `xml_parser.py` |
+| RCT stops early | `is_rct`, `rct_screen_evidence`, `errors` |
+| Missing randomization or masking evidence | D1/D2 packets and RAG sources |
+| Missing-data uncertainty | D3 packets, denominator flags, appendix/SAP sources |
+| Selective-reporting uncertainty | D5 packets, CT.gov fields, protocol/SAP sources |
+| Supplement parse issue | `source_documents`, `supplement_warnings` |
+| `std::bad_alloc` from Docling | Supplement window warnings; reduce page-window size |
+| Empty RAG output | embedding availability and primary evidence warnings |
 
-Validate benchmark supplement discovery without LLM calls:
+## Extension Guide
 
-```bash
-uv run python benchmark.py \
-  --outcome-map TITAN:OS "SWOG 1216:OS" \
-  --dry-run \
-  --use-supplements \
-  --supplement-dir inputs/benchmark/supplement
-```
+### Add Or Change A Signaling Question
 
-Typical failure triage:
+1. Update the relevant RoB 2 methodology card under `rob2_pipeline/methodology/`.
+2. Update prompt templates in `rob2_pipeline/prompts.py`.
+3. Add or adjust query text in `rob2_pipeline/rag_queries.py`.
+4. Update the evidence contract in `nodes/evidence_contracts.py`.
+5. Update packet selection or grading if the evidence requirements changed.
+6. Update the relevant graph node and deterministic judge.
+7. Add tests for parsing, packets, and judge behavior.
 
-1. XML parse failures
-   - `call_node_llm` retries once with a repair prompt, then raises if output is still invalid
-   - Check model output for malformed tags/code fences
-2. Missing sections
-   - Check deterministic section headings and patterns in `rob2_pipeline/pdf_ingestion.py`
-   - Check evidence extraction warnings in the JSON output; Docling structural failures are reported there
-3. RAG retrieval gaps
-   - Inspect `rag_contexts` and `rob2_pipeline/rag.py`
-   - Inspect JSON `rag_sources` for chunk text, section labels, page numbers, similarity scores, document names, and source roles
-   - Inspect `retrieval_grades` for missing domain terms and retry recommendations
-   - If `rag_sources` is empty, check `evidence.warnings` for vector retrieval failure and confirm the BGE embedding model is available locally or downloadable from Hugging Face.
-4. Evidence packet or quote verification flags
-   - Inspect `evidence_packets`, `packet_grades`, and `evidence_validation_flags`
-   - `verification_actions` indicates whether to retry an SQ with a verified packet or escalate packet retrieval
-5. Domain logic disagreements
-   - Inspect `sq_answers` and judge modules under `rob2_pipeline/judges/`
+### Add A New Evidence Source
 
-## Extending the System
+Prefer adding the source as an evidence-packet candidate with explicit
+`source_kind`, `document_role`, and provenance metadata. Avoid blending external
+source text into primary-paper evidence unless it was extracted from the primary
+publication itself.
 
-Add a new domain:
+### Add A New LLM Node
 
-1. Add methodology rule cards under `rob2_pipeline/methodology/`
-2. Add prompt template that renders the relevant methodology block
-3. Add SQ retrieval queries and evidence-packet contracts
-4. Add SQ node + judge node
-5. Wire graph edges, including quote verification before overall judgment
-6. Add state keys/reducers if parallel writers are introduced
-7. Add tests for retrieval grading, packet construction, methodology rendering, parsing, and deterministic judge logic
-
-Add a new cached LLM node:
-
-Use `call_node_llm(...)` from `nodes/common.py` for:
-
-- system prompt enforcement
-- optional caching
-- parse validation logging
+Use `call_node_llm()` from `nodes/common.py`. This keeps provider calls,
+caching, XML parsing, trace logging, and error handling consistent across the
+graph.
 
 ## Production Notes
 
-- Rate limiting is lock-protected for concurrency safety
-- Cache is opt-in with `ROB2_USE_CACHE=1`
-- Cache bypass per-run: `--no-cache`
+- Human review remains required.
+- Prompt cache is opt-in with `ROB2_USE_CACHE=1`.
+- Rate limiting is lock-protected for concurrent graph fan-out.
+- ClinicalTrials.gov evidence is supporting evidence; it may disagree with
+  protocols or publications.
+- Supplement ingestion is intentionally tolerant in normal runs and stricter in
+  benchmark `required` mode.
+- The JSON artifacts are as important as the Markdown report for auditing.

@@ -1,201 +1,333 @@
 # auto-rob2
 
-Automated first-pass Cochrane Risk of Bias 2 (RoB 2) assessment for randomized controlled trial PDFs.
+`auto-rob2` produces automated Cochrane Risk of Bias 2 (RoB 2)
+assessments for randomized controlled trial reports.
 
-`auto-rob2` runs a LangGraph workflow that extracts trial evidence from PDFs, enriches trial metadata from ClinicalTrials.gov when possible, retrieves domain-specific context with local embeddings and FAISS, asks LLMs to answer RoB 2 signaling questions, and then applies deterministic Python decision tables for domain and overall judgments. Outputs are draft Markdown reports plus JSON diagnostics for human review.
+The pipeline ingests a primary study PDF, optionally adds supplementary PDFs
+such as protocols or appendices, enriches the record with ClinicalTrials.gov
+data when available, retrieves targeted evidence, asks LLMs to answer RoB 2
+signaling questions, and then applies deterministic Python judges for the final
+D1-D5 and overall judgments.
 
-## Setup
+The output is a reviewer-facing draft plus detailed JSON diagnostics. It is
+intended to support human review, not replace it.
 
-Install dependencies with `uv`. The project expects Python `>=3.13`.
+## Quick Start
+
+Requires Python `>=3.13`. `uv sync` will create or use a compatible environment
+when one is available.
+
+Install dependencies:
 
 ```bash
 uv sync
 ```
 
-PDF extraction and retrieval use Docling, LangChain Docling, the local Hugging Face embedding model `BAAI/bge-small-en-v1.5`, and FAISS. The first tokenizer/embedding download may require Hugging Face Hub auth; if needed, run `hf auth login` or set `HF_TOKEN` before the first assessment.
-
-Create a local `.env` file for provider credentials:
+Create a `.env` file with at least one provider key:
 
 ```text
 OPENROUTER_API_KEY=your_key_here
-# Optional alternatives when ROB2_PROVIDER is exported as anthropic or openai:
+
+# Optional alternatives:
 # ANTHROPIC_API_KEY=your_key_here
 # OPENAI_API_KEY=your_key_here
 ```
 
-Optional runtime settings:
-
-- `ROB2_PROVIDER`: `openrouter` (default), `anthropic`, or `openai`.
-- `ROB2_MODEL`, `ROB2_TEMPERATURE`, `ROB2_MAX_TOKENS`: model configuration.
-- `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`: OpenRouter rate limits.
-- `ANTHROPIC_RPM_LIMIT`, `ANTHROPIC_TPM_LIMIT`: Anthropic rate limits (defaults 40 RPM / 30K input tokens per minute, sized under the Tier 1 50K TPM cap).
-- `ROB2_EFFECT_OF_INTEREST`: default effect, `ITT` or `per-protocol`.
-- `ROB2_USE_CACHE=1`: enable prompt cache in `.rob2_cache/`; `--no-cache` disables it for one CLI run.
-- `ROB2_CTGOV_CACHE`: ClinicalTrials.gov API cache location.
-- `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`: skip the ingestion-time LLM evidence refinement and use Docling structural extraction only.
-- `ROB2_SUPPLEMENT_PAGE_WINDOW`: supplement PDF page-window size for Docling parsing; defaults to `20` so long appendices/protocols are parsed in bounded chunks.
-- `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`: defensive upper bound for supplement page scanning; defaults to `1000`. `ROB2_SUPPLEMENT_MAX_PAGES` is still accepted as a legacy alias.
-
-Settings such as `ROB2_PROVIDER`, `ROB2_MODEL`, and rate limits are read from the process environment during import. Export them before running the CLI if you need values other than the defaults; `.env` is still useful for API keys loaded when the provider is built.
-
-`.env` and generated `outputs/` are ignored by git, except `outputs/benchmark/`.
-
-## Project I/O
-
-Use this layout for local assessment runs:
-
-```text
-data/references/    # benchmark ground-truth CSVs
-inputs/             # local PDFs to assess; PDFs are ignored by git
-inputs/benchmark/   # benchmark PDFs (tracked by git)
-outputs/            # generated reports and JSON data; ignored by git
-outputs/benchmark/  # benchmark outputs (tracked by git)
-```
-
-Example local input path:
-
-```text
-inputs/example.pdf
-```
-
-## Run
+Run one assessment:
 
 ```bash
 uv run python main.py inputs/example.pdf --output-dir outputs
 ```
 
-Assess a specific outcome or effect of interest:
+Run one assessment for a specific outcome:
 
 ```bash
-uv run python main.py inputs/example.pdf --outcome "Functional Recovery" --effect ITT --output-dir outputs
-```
-
-Useful runtime flags:
-
-- `--outcome`: specific outcome to assess; otherwise the preliminary node selects the primary outcome when possible.
-- `--effect`: effect of interest, `ITT` or `per-protocol`; defaults to `ROB2_EFFECT_OF_INTEREST` or `ITT`.
-- `--no-cache`: bypass the prompt cache for this run.
-- `--debug`: print a compact state summary after each assessment.
-
-Run every PDF in `inputs/`:
-
-```bash
-uv run python main.py inputs --output-dir outputs
-```
-
-Run with explicit supplementary files:
-
-```bash
-uv run python main.py inputs/benchmark/TITAN.pdf \
+uv run python main.py inputs/example.pdf \
   --outcome "Overall Survival" \
-  --supplement inputs/benchmark/supplement/TITAN/nejmoa1903307_protocol.pdf
+  --effect ITT \
+  --output-dir outputs
 ```
 
-Run with a supplement directory. The directory should contain per-study folders
-named by the primary PDF stem:
+Run with supplements discovered from a per-study supplement folder:
 
 ```bash
-uv run python main.py inputs/benchmark/TITAN.pdf \
+uv run python main.py inputs/benchmark/CHAARTED.pdf \
   --outcome "Overall Survival" \
-  --supplement-dir inputs/benchmark/supplement
+  --supplement-dir inputs/benchmark/supplement \
+  --output-dir outputs
 ```
 
-Or call the Python API:
+Run a benchmark dry run to validate inputs without LLM calls:
 
-```python
-from rob2_pipeline.pipeline import run_assessment
-
-state = run_assessment(
-    "inputs/example.pdf",
-    outcome="Functional Recovery",
-    effect_of_interest="ITT",
-    output_dir="outputs",
-    supplementary_paths=["inputs/example-protocol.pdf"],
-)
+```bash
+uv run python benchmark.py \
+  --outcome-map CHAARTED:OS ARCHES:PFS \
+  --dry-run
 ```
 
-Generated files:
+## What The Pipeline Uses
 
-- `outputs/<pdf_basename>_rob2_report.md`
-- `outputs/<pdf_basename>_rob2_data.json`
-- `outputs/<pdf_basename>_trace.json`: per-call LLM input/output capture (full system + user prompts, raw responses, model metadata, parse-retry sequences). The trace file is meant for downstream analysis (external tools or hand review); chunk metadata lives in `_rob2_data.json` under `rag_sources` to avoid duplication. The trace is written in a `finally` block so a pipeline crash still flushes the partial trace.
+- Docling for PDF extraction and document chunking.
+- LangGraph for the workflow.
+- LangChain FAISS plus BGE-small embeddings for per-study retrieval.
+- ClinicalTrials.gov API v2 for registry/design/outcome enrichment.
+- LLMs for RCT screening, metadata extraction, and signaling-question answers.
+- Deterministic Python judges for final domain and overall RoB 2 labels.
 
-For PDFs screened as non-RCTs, the graph stops after screening; JSON is still written, but there may be no Markdown report and the judgment fields remain unset.
+The embedding model is `BAAI/bge-small-en-v1.5`. The first run may download
+model files. If your environment requires Hugging Face authentication, run:
 
-The JSON output includes source and quality diagnostics for human review:
+```bash
+hf auth login
+```
 
-- `supplementary_paths`, `source_documents`, and `supplement_warnings`: supplementary files requested, document parse status, and optional supplement failures.
-- `rag_sources`: retrieved chunk text, section labels, page numbers, similarity scores, document names, source roles, and source paths by RoB 2 domain when vector retrieval succeeds.
-- `retrieval_grades`: domain-level relevance/coverage grades and retry recommendations.
-- `evidence_packets`, `evidence_facts`, and `packet_grades`: SQ-level evidence contracts, selected sources, candidate facts, missing-evidence flags, and packet retry recommendations.
-- `evidence_validation_flags`, `verifier_trace`, and `verification_actions`: quote-support and packet-quality checks emitted before overall judgment.
+or set `HF_TOKEN`.
 
-## Benchmark
+## Inputs
 
-Run benchmark comparisons against reference RoB 2 judgments (defaults to `inputs/benchmark/`):
+Primary PDFs can be passed directly to `main.py`, or placed under
+`inputs/benchmark/` for benchmark runs. Local inputs and outputs are ignored by
+git.
+
+Recommended benchmark layout:
+
+```text
+inputs/benchmark/
+  CHAARTED.pdf
+  ARCHES.pdf
+  supplement/
+    CHAARTED/
+      protocol.pdf
+      appendix.pdf
+    ARCHES/
+      supplementary_appendix.pdf
+```
+
+Supplement discovery maps the primary PDF stem to a folder under the supplement
+directory. For example, `inputs/benchmark/CHAARTED.pdf` uses files from
+`inputs/benchmark/supplement/CHAARTED/`.
+
+For single-PDF runs, you can also pass explicit supplement files:
+
+```bash
+uv run python main.py inputs/benchmark/CHAARTED.pdf \
+  --outcome "Overall Survival" \
+  --supplement inputs/benchmark/supplement/CHAARTED/protocol.pdf \
+  --supplement inputs/benchmark/supplement/CHAARTED/appendix.pdf
+```
+
+`--supplement` is only valid for single-PDF input. For directories, use
+`--supplement-dir` so supplements cannot be accidentally applied to the wrong
+study.
+
+## Outputs
+
+Each completed assessment writes:
+
+```text
+outputs/<pdf_basename>_rob2_report.md
+outputs/<pdf_basename>_rob2_data.json
+outputs/<pdf_basename>_trace.json
+```
+
+- The Markdown report is the human-readable draft RoB 2 assessment.
+- The data JSON is the main audit artifact.
+- The trace JSON captures LLM inputs and outputs for debugging.
+
+Useful JSON fields:
+
+| Field                                  | What it tells you                                    |
+| -------------------------------------- | ---------------------------------------------------- |
+| `domain_judgments`, `overall_judgment` | Final deterministic RoB 2 labels                     |
+| `sq_answers`                           | Parsed LLM signaling-question answers                |
+| `evidence`                             | Structured evidence extracted from the primary paper |
+| `source_documents`                     | Primary and supplement parse inventory               |
+| `supplement_warnings`                  | Non-fatal supplement ingestion issues                |
+| `rag_sources`                          | Retrieved chunks with document/page provenance       |
+| `evidence_packets`                     | Evidence selected for each signaling question        |
+| `retrieval_grades`, `packet_grades`    | Retrieval and packet quality diagnostics             |
+| `evidence_validation_flags`            | Quote-support and quality flags                      |
+| `verification_actions`                 | Suggested retry or review actions                    |
+
+If the paper is screened as non-RCT, the graph stops early. JSON is still
+written, but report and judgment fields may be absent.
+
+## Benchmarking
+
+Benchmarks compare pipeline judgments against reference RoB 2 CSVs in
+`data/references/`.
+
+Run selected trial/outcome pairs:
 
 ```bash
 uv run python benchmark.py \
   --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE
 ```
 
-Benchmark outcome codes are:
+Outcome codes:
 
-- `OS`: Overall Survival
-- `PFS`: Progression-Free Survival
-- `AE`: Adverse Events
+| Code  | Outcome                   |
+| ----- | ------------------------- |
+| `OS`  | Overall Survival          |
+| `PFS` | Progression-Free Survival |
+| `AE`  | Adverse Events            |
 
-Outcome-map entries can include an optional cohort label, useful for separating visible calibration runs from held-out validation runs:
+Outcome-map entries may include a cohort label:
 
 ```bash
 uv run python benchmark.py \
-  --outcome-map CHAARTED:OS:calibration ARCHES:PFS:validation PEACE-1:AE:validation
+  --outcome-map CHAARTED:OS:calibration ARCHES:PFS:validation
 ```
 
-If no cohort label is provided, results store `unspecified` internally in JSON. Markdown reports hide the cohort table and column when all runs are unspecified.
-
-Default reference CSV locations:
-
-- `data/references/overall_survival.csv`
-- `data/references/progression_free_survival.csv`
-- `data/references/adverse_events.csv`
-
-Validate configuration without running LLM calls:
+Run with benchmark supplements:
 
 ```bash
 uv run python benchmark.py \
-  --outcome-map CHAARTED:OS ARCHES:PFS PEACE-1:AE \
-  --dry-run
-```
-
-Run benchmark with supplements discovered from `inputs/benchmark/supplement/<TRIAL>/`:
-
-```bash
-uv run python benchmark.py \
-  --outcome-map TITAN:OS "SWOG 1216:OS" \
+  --outcome-map CHAARTED:OS CHAARTED:PFS \
   --use-supplements \
-  --supplement-dir inputs/benchmark/supplement
+  --supplement-dir inputs/benchmark/supplement \
+  --output-dir outputs/benchmark/chaarted_supplement
 ```
 
-Benchmark outputs are written to the requested output directory as `benchmark_report.md`, `benchmark_results.json`, and per-trial assessment subdirectories such as `<TRIAL>_<outcome_code>/`.
+Supplement policies:
 
-## Architecture
+| Policy     | Behavior                                                          |
+| ---------- | ----------------------------------------------------------------- |
+| `auto`     | Use supplements when found; continue on supplement warnings       |
+| `required` | Treat missing or failed requested supplements as benchmark errors |
+| `none`     | Ignore supplements                                                |
 
-- `rob2_pipeline/graph.py`: LangGraph wiring from ingestion through reporting, with early stop for non-RCTs and parallel D1-D5 fan-out after evidence packets are built.
-- `rob2_pipeline/pdf_ingestion.py`: Docling markdown extraction, OCR retry, structural evidence extraction, optional LLM evidence refinement, censoring-context extraction, and Docling `HybridChunker` chunk creation.
-- `rob2_pipeline/rag.py` and `rag_queries.py`: BGE-small embeddings, LangChain FAISS indexes, section-filtered adaptive retrieval, retrieval grading, and SQ-derived domain query sets.
-- `rob2_pipeline/nodes/`: graph nodes for RCT screening, preliminary metadata, outcome normalization, trial facts, retrieval, evidence packets, signaling questions, deterministic judges, quote/packet verification, overall judgment, and report formatting.
-- `rob2_pipeline/methodology/`, `prompts.py`, and `judges/`: canonical RoB 2 guidance, XML prompt templates, and deterministic domain/overall decision tables.
-- `rob2_pipeline/providers/` and `config.py`: LangChain-backed provider abstraction for OpenRouter, Anthropic, and OpenAI.
-- `rob2_pipeline/registration_api.py`: ClinicalTrials.gov API v2 enrichment and optional cache.
-- `rob2_pipeline/pipeline.py`: public Python entry point and Markdown/JSON output writer.
-- `rob2_pipeline/benchmark.py`: benchmark runner, comparison, cohort summaries, and benchmark report writer.
-- `tests/`: mocked unit and graph tests for deterministic behavior.
+Benchmark outputs:
 
-## Important Notes
+```text
+<output-dir>/benchmark_report.md
+<output-dir>/benchmark_results.json
+<output-dir>/<TRIAL>_<OUTCOME_CODE>/...
+```
 
-LLMs answer the RCT screen, preliminary extraction, optional ingestion evidence refinement, and signaling questions. Domain and overall judgments are computed by deterministic Python functions in `rob2_pipeline/judges/`.
+## Supplement Handling
 
-If vector retrieval returns no chunks for a specific RoB 2 domain, the pipeline falls back to deterministic keyword-mapped evidence sections for that domain so the assessment can still proceed. If Docling extraction fails entirely, the run halts with a clear error rather than silently degrading to a different parser. If the RCT screener determines the paper is not an RCT, downstream RoB 2 assessment nodes do not run.
+Supplements are supporting evidence sources. They are not concatenated into the
+primary paper text and do not replace the primary publication.
 
-Evidence-packet and quote verification are quality gates for review triage; they flag unsupported quotes, missing required evidence, fragile D3/D5 reasoning, and packets that should be retried or escalated. The generated report remains a draft assessment for human verification, not a substitute for independent systematic-review judgment.
+At ingestion time, the pipeline:
+
+1. Parses the primary PDF normally.
+2. Classifies supplement files from their filenames when possible.
+3. Parses supplements in bounded page windows.
+4. Skips failed supplement windows and records warnings.
+5. Adds usable supplement chunks to RAG with document provenance.
+6. Surfaces supplement source name, role, page, and path in JSON diagnostics.
+
+Supplement statuses in `source_documents`:
+
+| Status    | Meaning                                                                            |
+| --------- | ---------------------------------------------------------------------------------- |
+| `parsed`  | All attempted supplement windows parsed cleanly                                    |
+| `partial` | One or more windows failed; check warnings and retrieved sources for usable chunks |
+| `failed`  | No usable content could be extracted                                               |
+| `missing` | The requested supplement file did not exist                                        |
+
+Windowed parsing avoids losing an entire long protocol or appendix because one
+page triggers a native Docling memory error such as `std::bad_alloc`.
+
+## Configuration
+
+Common environment variables:
+
+| Setting                                      | Purpose                                          |
+| -------------------------------------------- | ------------------------------------------------ |
+| `ROB2_PROVIDER`                              | `openrouter` (default), `anthropic`, or `openai` |
+| `ROB2_MODEL`                                 | Model name for LLM calls                         |
+| `ROB2_TEMPERATURE`                           | LLM generation temperature                       |
+| `ROB2_MAX_TOKENS`                            | LLM output token limit                           |
+| `ROB2_EFFECT_OF_INTEREST`                    | Default effect of interest, usually `ITT`        |
+| `ROB2_USE_CACHE=1`                           | Enable prompt cache in `.rob2_cache/`            |
+| `ROB2_CTGOV_CACHE`                           | ClinicalTrials.gov response cache path           |
+| `ROB2_REMOTE_EVIDENCE_EXTRACTION=0`          | Disable ingestion-time LLM evidence refinement   |
+| `ROB2_SUPPLEMENT_PAGE_WINDOW`                | Supplement page-window size, default `20`        |
+| `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`             | Defensive supplement scan limit, default `1000`  |
+| `ROB2_RPM_LIMIT`, `ROB2_RPD_LIMIT`           | OpenRouter rate-limit controls                   |
+| `ANTHROPIC_RPM_LIMIT`, `ANTHROPIC_TPM_LIMIT` | Anthropic rate-limit controls                    |
+
+Provider and model settings are read when modules are imported, so export them
+before invoking the CLI.
+
+## Project Map
+
+```text
+data/references/             benchmark reference CSVs
+inputs/                      local PDFs, ignored by git
+inputs/benchmark/            benchmark primary PDFs
+inputs/benchmark/supplement/ benchmark supplements by trial name
+outputs/                     generated reports and diagnostics, ignored by git
+rob2_pipeline/               pipeline package
+tests/                       unit and integration-style tests
+```
+
+Key files:
+
+| Path                                      | Responsibility                                   |
+| ----------------------------------------- | ------------------------------------------------ |
+| `main.py`                                 | CLI for one or more PDFs                         |
+| `benchmark.py`                            | CLI for benchmark runs                           |
+| `rob2_pipeline/pipeline.py`               | Public `run_assessment()` API and output writing |
+| `rob2_pipeline/graph.py`                  | LangGraph workflow wiring                        |
+| `rob2_pipeline/ingestion/`                | Primary and supplement PDF ingestion             |
+| `rob2_pipeline/rag.py`                    | Per-study FAISS retrieval                        |
+| `rob2_pipeline/nodes/evidence_packets.py` | SQ-specific evidence packets                     |
+| `rob2_pipeline/judges/`                   | Deterministic RoB 2 judgment logic               |
+| `rob2_pipeline/providers/`                | LLM provider adapters                            |
+
+## Python API
+
+```python
+from rob2_pipeline.pipeline import run_assessment
+
+state = run_assessment(
+    "inputs/example.pdf",
+    outcome="Overall Survival",
+    effect_of_interest="ITT",
+    output_dir="outputs",
+    supplementary_paths=["inputs/example-protocol.pdf"],
+)
+
+print(state["overall_judgment"])
+```
+
+## Development
+
+Run all tests:
+
+```bash
+uv run python -m pytest -q
+```
+
+Run focused tests:
+
+```bash
+uv run python -m pytest tests/test_supplements.py -q
+uv run python -m pytest tests/test_benchmark.py -q
+```
+
+Syntax-check selected files:
+
+```bash
+uv run python -m py_compile rob2_pipeline/benchmark.py benchmark.py
+```
+
+## Troubleshooting
+
+| Symptom                     | First places to inspect                                          |
+| --------------------------- | ---------------------------------------------------------------- |
+| LLM XML parse failure       | Trace JSON and `rob2_pipeline/xml_parser.py`                     |
+| Early non-RCT stop          | `is_rct`, `rct_screen_evidence`, `errors`                        |
+| Missing evidence            | `evidence`, `rag_sources`, `evidence_packets`                    |
+| Weak D3/D5 support          | `packet_grades`, `verification_actions`, supplement sources      |
+| Supplement parse errors     | `source_documents`, `supplement_warnings`                        |
+| ClinicalTrials.gov mismatch | Registered endpoint fields and CT.gov-derived `evidence_packets` |
+| Empty RAG output            | embedding model availability and `evidence.warnings`             |
+
+For large supplements with repeated skipped windows, reduce
+`ROB2_SUPPLEMENT_PAGE_WINDOW`. To scan deeper into very long supplements,
+increase `ROB2_SUPPLEMENT_MAX_SCAN_PAGES`.

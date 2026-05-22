@@ -318,9 +318,7 @@ def test_run_benchmark_passes_discovered_supplements(tmp_path, monkeypatch):
     results = run_benchmark(
         pdf_dir=pdf_dir,
         reference_csvs={"OS": reference_csv},
-        outcome_map=[
-            {"trial": "TITAN", "outcome_code": "OS", "cohort": "unspecified"}
-        ],
+        outcome_map=[{"trial": "TITAN", "outcome_code": "OS", "cohort": "unspecified"}],
         output_dir=output_dir,
         supplement_dir=supplement_root,
         use_supplements=True,

@@ -160,9 +160,9 @@ def test_d5_packet_includes_ctgov_source_without_page_numbers():
     assert ctgov["document_name"] == "ClinicalTrials.gov"
     assert ctgov["document_role"] == "registry"
     assert ctgov["page_numbers"] == []
-    assert "missing_page_source" not in result["evidence_packets"]["5.1"][
-        "negative_flags"
-    ]
+    assert (
+        "missing_page_source" not in result["evidence_packets"]["5.1"]["negative_flags"]
+    )
 
 
 def test_d5_packet_prefers_protocol_over_primary_result_when_terms_match():

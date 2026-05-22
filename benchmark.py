@@ -165,7 +165,9 @@ def main():
                 supplements = find_supplements_for_trial(
                     Path(args.supplement_dir), trial
                 )
-                supplement_names = ", ".join(path.name for path in supplements) or "none"
+                supplement_names = (
+                    ", ".join(path.name for path in supplements) or "none"
+                )
                 print(f"  supplements: {supplement_names}")
         return
 
