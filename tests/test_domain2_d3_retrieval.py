@@ -17,9 +17,12 @@ cannot crowd it out.
 Fixture design rationale
 ------------------------
 SQ 2.6 contract terms: intention, itt, modified, per-protocol, as treated, randomized
-ANALYSIS_POPULATION_COVERAGE_TERMS: intention-to-treat, intention to treat, itt,
-  analysed as randomi, analyzed as randomi, all randomi, per-protocol, as-treated,
-  as treated
+ANALYSIS_POPULATION_COVERAGE_TERMS (ITT-direction only): intention-to-treat,
+  intention to treat, analysed as randomi, analyzed as randomi, all randomi.
+  Note: per-protocol/as-treated are deliberately excluded from coverage terms --
+  they are the INAPPROPRIATE (N-evidence) analysis for SQ 2.6 and must not hold
+  a reserved slot. They remain in the contract ranking terms so they still surface
+  by rank when present.
 
 ITT_CHUNK matches only 1 contract term ("intention" from "intention-to-treat").
 Three noise chunks are crafted to match 3 contract terms each ("intention",
@@ -53,7 +56,9 @@ def _state_with_chunks(
 
 # The load-bearing ITT sentence that SQ 2.6 must see in its packet.
 # Contract term matches: "intention" (1 term -- "randomised" != "randomized").
-# Coverage term match: "intention-to-treat" (triggers the reserved slot).
+# Coverage term matches: "intention-to-treat" and "all randomi" both match, either
+# triggers the reserved slot (ITT-direction only; per-protocol/as-treated are not
+# coverage terms).
 ITT_CHUNK = {
     "text": (
         "All randomised participants were analysed in the group to "
@@ -130,16 +135,17 @@ def test_sq26_packet_keeps_itt_sentence_against_higher_ranked_chunks():
 # SQ 3.1 contract terms: randomized, randomised, outcome data, missing, follow-up,
 #   analysed, analyzed
 #
-# PARTICIPANT_FLOW_COVERAGE_TERMS (to be added): "included in the analysis",
-#   "lost to follow", "withdrew", "withdrawn", "discontinued", "evaluable",
-#   "completed follow", "completed the study"
+# PARTICIPANT_FLOW_COVERAGE_TERMS: "included in the analysis", "lost to follow",
+#   "withdrew", "withdrawn", "discontinued from the study", "permanently discontinued",
+#   "evaluable patients", "evaluable participants", "completed follow",
+#   "completed the study"
 #
-# FLOW_CHUNK matches 1 contract term ("randomised") but 2 coverage terms
-#   ("included in the analysis" and "lost to follow").
+# FLOW_CHUNK matches 2 contract terms ("randomised" and "follow-up") and 2 coverage
+#   terms ("included in the analysis" and "lost to follow").
 #
 # Three noise chunks each match 3 contract terms ("missing", "outcome data",
 #   "analysed" / "randomized" / "follow-up") but contain NONE of the coverage
-#   terms. So noise outranks FLOW_CHUNK on contract-term count (3 vs 1) but
+#   terms. So noise outranks FLOW_CHUNK on contract-term count (3 vs 2) but
 #   cannot fill the coverage slot. The slot is therefore filled by FLOW_CHUNK.
 #
 # Near-miss check: "follow-up" (contract term) appears in noise but NOT
@@ -147,7 +153,7 @@ def test_sq26_packet_keeps_itt_sentence_against_higher_ranked_chunks():
 #   (and would be safe anyway -- it does not contain "withdrew"/"withdrawn").
 
 _FLOW_CHUNK_31 = {
-    # Contract term match: "randomised" and "follow-up" (2 terms)
+    # Contract term matches: "randomised" and "follow-up" (2 terms)
     # Coverage term matches: "included in the analysis", "lost to follow" (2 terms)
     "text": (
         "Of 1184 participants randomised, 1180 were included in the analysis; "

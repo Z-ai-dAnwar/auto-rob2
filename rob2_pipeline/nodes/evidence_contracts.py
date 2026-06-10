@@ -52,8 +52,11 @@ REPORTED_METHODS_TERMS = (
 )
 
 # High-precision analysis-population lexicon. Reserves one 2.6 packet slot for
-# the statement of WHO was analysed, so generic D2 chunks (blinding,
-# randomization) cannot crowd the ITT/analysed-as-randomized sentence out.
+# the statement of WHO was analysed (ITT / analysed-as-randomized), so generic
+# D2 chunks (blinding, randomization) cannot crowd it out.
+# Only ITT-direction terms are included here; per-protocol/as-treated are the
+# INAPPROPRIATE analysis for SQ 2.6 and must NOT hold a reserved slot (they
+# remain in the 2.6 contract's ranking terms so they still surface by rank).
 # The broader term "all randomi" is kept intentionally to catch implicit
 # "all randomized ... analysed" phrasing, accepting a small chance it seats
 # a generic "all randomized ..." sentence.
@@ -63,9 +66,6 @@ ANALYSIS_POPULATION_COVERAGE_TERMS = (
     "analysed as randomi",
     "analyzed as randomi",
     "all randomi",
-    "per-protocol",
-    "as-treated",
-    "as treated",
 )
 
 # High-precision participant-flow lexicon. Reserves one 3.1 packet slot for the
