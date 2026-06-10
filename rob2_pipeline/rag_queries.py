@@ -64,6 +64,9 @@ SQ_QUERIES: dict[str, list[str]] = {
         "analysis method as pre-specified",
         "deviation from planned statistical method",
         "primary analysis method",
+        "all randomized participants were included in the analysis",
+        "patients analysed in the group to which they were assigned",
+        "intention-to-treat population analysed",
     ],
     "2.7": [
         "effect of assignment to intervention",

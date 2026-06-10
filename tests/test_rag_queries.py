@@ -55,3 +55,12 @@ def test_domain_queries_returns_list_of_strings():
         assert isinstance(queries, list)
         assert all(isinstance(q, str) for q in queries)
         assert len(queries) > 0
+
+
+def test_sq26_queries_target_analysis_population_statement():
+    """SQ 2.6 must retrieve the analysis-population (ITT / analysed-as-assigned)
+    statement, not only statistical-analysis-plan / pre-specification text."""
+    joined = " ".join(SQ_QUERIES["2.6"]).lower()
+    assert "intention-to-treat" in joined or "intention to treat" in joined
+    assert "assigned" in joined  # "...analysed in the group to which they were assigned"
+    assert "all randomized" in joined or "all randomised" in joined
