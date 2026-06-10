@@ -54,10 +54,12 @@ REPORTED_METHODS_TERMS = (
 # High-precision analysis-population lexicon. Reserves one 2.6 packet slot for
 # the statement of WHO was analysed, so generic D2 chunks (blinding,
 # randomization) cannot crowd the ITT/analysed-as-randomized sentence out.
+# The broader term "all randomi" is kept intentionally to catch implicit
+# "all randomized ... analysed" phrasing, accepting a small chance it seats
+# a generic "all randomized ..." sentence.
 ANALYSIS_POPULATION_COVERAGE_TERMS = (
     "intention-to-treat",
     "intention to treat",
-    "itt",
     "analysed as randomi",
     "analyzed as randomi",
     "all randomi",
