@@ -51,6 +51,21 @@ REPORTED_METHODS_TERMS = (
     "restricted mean",
 )
 
+# High-precision analysis-population lexicon. Reserves one 2.6 packet slot for
+# the statement of WHO was analysed, so generic D2 chunks (blinding,
+# randomization) cannot crowd the ITT/analysed-as-randomized sentence out.
+ANALYSIS_POPULATION_COVERAGE_TERMS = (
+    "intention-to-treat",
+    "intention to treat",
+    "itt",
+    "analysed as randomi",
+    "analyzed as randomi",
+    "all randomi",
+    "per-protocol",
+    "as-treated",
+    "as treated",
+)
+
 
 CONTRACTS: dict[str, EvidenceContract] = {
     "1.1": EvidenceContract(
@@ -131,6 +146,7 @@ CONTRACTS: dict[str, EvidenceContract] = {
         ("analysis_population",),
         ("intention", "itt", "modified", "per-protocol", "as treated", "randomized"),
         ("results", "d4_outcome_meas", "methods"),
+        coverage_groups=(ANALYSIS_POPULATION_COVERAGE_TERMS,),
     ),
     "2.7": EvidenceContract(
         "2.7",
