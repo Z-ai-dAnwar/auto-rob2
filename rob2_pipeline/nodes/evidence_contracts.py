@@ -68,6 +68,22 @@ ANALYSIS_POPULATION_COVERAGE_TERMS = (
     "as treated",
 )
 
+# High-precision participant-flow lexicon. Reserves one 3.1 packet slot for the
+# CONSORT-style accounting (randomized vs analysed / lost to follow-up) so generic
+# D3 chunks about imputation methods cannot crowd the completeness numbers out.
+# Deliberately excludes ubiquitous substrings ("randomized", bare "analysed"/
+# "completed") that would false-match nearly every methods sentence.
+PARTICIPANT_FLOW_COVERAGE_TERMS = (
+    "included in the analysis",
+    "lost to follow",
+    "withdrew",
+    "withdrawn",
+    "discontinued",
+    "evaluable",
+    "completed follow",
+    "completed the study",
+)
+
 
 CONTRACTS: dict[str, EvidenceContract] = {
     "1.1": EvidenceContract(
@@ -172,6 +188,7 @@ CONTRACTS: dict[str, EvidenceContract] = {
         ),
         ("d3_missing_data", "consort_flow", "results"),
         needs_denominator=True,
+        coverage_groups=(PARTICIPANT_FLOW_COVERAGE_TERMS,),
     ),
     "3.2": EvidenceContract(
         "3.2",

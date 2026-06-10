@@ -119,3 +119,96 @@ def test_sq26_packet_keeps_itt_sentence_against_higher_ranked_chunks():
         "present. Without a reserved coverage slot the ITT sentence is crowded "
         "out and the classifier returns 'No relevant text found'."
     )
+
+
+# ---------------------------------------------------------------------------
+# SQ 3.1 participant-flow coverage test
+# ---------------------------------------------------------------------------
+#
+# Fixture design rationale
+# ------------------------
+# SQ 3.1 contract terms: randomized, randomised, outcome data, missing, follow-up,
+#   analysed, analyzed
+#
+# PARTICIPANT_FLOW_COVERAGE_TERMS (to be added): "included in the analysis",
+#   "lost to follow", "withdrew", "withdrawn", "discontinued", "evaluable",
+#   "completed follow", "completed the study"
+#
+# FLOW_CHUNK matches 1 contract term ("randomised") but 2 coverage terms
+#   ("included in the analysis" and "lost to follow").
+#
+# Three noise chunks each match 3 contract terms ("missing", "outcome data",
+#   "analysed" / "randomized" / "follow-up") but contain NONE of the coverage
+#   terms. So noise outranks FLOW_CHUNK on contract-term count (3 vs 1) but
+#   cannot fill the coverage slot. The slot is therefore filled by FLOW_CHUNK.
+#
+# Near-miss check: "follow-up" (contract term) appears in noise but NOT
+#   "lost to follow" (coverage term). "withdrawal" appears nowhere in noise
+#   (and would be safe anyway -- it does not contain "withdrew"/"withdrawn").
+
+_FLOW_CHUNK_31 = {
+    # Contract term match: "randomised" (1 term)
+    # Coverage term matches: "included in the analysis", "lost to follow" (2 terms)
+    "text": (
+        "Of 1184 participants randomised, 1180 were included in the analysis; "
+        "4 were lost to follow-up."
+    ),
+    "page_numbers": [4],
+    "section": "results",
+    "score": 0.40,
+}
+
+_NOISE_31_A = {
+    # Contract term matches: "missing", "outcome data", "analysed" (3 terms)
+    # Coverage term matches: none
+    "text": (
+        "Missing outcome data were imputed using multiple imputation; "
+        "the analysed dataset retained the imputed values throughout."
+    ),
+    "page_numbers": [5],
+    "section": "methods",
+    "score": 0.31,
+}
+
+_NOISE_31_B = {
+    # Contract term matches: "missing", "randomized", "follow-up" (3 terms)
+    # Coverage term matches: none (no "lost to follow", no "included in the analysis")
+    "text": (
+        "Missing values in the randomized cohort were handled via last observation "
+        "carried forward; scheduled follow-up visits were used as measurement points."
+    ),
+    "page_numbers": [5],
+    "section": "methods",
+    "score": 0.32,
+}
+
+_NOISE_31_C = {
+    # Contract term matches: "outcome data", "missing", "analyzed" (3 terms)
+    # Coverage term matches: none
+    "text": (
+        "Outcome data were missing for a small proportion of subjects; "
+        "the analyzed dataset was formed after applying the pre-planned exclusion criteria."
+    ),
+    "page_numbers": [6],
+    "section": "methods",
+    "score": 0.33,
+}
+
+
+def test_sq31_packet_keeps_participant_flow_against_higher_ranked_chunks():
+    """Without coverage_groups, the three noise chunks each score 3 matched
+    contract terms and crowd _FLOW_CHUNK_31 (1 term) out of the top-3 packet.
+    With PARTICIPANT_FLOW_COVERAGE_TERMS added to the 3.1 EvidenceContract via
+    coverage_groups, the participant-flow slot reserves a place for the flow
+    chunk because none of the noise chunks contain a coverage term."""
+    state = _state_with_chunks(
+        "d3", [_NOISE_31_A, _NOISE_31_B, _NOISE_31_C, _FLOW_CHUNK_31]
+    )
+    packet = build_evidence_packets(state)["evidence_packets"]["3.1"]
+    selected = " ".join(s.get("text", "") for s in packet["sources"])
+    assert "included in the analysis" in selected.lower() and "lost to follow" in selected.lower(), (
+        "SQ 3.1 must select the CONSORT participant-flow sentence into its packet "
+        "even when higher-ranked generic D3 chunks are present. Without a reserved "
+        "coverage slot the flow numbers are crowded out and the classifier cannot "
+        "assess outcome-data completeness."
+    )
