@@ -147,7 +147,7 @@ def test_sq26_packet_keeps_itt_sentence_against_higher_ranked_chunks():
 #   (and would be safe anyway -- it does not contain "withdrew"/"withdrawn").
 
 _FLOW_CHUNK_31 = {
-    # Contract term match: "randomised" (1 term)
+    # Contract term match: "randomised" and "follow-up" (2 terms)
     # Coverage term matches: "included in the analysis", "lost to follow" (2 terms)
     "text": (
         "Of 1184 participants randomised, 1180 were included in the analysis; "

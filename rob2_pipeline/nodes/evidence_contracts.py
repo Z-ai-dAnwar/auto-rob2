@@ -78,8 +78,10 @@ PARTICIPANT_FLOW_COVERAGE_TERMS = (
     "lost to follow",
     "withdrew",
     "withdrawn",
-    "discontinued",
-    "evaluable",
+    "discontinued from the study",
+    "permanently discontinued",
+    "evaluable patients",
+    "evaluable participants",
     "completed follow",
     "completed the study",
 )
