@@ -36,3 +36,9 @@ def test_d3_sq31_ni_requires_no_flow_account():
     rules = _json_path_rules("3.1")
     ni = rules["NI"].lower()
     assert "cannot be inferred" in ni or "no participant flow" in ni
+
+
+def test_d2_sq23_py_flags_nonreceipt_as_deviation():
+    rules = _json_path_rules("2.3")
+    py = rules["PY"].lower()
+    assert "not receiving" in py or "discontinuing" in py or "not completing" in py

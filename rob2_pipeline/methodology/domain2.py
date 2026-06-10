@@ -72,7 +72,7 @@ DOMAIN2_ASSIGNMENT_METHODOLOGY = DomainMethodology(
                     "Clear evidence that trial context caused protocol-inconsistent deviations or non-protocol interventions."
                 ),
                 "PY": ResponseRule(
-                    "Strong indications that recruitment, engagement, unblinding, or trial personnel led to protocol-inconsistent intervention changes or influenced adherence in ways that would not happen outside the trial."
+                    "Strong indications that recruitment, engagement, unblinding, or trial personnel led to protocol-inconsistent intervention changes or influenced adherence in ways that would not happen outside the trial. A substantial proportion of participants not receiving, not completing, or discontinuing the assigned or planned intervention is protocol-inconsistent delivery and supports PY."
                 ),
                 "PN": ResponseRule(
                     "Deviations appear consistent with what could occur outside the trial context, or no indication suggests trial-context influence."

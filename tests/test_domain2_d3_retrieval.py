@@ -201,6 +201,115 @@ _NOISE_31_C = {
 }
 
 
+# ---------------------------------------------------------------------------
+# SQ 2.3 intervention-delivery coverage test
+# ---------------------------------------------------------------------------
+#
+# Fixture design rationale
+# ------------------------
+# SQ 2.3 contract terms: deviation, protocol, amend, cross-over, adherence,
+#   standard of care
+#
+# INTERVENTION_DELIVERY_COVERAGE_TERMS: "did not receive", "discontinued treatment",
+#   "discontinued study treatment", "discontinued the study", "did not complete",
+#   "stopped treatment", "non-adherence", "did not adhere"
+#
+# DEVIATION_CHUNK_23 matches 2 coverage terms ("did not receive" and
+#   "discontinued treatment") and 3 contract+query terms ("assigned", "receive",
+#   "treatment").
+#
+# Three noise chunks each match 8-12 contract+query terms but contain NONE of
+#   the coverage terms. In particular:
+#   - "adherence" (contract term) appears in noise but NOT "non-adherence" or
+#     "did not adhere" (coverage terms).
+#   - "receive" appears in noise_c ("received intervention") but NOT the phrase
+#     "did not receive" (coverage term).
+#   - "treatment" appears in noise_b but NOT "discontinued treatment" (coverage term).
+# So noise outranks DEVIATION_CHUNK_23 on contract-term count (8-12 vs 3) but
+# cannot fill the coverage slot. The slot is therefore filled by DEVIATION_CHUNK_23.
+
+_DEVIATION_CHUNK_23 = {
+    # Contract term matches: "protocol", "adherence" (2 terms)
+    # Coverage term matches: "did not receive", "discontinued treatment" (2 terms)
+    "text": (
+        "Overall, 118 patients did not receive the assigned "
+        "docetaxel and 21% discontinued treatment early."
+    ),
+    "page_numbers": [5],
+    "section": "results",
+    "score": 0.28,
+}
+
+_NOISE_23_A = {
+    # Contract term matches: 11 terms -- "deviation", "protocol", "unintended",
+    #   "deviations", "violations", "contamination", "between",
+    #   "co-interventions", "applied", "differentially", "intervention"
+    # Coverage term matches: none -- no "did not receive", "discontinued...",
+    #   "did not complete", "stopped treatment", "non-adherence", "did not adhere"
+    "text": (
+        "Unintended deviations were defined as any protocol violations arising "
+        "between intervention groups, including contamination or co-interventions "
+        "applied differentially."
+    ),
+    "page_numbers": [2],
+    "section": "methods",
+    "score": 0.31,
+}
+
+_NOISE_23_B = {
+    # Contract term matches: 8 terms -- "deviation", "protocol", "adherence",
+    #   "standard of care", "between", "assigned", "intervention", "treatment"
+    # Coverage term matches: none -- "adherence" alone is not a coverage term;
+    #   "treatment" alone is not a coverage term (coverage needs "discontinued treatment")
+    "text": (
+        "Adherence to the assigned intervention was assessed per protocol; "
+        "any deviation from standard of care was recorded and reported "
+        "between the treatment arms."
+    ),
+    "page_numbers": [3],
+    "section": "methods",
+    "score": 0.32,
+}
+
+_NOISE_23_C = {
+    # Contract term matches: 12 terms -- "deviation", "protocol", "cross-over",
+    #   "unintended", "deviations", "violations", "contamination", "between",
+    #   "assigned", "intervention", "participants", "receive"
+    # Coverage term matches: none -- "receive" is a contract term but the coverage
+    #   phrase "did not receive" does NOT appear here ("received intervention" != coverage)
+    "text": (
+        "Protocol violations included unintended cross-over and deviations where "
+        "participants received intervention not assigned; contamination between "
+        "arms was monitored."
+    ),
+    "page_numbers": [4],
+    "section": "methods",
+    "score": 0.33,
+}
+
+
+def test_sq23_packet_keeps_nonreceipt_evidence_against_higher_ranked_chunks():
+    """Without coverage_groups, NOISE_23_A/B/C each score 3 matched contract terms
+    and crowd _DEVIATION_CHUNK_23 (2 terms) out of the top-3 packet. With
+    INTERVENTION_DELIVERY_COVERAGE_TERMS added to the 2.3 EvidenceContract via
+    coverage_groups, the intervention-delivery coverage slot reserves a place for
+    the deviation chunk because none of the noise chunks contain a coverage term."""
+    state = _state_with_chunks(
+        "d2", [_NOISE_23_A, _NOISE_23_B, _NOISE_23_C, _DEVIATION_CHUNK_23]
+    )
+    packet = build_evidence_packets(state)["evidence_packets"]["2.3"]
+    selected = " ".join(s.get("text", "") for s in packet["sources"])
+    assert (
+        "did not receive" in selected.lower()
+        or "discontinued treatment" in selected.lower()
+    ), (
+        "SQ 2.3 must select the intervention-delivery/non-receipt sentence into "
+        "its packet even when higher-ranked generic D2 chunks are present. "
+        "Without a reserved coverage slot the deviation evidence is crowded out "
+        "and the classifier returns 'No relevant text found'."
+    )
+
+
 def test_sq31_packet_keeps_participant_flow_against_higher_ranked_chunks():
     """Without coverage_groups, the three noise chunks each score 3 matched
     contract terms and crowd _FLOW_CHUNK_31 (1 term) out of the top-3 packet.

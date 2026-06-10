@@ -42,6 +42,9 @@ SQ_QUERIES: dict[str, list[str]] = {
         "contamination between arms",
         "co-interventions applied differentially",
         "adherence to assigned intervention",
+        "participants who did not receive the assigned treatment",
+        "treatment discontinuation rate by arm",
+        "number who did not complete the assigned intervention",
     ],
     "2.4": [
         "deviations initiated for beneficial reason",
