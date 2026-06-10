@@ -100,7 +100,12 @@ DOMAIN2_ASSIGNMENT_METHODOLOGY = DomainMethodology(
                     "Deviations were substantial and plausibly affect the assessed outcome."
                 ),
                 "PN": ResponseRule(
-                    "Deviations were minimal or unlikely to influence the assessed outcome."
+                    "Deviations were minimal or unlikely to influence the assessed outcome. "
+                    "A protocol amendment to trial design (e.g., a change to sample size, "
+                    "eligibility, or concomitant therapy permitted across all arms) is a "
+                    "design change, not a per-participant deviation from intended "
+                    "intervention, and on its own does not make deviations likely to affect "
+                    "the outcome."
                 ),
                 "N": ResponseRule(
                     "Deviations were minor, unrelated to the outcome, or shown not to affect the outcome."
