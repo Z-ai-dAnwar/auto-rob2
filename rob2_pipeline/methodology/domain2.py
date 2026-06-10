@@ -138,10 +138,19 @@ DOMAIN2_ASSIGNMENT_METHODOLOGY = DomainMethodology(
             "Was an appropriate analysis used to estimate the effect of assignment?",
             {
                 "Y": ResponseRule(
-                    "Clear ITT analysis, appropriate mITT, or exclusions limited to independently determined ineligible participants."
+                    "Clear ITT analysis, appropriate mITT, or exclusions limited to "
+                    "independently determined ineligible participants. Infer ITT/mITT "
+                    "support when the report states all (or all randomized) participants "
+                    "were analysed in their assigned groups, or the analysis is by "
+                    "randomized group, even if the literal phrase 'intention-to-treat' is "
+                    "absent; the outcome being defined from randomization is corroborating "
+                    "evidence."
                 ),
                 "PY": ResponseRule(
-                    "Analysis appears to follow ITT/mITT principles but lacks full detail, with only minimal likely irrelevant exclusions."
+                    "Analysis appears to follow ITT/mITT principles but lacks full detail, "
+                    "with only minimal likely irrelevant exclusions. Use PY when an "
+                    "analysis-by-randomized-group can be reasonably inferred but is not "
+                    "stated explicitly."
                 ),
                 "PN": ResponseRule(
                     "Analysis suggests deviation from ITT principles or some inappropriate exclusions/regrouping."
@@ -150,7 +159,8 @@ DOMAIN2_ASSIGNMENT_METHODOLOGY = DomainMethodology(
                     "Naive per-protocol, as-treated, analysis by treatment received, or substantial post-randomization exclusions of eligible participants."
                 ),
                 "NI": ResponseRule(
-                    "Analysis method is not specified or cannot be assessed."
+                    "Analysis method is not specified and cannot be inferred from the "
+                    "analysis population or the groups in which participants were analysed."
                 ),
             },
             [Citation(SUPP, "p.8"), Citation(BMJ, "p.3")],
