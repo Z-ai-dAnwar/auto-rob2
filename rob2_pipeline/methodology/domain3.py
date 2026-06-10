@@ -20,10 +20,17 @@ DOMAIN3_METHODOLOGY = DomainMethodology(
             "Were data available for all, or nearly all, randomized participants?",
             {
                 "Y": ResponseRule(
-                    "Outcome data were available for all or enough participants that missing outcomes could not materially affect the result."
+                    "Outcome data were available for all or enough participants that "
+                    "missing outcomes could not materially affect the result. Infer "
+                    "availability when a participant flow account (CONSORT-style numbers "
+                    "randomized vs analysed/with outcome) shows all or nearly all "
+                    "randomized participants accounted for, even if a missing-data "
+                    "percentage is not stated as a single figure."
                 ),
                 "PY": ResponseRule(
-                    "Nearly all participants have data and missingness is unlikely to matter."
+                    "Nearly all participants have data and missingness is unlikely to "
+                    "matter, including when a flow account leaves only a small unaccounted "
+                    "remainder."
                 ),
                 "PN": ResponseRule(
                     "Noticeable missing outcome data may affect the result."
@@ -32,7 +39,9 @@ DOMAIN3_METHODOLOGY = DomainMethodology(
                     "A significant proportion of outcome data is missing or imputed."
                 ),
                 "NI": ResponseRule(
-                    "The extent of missing outcome data is not reported."
+                    "The extent of missing outcome data is not reported and cannot be "
+                    "inferred because no participant flow or analysed-count account is "
+                    "available."
                 ),
             },
             [Citation(SUPP, "p.18")],
