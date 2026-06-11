@@ -86,22 +86,6 @@ PARTICIPANT_FLOW_COVERAGE_TERMS = (
     "completed the study",
 )
 
-# High-precision intervention-delivery / adherence lexicon. Reserves one 2.3
-# packet slot for evidence that a substantial share of participants did not
-# receive, did not complete, or discontinued the assigned/planned intervention
-# (a real trial-context deviation signal) so generic D2 chunks cannot crowd it
-# out. Phrases only -- no short ambiguous substrings.
-INTERVENTION_DELIVERY_COVERAGE_TERMS = (
-    "did not receive",
-    "discontinued treatment",
-    "discontinued study treatment",
-    "discontinued the study",
-    "did not complete",
-    "stopped treatment",
-    "non-adherence",
-    "did not adhere",
-)
-
 
 CONTRACTS: dict[str, EvidenceContract] = {
     "1.1": EvidenceContract(
@@ -161,7 +145,6 @@ CONTRACTS: dict[str, EvidenceContract] = {
             "standard of care",
         ),
         ("d2_blinding", "results", "methods"),
-        coverage_groups=(INTERVENTION_DELIVERY_COVERAGE_TERMS,),
     ),
     "2.4": EvidenceContract(
         "2.4",
