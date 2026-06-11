@@ -96,7 +96,7 @@ INTERVENTION_DELIVERY_COVERAGE_TERMS = (
     "discontinued treatment",
     "discontinued study treatment",
     "discontinued the study",
-    "did not complete treatment",
+    "did not complete",
     "stopped treatment",
     "non-adherence",
     "did not adhere",

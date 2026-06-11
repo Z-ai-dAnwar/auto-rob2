@@ -229,8 +229,8 @@ _NOISE_31_C = {
 # cannot fill the coverage slot. The slot is therefore filled by DEVIATION_CHUNK_23.
 
 _DEVIATION_CHUNK_23 = {
+    # Contract term matches: "protocol", "adherence" (2 terms)
     # Coverage term matches: "did not receive", "discontinued treatment" (2 terms)
-    # Query/document term matches: "assigned", "receive", "treatment" (~3 terms)
     "text": (
         "Overall, 118 patients did not receive the assigned "
         "docetaxel and 21% discontinued treatment early."
@@ -289,12 +289,11 @@ _NOISE_23_C = {
 
 
 def test_sq23_packet_keeps_nonreceipt_evidence_against_higher_ranked_chunks():
-    """Without coverage_groups, NOISE_23_A/B/C each score 8-12 matched contract
-    terms and dominate _DEVIATION_CHUNK_23 (~3 terms) on contract+query term count,
-    crowding it out of the top-3 packet. With INTERVENTION_DELIVERY_COVERAGE_TERMS
-    added to the 2.3 EvidenceContract via coverage_groups, the intervention-delivery
-    coverage slot reserves a place for the deviation chunk because none of the noise
-    chunks contain a coverage term."""
+    """Without coverage_groups, NOISE_23_A/B/C each score 3 matched contract terms
+    and crowd _DEVIATION_CHUNK_23 (2 terms) out of the top-3 packet. With
+    INTERVENTION_DELIVERY_COVERAGE_TERMS added to the 2.3 EvidenceContract via
+    coverage_groups, the intervention-delivery coverage slot reserves a place for
+    the deviation chunk because none of the noise chunks contain a coverage term."""
     state = _state_with_chunks(
         "d2", [_NOISE_23_A, _NOISE_23_B, _NOISE_23_C, _DEVIATION_CHUNK_23]
     )
