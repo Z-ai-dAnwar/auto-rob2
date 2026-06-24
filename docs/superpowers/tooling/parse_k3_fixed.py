@@ -17,10 +17,14 @@ casefold-exact rule as the benchmark. Tolerant of partial data mid-run.
 """
 import csv
 import json
+import os
 from pathlib import Path
 from statistics import mean
 
 REPO = Path("C:/Users/zaida/auto-rob2")
+# Output-dir prefix for the run set to score. Default = the 8000-char-cap run;
+# override for the cap=16000 experiment, e.g. K3_PREFIX=fixed16k_gptoss_k3_run.
+PREFIX = os.getenv("K3_PREFIX", "fixed_gptoss_k3_run")
 RUNS = [1, 2, 3]
 TRIALS = ["ARASENS", "ARCHES", "CHAARTED", "ENZAMET", "LATITUDE", "PEACE-1", "STAMPEDE", "TITAN"]
 DOMAINS = ["D1", "D2", "D3", "D4", "D5"]
@@ -60,7 +64,7 @@ def load_reference():
 
 
 def trial_status(run, trial):
-    sub = REPO / f"outputs/benchmark/fixed_gptoss_k3_run{run}/{trial}_os"
+    sub = REPO / f"outputs/benchmark/{PREFIX}{run}/{trial}_os"
     data = sub / f"{trial}_rob2_data.json"
     if data.exists():
         return "scored", data
