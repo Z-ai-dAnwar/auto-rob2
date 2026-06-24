@@ -47,7 +47,7 @@ METHODOLOGY_BY_DOMAIN: dict[str, DomainMethodology] = {
     "d5": DOMAIN5_METHODOLOGY,
 }
 
-MAX_SOURCE_CHARS = 16000  # ~5.3k tokens per source; 3 selected sources stay well under context (worst prompt ~46k of 131k tok)
+MAX_SOURCE_CHARS = 8000  # ~2.7k tokens per source; pages are usually well under this
 
 
 def _estimate_tokens(text: str) -> int:
