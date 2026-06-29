@@ -66,6 +66,24 @@ def test_all_runs_missing_yields_no_judgement_flagged_unstable():
     assert result.vote_counts == {}
 
 
+def test_unique_plurality_without_majority_reports_plurality_unstable():
+    # k=4: Low is the unique top (2) but < 3, so no strict majority. There is no
+    # tie to break, so the plurality (Low) is reported and flagged unstable. The
+    # cautious lean applies only to actual ties on purpose: leaning cautious on
+    # every unstable domain would bias agreement, since the references skew Low.
+    result = aggregate_domain(["Low", "Low", "Some concerns", "High"])
+    assert result.stable is False
+    assert result.judgement == "Low"
+
+
+def test_even_k_three_three_split_is_unstable_and_cautious():
+    # k=6: a 3-3 tie between Low and High -> no >=4 majority -> unstable, and the
+    # tie breaks toward the more cautious label (High).
+    result = aggregate_domain(["Low", "Low", "Low", "High", "High", "High"])
+    assert result.stable is False
+    assert result.judgement == "High"
+
+
 def _vote(judgement, stable):
     return DomainVote(judgement=judgement, stable=stable, vote_counts={}, missing_runs=0)
 
@@ -97,6 +115,39 @@ def _write_run(run_dir, trial, judgments):
     (out / f"{trial}_rob2_data.json").write_text(
         json.dumps({"domain_judgments": judgments})
     )
+
+
+def test_tie_break_prefers_known_label_and_never_crashes_on_drift():
+    # An unrecognized label must not crash the conservative tie-break; among the
+    # labels tied for the top count a recognized canonical label is preferred.
+    result = aggregate_domain(["moderate", "Low", "Low", "moderate", "High"])
+    assert result.stable is False
+    assert result.judgement == "Low"
+
+
+def test_double_spaced_label_normalizes_like_benchmark():
+    # Internal whitespace runs collapse (matches benchmark.py normalization), so
+    # "Some  concerns" must not split the vote against "Some concerns"/"S".
+    result = aggregate_domain(["Some  concerns", "Some concerns", "S", "Low", "High"])
+    assert result.judgement == "Some concerns"
+    assert result.stable is True
+    assert result.vote_counts == {"Some concerns": 3, "Low": 1, "High": 1}
+
+
+def test_collect_tolerates_corrupt_json(tmp_path):
+    # The watchdog hard-kills a stalled run, which can leave a truncated JSON
+    # file. That is a missing vote, not a scorer crash.
+    run1 = tmp_path / "kvote_run1"
+    run2 = tmp_path / "kvote_run2"
+    _write_run(run1, "T", {"D1": "Low"})
+    bad = run2 / "T_os"
+    bad.mkdir(parents=True)
+    (bad / "T_rob2_data.json").write_text('{"domain_judgments": {"D1": "Lo')
+
+    votes = collect_trial_votes([run1, run2], ["T"], ["D1"])
+
+    assert votes["T"]["D1"].judgement == "Low"
+    assert votes["T"]["D1"].missing_runs == 1
 
 
 def test_collect_trial_votes_reads_run_dirs_and_tolerates_missing(tmp_path):

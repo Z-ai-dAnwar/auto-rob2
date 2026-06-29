@@ -18,7 +18,8 @@ CAUTION_ORDER = ("Low", "Some concerns", "High")
 
 # Collapse the casing drift and reference-style letter codes (L/S/H) seen across
 # run outputs onto the canonical labels, so equivalent judgements do not split
-# the vote. Mirrors benchmark.py's _normalize_judgment mapping.
+# the vote. Kept in sync by hand with benchmark.py's _normalize_judgment (this is
+# a superset of its mapping).
 _CANONICAL = {
     "l": "Low",
     "low": "Low",
@@ -41,21 +42,33 @@ class DomainVote:
 
 
 def _normalize(label: str) -> str:
-    return _CANONICAL.get(label.strip().casefold(), label)
+    # Collapse internal whitespace runs (not just outer strip) before lookup, so
+    # this matches benchmark.py's _normalize_judgment behaviour rather than only
+    # approximating it.
+    collapsed = " ".join(label.split())
+    return _CANONICAL.get(collapsed.casefold(), collapsed)
 
 
 def _caution_rank(label: str) -> int:
-    return CAUTION_ORDER.index(label)
+    # Unknown labels (drift that survived normalization) rank below every known
+    # judgement, so a recognized canonical label always wins the tie-break and
+    # the conservative pick never raises on an unexpected string.
+    return CAUTION_ORDER.index(label) if label in CAUTION_ORDER else -1
 
 
 def _load_domain_judgments(run_dir: Path, trial: str) -> dict[str, str]:
     # Each run writes {run_dir}/{trial}_os/{trial}_rob2_data.json. A run that
-    # failed leaves the file absent; that is a missing vote, not an error.
+    # failed or was hard-killed mid-write leaves the file absent or truncated;
+    # either way that is a missing vote, not a scorer crash.
     path = Path(run_dir) / f"{trial}_os" / f"{trial}_rob2_data.json"
-    if not path.is_file():
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
         return {}
-    data = json.loads(path.read_text())
-    return data.get("domain_judgments", {})
+    if not isinstance(data, dict):
+        return {}
+    judgments = data.get("domain_judgments", {})
+    return judgments if isinstance(judgments, dict) else {}
 
 
 def collect_trial_votes(
