@@ -62,8 +62,10 @@ def _load_domain_judgments(run_dir: Path, trial: str) -> dict[str, str]:
     # either way that is a missing vote, not a scorer crash.
     path = Path(run_dir) / f"{trial}_os" / f"{trial}_rob2_data.json"
     try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
+        # Benchmark output is UTF-8 (it carries non-ASCII quotes from the PDFs);
+        # decode it explicitly rather than via the platform locale codec.
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
         return {}
     if not isinstance(data, dict):
         return {}

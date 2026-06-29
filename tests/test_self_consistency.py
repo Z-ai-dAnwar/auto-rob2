@@ -150,6 +150,25 @@ def test_collect_tolerates_corrupt_json(tmp_path):
     assert votes["T"]["D1"].missing_runs == 1
 
 
+def test_collect_reads_utf8_non_ascii_run_file(tmp_path):
+    # Real benchmark output is UTF-8 and contains non-ASCII bytes (curly quotes
+    # lifted from the trial PDFs). The loader must decode UTF-8, not the Windows
+    # locale codec, or it raises UnicodeDecodeError on the real files.
+    run1 = tmp_path / "kvote_run1"
+    out = run1 / "T_os"
+    out.mkdir(parents=True)
+    content = json.dumps(
+        {"domain_judgments": {"D1": "Low"}, "note": "right” curly quote"},
+        ensure_ascii=False,
+    )
+    (out / "T_rob2_data.json").write_text(content, encoding="utf-8")
+
+    votes = collect_trial_votes([run1], ["T"], ["D1"])
+
+    assert votes["T"]["D1"].judgement == "Low"
+    assert votes["T"]["D1"].missing_runs == 0
+
+
 def test_collect_trial_votes_reads_run_dirs_and_tolerates_missing(tmp_path):
     run1 = tmp_path / "kvote_run1"
     run2 = tmp_path / "kvote_run2"

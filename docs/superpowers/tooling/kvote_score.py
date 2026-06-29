@@ -47,7 +47,7 @@ K3_BASELINE = {"D1": 88, "D2": 92, "D3": 62, "D4": 100, "D5": 79}
 
 def load_reference(csv_path: Path) -> dict[str, dict[str, str]]:
     ref: dict[str, dict[str, str]] = {}
-    with open(csv_path, newline="") as fh:
+    with open(csv_path, newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             trial = row["Trial"].strip()
             ref[trial] = {d: row[d].strip() for d in DOMAINS}
