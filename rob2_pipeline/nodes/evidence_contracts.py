@@ -50,6 +50,20 @@ REPORTED_METHODS_TERMS = (
     "log rank",
     "restricted mean",
 )
+# SQ 3.1 needs the missing-outcome-data denominator (how many randomized
+# participants had known outcome/vital status). Those counts live in the CONSORT
+# participant-flow and the ClinicalTrials.gov participant-flow, which the d3 role
+# hierarchy demotes (registry) and the plain top-3 crowds out with generic
+# primary sections, so the denominator never reaches the model. This coverage
+# group reserves one packet slot for the flow source. High-precision terms only:
+# they appear in flow/attrition reporting, not generic results prose, so they
+# cannot seat a junk source in the reserved slot.
+MISSING_OUTCOME_FLOW_TERMS = (
+    "participant flow",
+    "lost to follow-up",
+    "lost to follow up",
+    "vital status",
+)
 
 
 CONTRACTS: dict[str, EvidenceContract] = {
@@ -154,6 +168,7 @@ CONTRACTS: dict[str, EvidenceContract] = {
         ),
         ("d3_missing_data", "consort_flow", "results"),
         needs_denominator=True,
+        coverage_groups=(MISSING_OUTCOME_FLOW_TERMS,),
     ),
     "3.2": EvidenceContract(
         "3.2",
