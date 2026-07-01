@@ -141,8 +141,52 @@ def packet_block_for_domain(
     return compact("\n\n".join(parts), max_chars)
 
 
+def _group_satisfied_by(ranked: list, chosen: list[int], group: tuple[str, ...]) -> bool:
+    """True if an already-chosen source covers ``group``'s terms."""
+    for index in chosen:
+        text = (ranked[index].get("text") or "").casefold()
+        if any(term in text for term in group):
+            return True
+    return False
+
+
+def _reserve_denominator_flow(
+    ranked: list, coverage_groups: tuple[tuple[str, ...], ...]
+) -> int | None:
+    """Index of the authoritative registry participant-flow source, if present.
+
+    The missing-outcome denominator (how many randomized participants had known
+    vital/outcome status) is carried by the ClinicalTrials.gov participant-flow,
+    which enters as a ``source_kind="ctgov"`` source. A text-only coverage group
+    can be satisfied by a supplement or primary segment that merely mentions
+    "lost to follow-up" (imputation prose), and that segment both matches more
+    generic 3.1 terms and outranks the registry flow, which the d3 role
+    hierarchy demotes. The reserved slot then goes to the wrong source and the
+    registry flow (the only candidate with the denominator counts) is crowded
+    out. Pin the highest-ranked ctgov source that actually carries flow text so
+    the reservation lands on the denominator source, not an incidental mention.
+
+    Returns ``None`` when no real registry flow is a candidate (e.g. the trial
+    posted no results and the source is the "no participant flow" placeholder,
+    which does not match any coverage term), leaving prior behavior unchanged.
+    """
+    flow_terms = tuple(term for group in coverage_groups for term in group)
+    if not flow_terms:
+        return None
+    for index, source in enumerate(ranked):
+        if source.get("source_kind") != "ctgov":
+            continue
+        text = (source.get("text") or "").casefold()
+        if any(term in text for term in flow_terms):
+            return index
+    return None
+
+
 def _select_with_coverage(
-    ranked: list, coverage_groups: tuple[tuple[str, ...], ...], limit: int
+    ranked: list,
+    coverage_groups: tuple[tuple[str, ...], ...],
+    limit: int,
+    pinned: tuple[int, ...] = (),
 ) -> list:
     """Select up to ``limit`` ranked sources, but first reserve one slot for
     each coverage group that has a matching source.
@@ -153,13 +197,20 @@ def _select_with_coverage(
     of evidence (e.g. 5.3's pre-specified plan and reported methods) cannot have
     the higher-ranking kind take every slot. Final order stays rank order.
 
+    ``pinned`` indices are secured first (used to force the authoritative
+    denominator flow source into the packet). A coverage group already covered
+    by a pinned source is not reserved a second slot, so the pin substitutes for
+    the text-only reservation instead of doubling it.
+
     Assumes ``len(coverage_groups) <= limit``. With more groups than slots, the
     lowest-ranked reserved sources are dropped by the final cap.
     """
-    if not coverage_groups:
+    if not coverage_groups and not pinned:
         return ranked[:limit]
-    chosen: list[int] = []
+    chosen: list[int] = list(dict.fromkeys(pinned))
     for group in coverage_groups:
+        if _group_satisfied_by(ranked, chosen, group):
+            continue
         for index, source in enumerate(ranked):
             if index in chosen:
                 continue
@@ -187,7 +238,12 @@ def _build_packet_for_contract(
             source.get("score", 1e9),
         ),
     )
-    selected = _select_with_coverage(ranked, contract.coverage_groups, 3)
+    pinned: tuple[int, ...] = ()
+    if contract.needs_denominator:
+        flow_index = _reserve_denominator_flow(ranked, contract.coverage_groups)
+        if flow_index is not None:
+            pinned = (flow_index,)
+    selected = _select_with_coverage(ranked, contract.coverage_groups, 3, pinned=pinned)
     selected = [_cap_source_text(src, max_chars=MAX_SOURCE_CHARS) for src in selected]
     text = "\n\n".join(
         source.get("text", "") for source in selected if source.get("text")

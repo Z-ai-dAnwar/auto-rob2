@@ -63,3 +63,57 @@ def test_3_1_packet_includes_participant_flow_denominator_source():
     joined = " ".join(source.get("text", "") for source in packet["sources"]).casefold()
     assert "registry" in roles, f"participant-flow source dropped; roles={roles}"
     assert "vital status" in joined, "denominator text did not reach the packet"
+
+
+def _d3_state_with_competing_flow_mention() -> dict:
+    # The LATITUDE / TITAN failure mode: a non-registry source also mentions a
+    # coverage term ("lost to follow-up") and, because it matches more of the
+    # generic 3.1 terms and is not demoted by the d3 role hierarchy, it outranks
+    # the registry participant-flow AND satisfies the coverage group first. The
+    # text-only coverage slot therefore goes to the imputation prose, and the
+    # authoritative registry flow (the only source with the randomized
+    # denominator + vital-status counts) is crowded out of the top-3.
+    return {
+        "outcome": "overall survival",
+        "outcome_type": "vital-status",
+        "pdf_path": "trial.pdf",
+        "supplement_indexes": {},
+        "registration_number": "NCT00104715",
+        "ctgov_flow": (
+            "Participant flow:\n"
+            "  STARTED: Drug A plus usual care 601, Usual care alone 602\n"
+            "  COMPLETED: 597, 599\n"
+            "  Lost to Follow-up: 4, 3\n"
+            "1053 of 1060 randomized participants had known vital status."
+        ),
+        "evidence": {
+            # A primary (role_rank 0) section that also mentions the coverage
+            # term "lost to follow-up" and matches several 3.1 terms, so it both
+            # outranks and pre-empts the registry flow under the current logic.
+            "d3_missing_data": _section(
+                "Patients lost to follow-up were rare; missing outcome data were "
+                "analysed by intention to treat for the randomised population."
+            ),
+            "consort_flow": _section(
+                "Figure 1 shows the profile: patients were randomised and "
+                "analysed by intention to treat."
+            ),
+            "results": _section(
+                "Outcome data for overall survival were analysed (HR 0.61)."
+            ),
+        },
+    }
+
+
+def test_3_1_registry_flow_wins_slot_over_competing_flow_mention():
+    state = _d3_state_with_competing_flow_mention()
+
+    packet = build_packet_for_contract(state, CONTRACTS["3.1"])
+
+    roles = [source.get("document_role") for source in packet["sources"]]
+    joined = " ".join(source.get("text", "") for source in packet["sources"]).casefold()
+    assert "registry" in roles, (
+        f"registry participant-flow crowded out by a competing 'lost to "
+        f"follow-up' mention; roles={roles}"
+    )
+    assert "vital status" in joined, "denominator text did not reach the packet"
