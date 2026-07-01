@@ -20,7 +20,7 @@ class AnthropicProvider(LLMProvider):
         api_key,
         model,
         temperature=0,
-        max_tokens=2000,
+        max_tokens=8000,
         rpm_limit: int = 40,
         tpm_limit: int = 30_000,
         request_timeout: float = 60,

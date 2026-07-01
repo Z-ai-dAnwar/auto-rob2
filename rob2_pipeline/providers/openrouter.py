@@ -63,7 +63,7 @@ class OpenRouterProvider(LLMProvider):
         api_key,
         model,
         temperature=0,
-        max_tokens=2000,
+        max_tokens=8000,
         rpm_limit=18,
         rpd_limit=190,
         request_timeout: float = 60,
