@@ -64,6 +64,34 @@ MISSING_OUTCOME_FLOW_TERMS = (
     "lost to follow up",
     "vital status",
 )
+# SQ 2.6 ("was an appropriate analysis used to estimate the effect of assignment
+# to intervention?") turns on which population the effect estimate came from: an
+# intention-to-treat / full-analysis-set analysis of all randomized participants
+# supports Y, while a per-protocol or as-treated analysis supports N/NI (Sterne
+# 2019 D2 SQ 2.6). The one sentence that names the analysis population ("efficacy
+# analyses were by intention-to-treat") matches only "intention" among the 2.6
+# ranking terms, so denser deviation / adherence / population prose that matches
+# more terms crowds it out of the top-3; the model then answers NI in some runs
+# and Y in others on the same paper. This coverage group reserves one packet slot
+# for the analysis-population statement whenever the paper makes one. High-
+# precision phrases only: coverage reserves a slot for a matching source, so each
+# term must unambiguously name an analysis set and not seat generic results prose.
+# Bare "itt"/"mitt" are deliberately excluded (they substring-match "committee",
+# "submitted", "permitted"); the unhyphenated "as treated" is excluded (it
+# substring-matches "was treated"); the spelled-out and hyphenated forms carry
+# the signal without the collisions.
+ANALYSIS_POPULATION_COVERAGE_TERMS = (
+    "intention-to-treat",
+    "intention to treat",
+    "intent-to-treat",
+    "intent to treat",
+    "per-protocol",
+    "per protocol",
+    "as-treated",
+    "full analysis set",
+    "analysis population",
+    "analysis set",
+)
 
 
 CONTRACTS: dict[str, EvidenceContract] = {
@@ -145,6 +173,7 @@ CONTRACTS: dict[str, EvidenceContract] = {
         ("analysis_population",),
         ("intention", "itt", "modified", "per-protocol", "as treated", "randomized"),
         ("results", "d4_outcome_meas", "methods"),
+        coverage_groups=(ANALYSIS_POPULATION_COVERAGE_TERMS,),
     ),
     "2.7": EvidenceContract(
         "2.7",
