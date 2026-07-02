@@ -19,13 +19,13 @@ DOMAIN5_METHODOLOGY = DomainMethodology(
             "Were data analysed according to a pre-specified plan finalized before unblinded outcome data were available?",
             {
                 "Y": ResponseRule(
-                    "A sufficiently detailed pre-specified plan was finalized before unblinded data and followed."
+                    "A sufficiently detailed pre-specified plan was finalized before unblinded data and the reported result was produced by it. Compare the pre-specified plan against what was reported - the outcome, the analysis timepoint, and the analysis method - and answer Y only when they match. A pre-specified interim analysis (alpha-spending or a pre-specified group-sequential stopping boundary) is part of the plan and stays Y; do not treat such a pre-planned interim as a departure."
                 ),
                 "PY": ResponseRule(
-                    "Strong indication of pre-specification exists, with some detail missing or minor justified deviations."
+                    "Strong indication of pre-specification exists and the reported result broadly matches the plan, with some detail missing or minor justified deviations. A pre-specified interim analysis with alpha-spending or a pre-specified stopping boundary remains pre-specified here, not a departure."
                 ),
                 "PN": ResponseRule(
-                    "A plan is mentioned but not detailed enough, or unexplained deviations raise concern."
+                    "A plan is mentioned but not detailed enough, or the reported result reflects an unplanned or data-driven departure from the pre-specified plan - a changed outcome or analysis timepoint, a follow-up or analysis window extended or chosen after seeing the data, or post-hoc analyses added and then selected for reporting. Such unexplained or data-driven deviations raise concern even when a trial registration or protocol exists."
                 ),
                 "N": ResponseRule(
                     "Clear post hoc decisions, endpoint switching, or result-based changes occurred."
