@@ -37,7 +37,13 @@ DOMAIN4_METHODOLOGY = DomainMethodology(
             "Could measurement or ascertainment have differed between groups?",
             {
                 "Y": ResponseRule(
-                    "Measurement methods, thresholds, timing, or passive detection opportunities differed between groups."
+                    "Measurement methods, thresholds, timing, or passive detection "
+                    "opportunities differed between groups. For objective mortality "
+                    "endpoints (all-cause death / overall survival), reserve Y for "
+                    "specific evidence of genuinely differential ascertainment between "
+                    "groups; routine differences in visit or treatment-administration "
+                    "frequency do not make death ascertainment differ (Sterne 2019 "
+                    "RoB 2 Domain 4)."
                 ),
                 "PY": ResponseRule(
                     "Differences in measurement, timing, or detection opportunities are plausible."
@@ -46,7 +52,15 @@ DOMAIN4_METHODOLOGY = DomainMethodology(
                     "Methods and timing appear comparable with minor uncertainty."
                 ),
                 "N": ResponseRule(
-                    "Same methods and thresholds were used at comparable time points."
+                    "Same methods and thresholds were used at comparable time points. "
+                    "For objective outcomes such as all-cause mortality or overall "
+                    "survival, ascertainment of the event (death) is objective and "
+                    "cannot be influenced by knowledge of assignment, so absent "
+                    "specific evidence of biased or differential ascertainment between "
+                    "groups the answer trends N (Sterne 2019 RoB 2 Domain 4). This "
+                    "objective-outcome steer applies only to genuinely objective "
+                    "outcomes; for subjective or assessor-judged outcomes do not "
+                    "default to N."
                 ),
                 "NI": ResponseRule(
                     "Insufficient information to determine comparability."
@@ -69,7 +83,14 @@ DOMAIN4_METHODOLOGY = DomainMethodology(
                     "Assessors probably knew assignment based on design or available evidence."
                 ),
                 "PN": ResponseRule("Assessor blinding is likely but not verified."),
-                "N": ResponseRule("Outcome assessors were blinded."),
+                "N": ResponseRule(
+                    "Outcome assessors were blinded, or the outcome is not a matter of "
+                    "assessor judgment. For objective outcomes such as all-cause "
+                    "mortality or overall survival, death is ascertained from records "
+                    "or registries and does not depend on assessor knowledge of "
+                    "assignment, so absent specific evidence of biased ascertainment "
+                    "the answer trends N (Sterne 2019 RoB 2 Domain 4)."
+                ),
                 "NI": ResponseRule(
                     "Assessor awareness cannot be inferred from available evidence."
                 ),
