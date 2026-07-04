@@ -30,6 +30,24 @@ non-deterministic.
 - **Uncommitted, leave as-is**: `data/references/overall_survival.csv` (M) and the
   GETUG-AFU-15 / SWOG-1216 PDF+supplement renames (untracked/deletions).
 
+## Upstream alignment (Ali) - checked 2026-07-03
+
+- Our branch is **0 behind / 11 ahead** of `origin/master` (Ali's mainline). No stale-copy
+  risk.
+- The LLM summary is ALL Ali's: `extract_paper_evidence` (`ingestion/evidence.py`) and
+  ADR-0004 ("use LLMs for semantic evidence interpretation") are his, on his mainline. Do
+  NOT unilaterally remove it.
+- Key: on 2026-06-12 Ali introduced BM25S supplement retrieval, `SupplementIndex` in
+  evidence packets, and removed the legacy RAG path. He is ALREADY migrating to
+  deterministic BM25 - but only for supplements, not the primary paper. ADR-0008 completes
+  that migration for the primary paper using his own machinery. This is a natural,
+  well-aligned contribution to bring Ali (with determinism numbers + before/after), not a
+  departure from his architecture.
+- Governance: the additive deterministic retrieval is ours to build (evidence-assembly
+  surface). Any decision to REDUCE/REMOVE the LLM summary is Ali's call - build the additive
+  fix, measure whether the summary still adds value, and if the data shows it hurts, take
+  the finding to Ali; do not rip it out unilaterally.
+
 ## What we established (deterministically, from trace data - no benchmark)
 
 - Across the 5 k=5 baseline passes, every upstream evidence LLM node
