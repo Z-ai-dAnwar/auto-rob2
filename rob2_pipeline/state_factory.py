@@ -31,6 +31,7 @@ def create_initial_state(
         "supplement_warnings": [],
         "supplement_segments": [],
         "supplement_indexes": {},
+        "primary_index": None,
         "supplement_retrieval_grades": {},
         "evidence_packets": {},
         "evidence_facts": {},

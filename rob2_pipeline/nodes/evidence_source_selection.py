@@ -6,6 +6,7 @@ import re
 
 from rob2_pipeline.models import format_evidence
 from rob2_pipeline.nodes.evidence_contracts import EvidenceContract, OUTCOME_ALIASES
+from rob2_pipeline.primary_paper_index import build_primary_index
 from rob2_pipeline.state import RoB2State
 from rob2_pipeline.types import PacketSource
 
@@ -17,6 +18,16 @@ DOMAIN_SOURCE_ROLE_PREFERENCES = {
     "d4": ["primary", "protocol", "sap", "appendix"],
     "d5": ["protocol", "sap", "registry", "primary", "appendix"],
 }
+
+# ADR-0008 pilot scope: deterministic primary-paper retrieval is enabled only for
+# D2 SQ 2.6 (analysis-population) for now. Gating keeps the change surgical - other
+# domains' packets are byte-identical to before - and matches the ADR's staged
+# rollout ("extend to other domains only after the pilot deterministically
+# surfaces the decisive evidence"). Add SQ ids here to extend.
+PRIMARY_RETRIEVAL_PILOT_SQS = frozenset({"2.6"})
+
+# bm25s top-k for the primary-paper retrieval; mirrors supplement_sources.
+PRIMARY_RETRIEVAL_TOP_K = 5
 
 
 def role_rank(domain: str, role: str) -> int:
@@ -32,6 +43,10 @@ def candidate_sources(
 ) -> list[PacketSource]:
     raw_sources = []
     raw_sources.extend(supplement_sources(state, contract))
+    # Deterministic BM25 retrieval over the primary paper's raw full_text
+    # (ADR-0008). Added alongside - not instead of - the stochastic LLM summary in
+    # fallback_sources, which stays as complementary context.
+    raw_sources.extend(primary_paper_sources(state, contract))
     # Section-text sources are belt-and-suspenders supplementary context for the
     # LLM and run unconditionally alongside supplement and registry hits. They
     # carry a source_kind="section_text" tag so downstream code can distinguish
@@ -72,6 +87,40 @@ def supplement_sources(state: RoB2State, contract: EvidenceContract) -> list[dic
             continue
         result = index.retrieve(query, domain=contract.domain, top_k=5)
         sources.extend(result.get("segments", []))
+    return sources
+
+
+def primary_paper_sources(state: RoB2State, contract: EvidenceContract) -> list[dict]:
+    """Deterministic BM25 hits over the primary paper's raw full_text (ADR-0008).
+
+    Mirrors ``supplement_sources`` but points bm25s at the primary paper instead of
+    supplements, so a decisive per-SQ sentence that the stochastic LLM summary drops
+    is still retrieved. Enabled only for the pilot SQ set. The primary index is built
+    once per trial in ingestion (``state["primary_index"]``); we rebuild it lazily
+    from ``full_text`` if it is absent (e.g. a precomputed state that predates it).
+    """
+    if contract.sq_id not in PRIMARY_RETRIEVAL_PILOT_SQS:
+        return []
+    index = state.get("primary_index")
+    if index is None or not hasattr(index, "retrieve"):
+        # `... or ""` normalizes an absent OR present-but-None full_text to "",
+        # matching the eager build path. A bare str() would index the literal
+        # "None" as a spurious passage.
+        index = build_primary_index(state.get("full_text") or "")
+    query = supplement_query(contract)
+    result = index.retrieve(query, domain=contract.domain, top_k=PRIMARY_RETRIEVAL_TOP_K)
+    sources: list[dict] = []
+    for rank, segment in enumerate(result.get("segments", [])):
+        source = dict(segment)
+        source["source_kind"] = "primary_fulltext"
+        # The packet ranker (evidence_packets.py) breaks matched-term/role ties by
+        # `score` ASCENDING, so a lower score sorts earlier. Encode the BM25
+        # relevance rank (0 = best) as the score so the most relevant primary
+        # passage is seated first among equally-matched primary sources, instead of
+        # being demoted by its larger raw BM25 magnitude. full_text and BM25 are both
+        # deterministic, so this ordering is identical on every run.
+        source["score"] = float(rank)
+        sources.append(source)
     return sources
 
 

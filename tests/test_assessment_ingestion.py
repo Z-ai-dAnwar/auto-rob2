@@ -7,7 +7,7 @@ from rob2_pipeline.ingestion.parse_artifacts import (
     SourceParseArtifact,
 )
 from rob2_pipeline.models import empty_paper_evidence
-from rob2_pipeline.supplement_retrieval import SupplementSegment
+from rob2_pipeline.supplement_retrieval import SupplementIndex, SupplementSegment
 
 
 LLM_LOG = {
@@ -49,7 +49,12 @@ def test_assessment_ingestion_result_to_state_update_omits_empty_llm_log():
         supplement_warnings=[],
     )
 
-    assert result.to_state_update() == {
+    update = result.to_state_update()
+    # ADR-0008: a deterministic primary-paper BM25 index is built from full_text.
+    # It is a live SupplementIndex object, so assert its type then compare the rest.
+    primary_index = update.pop("primary_index")
+    assert isinstance(primary_index, SupplementIndex)
+    assert update == {
         "full_text": "Primary text",
         "evidence": evidence,
         "source_documents": [],

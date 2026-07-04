@@ -30,6 +30,7 @@ from rob2_pipeline.ingestion.supplement_segments import (
     supplement_segment_artifacts,
 )
 from rob2_pipeline.models import PaperEvidence
+from rob2_pipeline.primary_paper_index import build_primary_index
 from rob2_pipeline.supplement_retrieval import SupplementIndex, SupplementSegment
 from rob2_pipeline.types import (
     LLMCallLogEntry,
@@ -66,6 +67,10 @@ class AssessmentIngestionResult:
             "supplement_segments": self.supplement_segments,
             "supplement_indexes": supplement_indexes,
             "supplement_retrieval_grades": self.supplement_retrieval_grades,
+            # Deterministic BM25 index over the primary paper's raw full_text
+            # (ADR-0008). Built here so every trial - fresh or precomputed - carries
+            # it, since it is derived purely from full_text.
+            "primary_index": build_primary_index(self.full_text),
         }
         if include_llm_call_log and self.llm_call_log:
             update["llm_call_log"] = self.llm_call_log

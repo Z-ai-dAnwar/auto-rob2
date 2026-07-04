@@ -47,6 +47,8 @@ class RoB2State(TypedDict, total=False):
     supplement_warnings: Annotated[list[str], take_latest]
     supplement_segments: Annotated[list[SupplementSegmentArtifact], take_latest]
     supplement_indexes: Annotated[dict, take_latest]
+    # Deterministic BM25 index over the primary paper's raw full_text (ADR-0008).
+    primary_index: Annotated[Any, take_latest]
     supplement_retrieval_grades: Annotated[dict[str, RetrievalGrade], merge_dicts]
     evidence_packets: Annotated[dict[str, EvidencePacket], merge_dicts]
     evidence_facts: Annotated[dict[str, list[EvidenceFact]], merge_dicts]
