@@ -75,8 +75,11 @@ param(
         'LATITUDE:OS', 'PEACE-1:OS', 'STAMPEDE:OS', 'TITAN:OS'
     ),
 
-    # Hard kill-timer per pass. providers/openrouter.py has no socket timeout,
-    # so a stalled connection would otherwise block forever.
+    # Hard kill-timer per pass. Not for socket stalls: providers/openrouter.py
+    # does pass a 60s timeout to urlopen (config.py:29, ROB2_REQUEST_TIMEOUT),
+    # so the "no socket timeout" note carried by the old watchdogs is stale.
+    # It is for whole-run stalls the socket timeout cannot see - retry storms,
+    # and _rate_limiter.py:40-52, which sleeps up to 24 hours on the daily cap.
     [int]$TimeoutMin = 150,
 
     [string]$Provider = 'openrouter',
