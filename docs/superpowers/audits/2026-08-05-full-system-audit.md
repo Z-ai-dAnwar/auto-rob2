@@ -53,6 +53,14 @@ including an OCR artifact** (`inthe adt with docetaxel population for efficacy`,
 benchmark overfitting compiled into the judging path. It cannot generalize to any trial outside
 the ten, and it only ever moves answers toward the benign side.
 
+**Fifth, the cheapest high-value action in the whole audit, and it is not a fix:** Šuster's Zenodo
+release (`doi.org/10.5281/zenodo.11243025`) is **218 trials, 7,056 outcome-level RoB 2 rows, CC BY
+4.0, with 561 High judgments** — Cochrane authors' own labels, no scraping, no licensing
+conversation, available today. Resolving how many of those 218 trials our existing PDF pipeline can
+fetch is an afternoon's work and would replace a 10-trial single-disease reference set that cannot
+measure anything with a 218-trial multi-disease one that can. Details and risks in the
+reference-set section below.
+
 **One thing that is emphatically NOT broken, and it matters:** the deterministic judges in
 `rob2_pipeline/judges/` reproduce the published Sterne 2019 tables exactly, verified row by row,
 including the subtle case where 2.4=NI correctly does *not* skip 2.5. The skip/NA branching is
@@ -582,6 +590,287 @@ residual risk: `openrouter.py:139` embeds the full HTTP error body into an excep
 
 ---
 
+## Correction: the compression layer is 2%, not "a large fraction"
+
+The 2026-08-04 brief argued that a large part of the codebase exists only to squeeze papers into a
+131k-token window, and concluded that tuning it is tuning something a model swap would delete.
+**The first half does not survive measurement.** Against the 18,566-line production tree:
+
+| Category | Lines | Share |
+| --- | --- | --- |
+| Exists **only** because of the context window | **407** | **2.2%** |
+| Partly attributable (retrieval precision is real at 1M, but chunking is a prerequisite) | 645 | 3.5% |
+| Combined | 1,052 | 5.7% |
+
+The only-compression 407 lines are: `cap_section` and `_extract_keyword_context`
+(`ingestion/evidence.py:177-220`, `:251-277`), the LLM primary-paper summary
+(`ingestion/evidence.py:30-114`), `MAX_SOURCE_CHARS` / `_estimate_tokens` / `_cap_source_text`
+(`evidence_packets.py:50-65`), the slot-scarcity selection helpers (`evidence_packets.py:144-226`),
+`enforce_prompt_budget` and `PROMPT_TOKEN_BUDGET`, the annotation-cap machinery and
+`_page_segments` in `supplement_segments.py`, plus a handful of size constants.
+
+**So a 1M-context model swap would delete about 2% of the code, not the retrieval layer.** The
+brief's conclusion — measure whether the constraint still binds before investing in working around
+it — still stands, but the reason is different and weaker than "the architecture is downstream of
+the model constraint".
+
+**The real problem is placement, not volume.** Those 407 lines sit directly on the accuracy path,
+and **the primary paper is compressed four separate times before the model sees it**: the LLM
+summary (or `cap_section` at 10,000 chars) → `_cap_source_text` at 8,000 → `compact` at 700 per
+source → the 6,500-char packet block. And there is exactly one `.retrieve()` call site in the whole
+pipeline (`nodes/evidence_source_selection.py:73`), which only ever searches supplements. The
+primary paper never goes through deterministic search at all — which is C17 and H8 restated from
+the other direction.
+
+### Dead code and stale documentation
+
+Ali's bm25s migration was **complete on the production side**: no second retrieval implementation,
+no FAISS or embedding code, one `.retrieve()` call site, and negative tests pinning the removal
+(`tests/test_domain_context.py:97`, `tests/test_pipeline.py:65`). What it left behind is orphans
+and stale docs.
+
+**D1. Three documented environment variables do not exist.** `ROB2_SUPPLEMENT_PAGE_WINDOW`,
+`ROB2_SUPPLEMENT_MAX_SCAN_PAGES` and `ROB2_SUPPLEMENT_MAX_PAGES` appear across five places in
+`ARCHITECTURE.md`, `README.md` and `CONTEXT.md` with specific defaults; a repo-wide grep for
+`ROB2_SUPPLEMENT` in Python returns nothing. Consequently the documented `partial` and `missing`
+supplement statuses are unreachable — `mark_partial`, `mark_missing` and `skipped_source_documents`
+each have exactly one caller and it is a test. ADR-0002 says 300 pages, ARCHITECTURE and README say
+1,000, the code has no cap. *Severity: High.*
+
+**D2. `supplement_retrieval_grades` is permanently `{}`** but is documented in seven places as live
+diagnostics, including `README.md:386`, which tells a debugging reader to inspect a
+structurally-always-empty field. All four construction sites omit the argument. *Severity: High.*
+
+**D3. `CONTEXT.md` documents the pre-ADR-0006 behavior that caused the token overflows.**
+`CONTEXT.md:217-218` still says a supplement "is represented as one segment tagged D1 through D5",
+which is exactly what ADR-0006 identified as the cause of the 220k-396k-token prompts and replaced
+with per-page fallback. Leaving it in the glossary invites someone to restore the regression. The
+same file describes a segment-merging step that was never built (`:220-223`) and an LLM annotation
+pass that does not exist (`:195-209`, `:517-520`). *Severity: High.*
+
+**D4. A documented module and a documented test command point at deleted files.**
+`ARCHITECTURE.md:326` and `CONTEXT.md:449` name `ingestion/supplements.py` as the owner of
+supplement parsing; it does not exist. `README.md:364` and `ARCHITECTURE.md:446` give
+`pytest tests/test_supplements.py` as a command; that file does not exist. `README.md:347-349`
+documents a `run_assessment()` argument the signature does not accept, so the documented call
+raises `TypeError`. *Severity: Medium.*
+
+**D5. "All graph LLM calls go through `call_node_llm()`" is inverted.** `call_node_llm` (154 lines)
+has exactly **one** production caller. Everything else calls `call_json_contract_llm` directly. Yet
+`ARCHITECTURE.md:515` tells a contributor to add new nodes on the minority seam. *Severity:
+Medium.*
+
+**D6. The annotation cap injects a false claim into the search index.** Segments past the 24th get
+`FALLBACK_ANNOTATION` — "No risk-of-bias relevant content." — and `_indexed_text` concatenates the
+annotation into the BM25 document. Since ADR-0006 made large supplements fall back to one segment
+per page, pages 25 and beyond now carry an indexed statement that they contain nothing relevant.
+This fires on exactly the large supplements ADR-0006 targeted. *Severity: High.*
+
+**D7. Two live graph nodes appear in no architecture document.** `retrieval_repair` and
+`evidence_family_mining` sit on the mandatory path between `evidence_packet_builder` and the domain
+nodes, and neither name appears in `CONTEXT.md`, `ARCHITECTURE.md` or `README.md`. Also missing from
+both module maps: `nodes/domain_classifier.py`, `nodes/sq_control.py`, `self_consistency.py`.
+Given that `sq_control.py` holds the entire flip layer (C3-C10), that is a significant gap.
+*Severity: Medium.*
+
+**D8. ADR-0006 and ADR-0007 are marked "Proposed" but are fully implemented.** ADR-0008 is
+correctly "Proposed (pilot in progress)". *Severity: Medium. Ours.*
+
+**D9. Confirmed-dead symbols**, verified by whole-repo word-boundary grep including attribute
+access, with no dynamic dispatch reaching them: `NO_RELEVANT_TEXT` and `DOMAIN_IDS`
+(`constants.py:2,7`), `ANSWER_CODES` / `SUPPORT_LEVELS` (`domain_classifier.py:13-14`),
+`VALID_OUTCOME_TYPES` / `VALID_SUPPORT_LEVELS` / `LLM_PROPERTY_FIELDS`
+(`outcome_resolver.py:12,19,21`), `call_domain_sq_prompt` (`domain_helpers.py:169-186`),
+`extract_censoring_context`, the three legacy `EMBED_*` / `TOKENIZER_*` settings, `ChunkMeta`,
+`docling_chunks` (rebuilt on every ingest and never propagated), and `embedding_text` (written as
+an exact copy of `search_text`, doubling that file's volume). *Severity: Medium/Low.*
+
+**D10. The source-role hierarchy is duplicated** in `evidence_source_selection.py:13-19` and
+`retrieval_repair.py:201-209` as byte-identical orderings. Editing one silently diverges.
+*Severity: Medium.*
+
+**D11. The disk cache is unreachable in practice and `--no-cache` is a no-op.** `_use_cache()`
+requires `ROB2_USE_CACHE == "1"`, which is set nowhere; both entry points only ever set it to
+`"0"`. *Severity: Medium. Compare H5 — the cache-key defect matters only once the cache is turned
+on.*
+
+**D12. Ruff is clean.** `--select F401,F811,F841,ARG,ERA001` over the package reports six issues
+total: one unused variable (`domain4.py:71`), and five unused arguments, one of which is
+deliberate. No unused imports, no commented-out code, no TODO/FIXME debt.
+
+### Test coverage, where it is thin
+
+512 tests across 45 files. **The judges are the best-covered area** — every domain judge has
+parametrized tests including degenerate cases — which is consistent with them verifying clean. The
+gaps are concentrated exactly where this audit found the defects:
+
+- **`ingestion/evidence.py` (382 lines) has no test file at all**, and the LLM summary it contains
+  is monkeypatched off in all six ingestion tests. So the stochastic step on the critical path,
+  the one ADR-0007 measured as the most-truncated node in the pipeline, is entirely untested and
+  its fallback branch has never run in CI.
+- `enforce_prompt_budget` has 2 tests and 11 lines of them. None asserts *which end* is cut — the
+  defect in C16 — and none asserts the warning that is the only operational signal of silent
+  evidence loss.
+- `apply_domain4_control` (306 lines, a third of `sq_control.py`) has both terminal cascades
+  untested.
+- `nodes/evidence_source_selection.py` (191 lines) is imported by no test file.
+- Three of six mismatch categories (`parse`, `retrieval`, `SQ`) are never produced by any test,
+  which is consistent with C11 — the `parse` category is structurally unreachable.
+- Prompt-side compression is untested: `packet_block_for_domain`'s 6,500-char cap and the 700-char
+  per-source `compact` decide what the model actually reads, and only short-source cases are tested.
+
+### Two corrections to the brief's figures
+
+The line counts quoted in the 2026-08-04 brief are all 100-210 lines lower than what is on this
+branch, so they came from an older revision. And the handoff at
+`docs/superpowers/handoffs/2026-07-03-evidence-layer-foundation.md:18,34-35` still says `e71e75e`
+and "11 ahead"; the branch is now well past that.
+
+---
+
+## Can the reference set be expanded? Yes, and cheaper than expected
+
+Investigated as a separate lens because C1 and C2 make it the question everything else waits on.
+**Findings only. Rebuilding the reference set is a decision for Zaid and Dr. Riaz, not a coding
+decision.**
+
+### The hypothesis was right, but the useful artifact is not the one we expected
+
+It is not the HTML table and it is definitely not the traffic-light figure. **Since 25 April 2023,
+every Cochrane review auto-ships a `*-dataPackage.zip` containing a `risk-of-bias.csv`** generated
+by RevMan Web. Real files were downloaded and parsed. Each row is one (study x outcome) and the
+columns are exactly what we need:
+
+`Study, Outcome, Data type, Effect measure,` then for each of the five domains a
+`Domain (judgement): ...` and a `Domain (support): ...` pair, then `Domain (judgement): Overall
+bias` and its support column.
+
+So it is per-outcome, it names the five domains separately with exact RoB 2 wording, it carries
+the overall judgment, and **it includes the assessor's written justification per domain** — which
+our current reference set does not have and which is directly usable for error analysis. A sibling
+`included.ris` carries PMIDs, DOIs and NCT numbers, so the assessment joins to the trial paper.
+
+No OCR, no table extraction, no LLM parsing.
+
+**The non-Cochrane path, which the hypothesis treated as the accessible one, is largely dead.**
+Reviews generate their traffic-light plots with `robvis`, which consumes a CSV and emits a PNG;
+authors publish the PNG and keep the CSV, so the machine-readable data is destroyed at
+publication. In a 7-review sample only one had a parseable per-domain text table. Independently,
+Babić et al. 2024 sampled 3,880 non-Cochrane reviews: 267 reported RoB 2, and **only 20 presented
+a complete assessment**.
+
+### The immediate win needs no scraping at all
+
+**Šuster's Zenodo release (`doi.org/10.5281/zenodo.11243025`) is 218 trials, 45 Cochrane reviews,
+7,056 outcome-level RoB 2 rows, CC BY 4.0** — Cochrane authors' own judgments, no licensing
+conversation, no scraper. Label distribution: 5,069 Low, 1,426 Some concerns, **561 High**. One
+caveat: D1 coverage is thin (216 rows against roughly 1,710 for each other domain), so D1 is
+effectively one judgment per trial rather than per outcome.
+
+Also available: **ROBoto2** (`github.com/larchlab/ROBoto2`), 245 expert-assessed trials, 187 with
+full text, 4,332 signalling-question-level records — per-SQ labels, which nothing else offers.
+License is unclear, so check before relying on it.
+
+### What the labels look like once you leave our ten trials
+
+Pooled from four Cochrane data packages: 21 trials, 73 study-outcome rows, four unrelated disease
+areas.
+
+| Domain | Low | Some concerns | High |
+| --- | --- | --- | --- |
+| D1 | 60% | 40% | 0% |
+| D2 | 49% | 35% | **17%** |
+| D3 | 79% | 7% | **14%** |
+| D4 | 62% | 22% | **15%** |
+| D5 | 26% | **61%** | **12%** |
+| **Overall** | **18%** | 40% | **42%** |
+
+**Against that distribution the always-Low baseline scores D1 60, D2 49, D3 79, D4 62, D5 26,
+Overall 18** — instead of 100/90/70/100/80/100 on ours. The measuring instrument starts working.
+
+Corroborated by three independent published sources: Eisele-Metzger 2025 (100 RCTs: 36/42/22),
+Taneri 2025 (84 RCTs: 62/29/10), Guelimi 2026 (193 psoriasis RCTs, 55% High for serious adverse
+events). Base rates are strongly outcome-dependent.
+
+**Why this matters more than the accuracy number.** Every published LLM RoB 2 study finds the same
+failure: the model under-calls High. Claude 2 produced 4 High judgments where Cochrane authors
+produced 22; GPT-4o's sensitivity for High was 53%. **A reference set with zero High cases cannot
+detect the one failure mode the field has already documented as universal.** That is an argument
+for expanding the set independent of the ceiling effect — and note it is the same failure our own
+flip layer (C3-C10) would produce.
+
+### The human ceiling is already published, and it is low
+
+| Study | Design | Agreement on the overall judgment |
+| --- | --- | --- |
+| Minozzi 2020 | 4 raters, 70 RCTs, RoB 2 | **Fleiss kappa 0.16** (D1 0.45, D2 0.04, D3 0.22, D5 0.30) |
+| Guelimi 2026 | 4 assessor pairs, 193 RCTs, RoB 2 | kappa 0.37-0.46 |
+| Minozzi 2022 | 4 raters, 80 results, before/after a written implementation document | **-0.15 before, 0.42 after** |
+| Armijo-Olivo 2014 | Cochrane authors vs 6 blinded external reviewers, RoB 1 | kappa 0.02, indistinguishable from chance |
+
+**No system can beat the humans it is imitating.** Two things follow. First, the per-domain
+difficulty ordering is stable across every study: D1 easiest, **D2/D3/D5 hardest** (kappa
+0.04-0.33). Our D5 problem sits in a domain humans agree on at kappa 0.20-0.30 — context, not an
+excuse, but it means a mechanism fix on D5 is defensible without chasing a shaky label. Second,
+**Minozzi 2022 is the most useful paper here for our architecture**: the jump from no agreement to
+moderate agreement came not from better raters but from a written operationalization of the
+signalling questions, about 40 hours of expert time. That is precisely what our methodology cards
+are, and it is a citable justification for them.
+
+### The state of the art is below what circulates
+
+| Study | n | Model | Agreement vs Cochrane authors |
+| --- | --- | --- | --- |
+| Nyrhi 2026 | 100 | o3, DeepSeek v3, Gemini, Grok 3 | kappa 0.06-0.13 |
+| Pitre 2023 | 157 | GPT-4 | kappa 0.16 |
+| Eisele-Metzger 2025 | 100 | Claude 2 | kappa 0.22 |
+| Kuitunen 2024 | 100 | GPT-4o | kappa 0.24 |
+| **Taneri 2025** | 84 | GPT-4o, signalling-question prompting | **kappa 0.51, best published** |
+
+**The bar is kappa around 0.5, not the 85-90% accuracy figure that circulates.** That number comes
+from Lai et al., JAMA Netw Open 2024, which used the **CLARITY tool, not RoB 2**. Do not cite it as
+a target and do not let a reviewer benchmark us against it.
+
+**One finding independently validates this project's architecture.** Huang 2025 (PMC12238788)
+reports accuracy rising from 55% to 95% on D2 and 70% to 90% overall when the RoB 2 algorithm is
+run over the model's signalling-question answers instead of asking the model for the domain
+judgment directly. That is exactly this pipeline's design — LLM on the signalling questions,
+deterministic Sterne judges downstream — and it is a claim we can make in a paper with a citation.
+
+### Risks
+
+1. **Wiley explicitly reserves AI rights over Cochrane data.** The licence grants non-commercial
+   extraction and redistribution, then carves out AI training and RAG and says developers "must
+   obtain authorization". Using published judgments as *evaluation labels* is arguably neither
+   training nor RAG, but that is our reading, not theirs. It is a one-email question with a named
+   contact. Note that no group has ever released a derived corpus of Cochrane judgments despite
+   several building one privately (RobotReviewer, RoBIn, RoBBR, RoBGuard) — that silence is
+   informative. Šuster's CC BY 4.0 file carries no such restriction.
+2. **Full-text retrieval is the bottleneck, not label extraction.** RoBGuard got 22% PMC coverage
+   from 1,472 RCTs. Labels will outnumber retrievable PDFs roughly 4 to 1.
+3. **Schema contamination.** Some data packages use an author-defined custom tool that looks like
+   RoB 2 at a glance — study-level rather than outcome-level, and emitting **"Unclear risk"**,
+   which is RoB 1 vocabulary that RoB 2 abolished. Filter on the exact canonical column names and
+   reject any file containing "Unclear risk", or the labels get silently poisoned in a way that
+   looks like model error.
+4. **The ceiling makes a good result look like failure.** If a reviewer expects 90% agreement, a
+   correct system at human level reads as broken. Report the human baseline beside our number
+   every time.
+5. **The reference labels are themselves noisy** (Armijo-Olivo: kappa 0.02 between Cochrane authors
+   and independent reviewers). Chasing the last few points against a label that unstable is
+   overfitting to one review team's idiosyncrasies.
+
+### The cheapest next experiment: 3 to 4 hours
+
+Download Šuster's `release_rob2.csv` (CC BY 4.0, no permission needed, no scraping), take the 218
+trial DOIs, measure how many resolve to full text through the existing PDF pipeline, and run the
+current system against the subset that resolves. In one afternoon that yields a 20x larger
+reference set, a non-zero High rate, multiple disease areas, and the first honest accuracy number
+against a real distribution. **Run it before anyone writes a scraper.** If it works, the Cochrane
+data-package harvest becomes a scale-up rather than a gamble.
+
+---
+
 ## What is not broken
 
 Worth stating plainly, because it constrains where fixes should go.
@@ -613,8 +902,8 @@ mark anything unproven as low confidence.
 | Scoring and benchmark code | 12 plus verified arithmetic |
 | Judging layer and auto-flips | 15 plus the full flip table |
 | Plumbing and failure modes | 20 |
-| Dead code and needless complexity | see below |
-| Reference-set expansion feasibility | see below |
+| Dead code and needless complexity | 25 plus the compression-layer measurement |
+| Reference-set expansion feasibility | viable, with a same-day option |
 
 I independently re-verified the most consequential claims rather than taking them on trust:
 
